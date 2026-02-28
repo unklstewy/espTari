@@ -370,8 +370,8 @@ build_and_deploy_frontend() {
     log_info "Building Vue+Vite frontend..."
     (cd "$FRONTEND_DIR" && npm run build --silent 2>&1)
     
-    if [[ ! -d "$FRONTEND_DIR/dist" ]]; then
-        log_error "Frontend build failed — dist/ not created"
+    if [[ ! -d "$FRONTEND_DIR/dist" || ! -f "$FRONTEND_DIR/dist/index.html" ]]; then
+        log_error "Frontend build failed — dist/index.html not found"
         return 1
     fi
 
