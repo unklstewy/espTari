@@ -1,5 +1,6 @@
 {
     "chat.tools.terminal.autoApprove": {
         "mkdir": true
-    }
+    },
+    "idf.currentSetup": "/home/sannis/.espressif/v5.5.2/esp-idf"
 }

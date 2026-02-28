@@ -198,17 +198,18 @@ def extract_sections(config: EbinConfig, elf_file: str) -> Tuple[bytes, bytes, i
             size = int(match.group(4), 16)
             sections[name] = {'addr': addr, 'offset': offset, 'size': size}
     
-    # Extract .text (code)
+    # Extract .text + .rodata as unified code section
+    # (.rodata must be contiguous with .text for PC-relative addressing to work)
     code_bin = tempfile.mktemp(suffix='.bin')
-    cmd = [objcopy, '-O', 'binary', '-j', '.text', elf_file, code_bin]
+    cmd = [objcopy, '-O', 'binary', '-j', '.text', '-j', '.rodata', elf_file, code_bin]
     subprocess.run(cmd, check=True)
     with open(code_bin, 'rb') as f:
         code_data = f.read()
     os.unlink(code_bin)
     
-    # Extract .data
+    # Extract .data only (not .rodata, it's in code section now)
     data_bin = tempfile.mktemp(suffix='.bin')
-    cmd = [objcopy, '-O', 'binary', '-j', '.data', '-j', '.rodata', elf_file, data_bin]
+    cmd = [objcopy, '-O', 'binary', '-j', '.data', elf_file, data_bin]
     result = subprocess.run(cmd, capture_output=True)
     if result.returncode == 0 and os.path.exists(data_bin):
         with open(data_bin, 'rb') as f:
