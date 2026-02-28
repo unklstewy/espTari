@@ -214,9 +214,14 @@ def extract_sections(config: EbinConfig, elf_file: str) -> Tuple[bytes, bytes, i
         code_data = f.read()
     os.unlink(code_bin)
     
-    # Extract .data only (not .rodata, it's in code section now)
+    # Extract .data + .got + .got.plt as unified data section
+    # The GOT must be contiguous with .data so PC-relative auipc+lw reaches it.
+    # We include all writable non-BSS sections in a single binary extraction.
     data_bin = tempfile.mktemp(suffix='.bin')
-    cmd = [objcopy, '-O', 'binary', '-j', '.data', elf_file, data_bin]
+    data_sections = ['-j', '.data']
+    if '.got' in sections:
+        data_sections += ['-j', '.got']
+    cmd = [objcopy, '-O', 'binary'] + data_sections + [elf_file, data_bin]
     result = subprocess.run(cmd, capture_output=True)
     if result.returncode == 0 and os.path.exists(data_bin):
         with open(data_bin, 'rb') as f:
@@ -275,24 +280,23 @@ def get_entry_offset(config: EbinConfig, elf_file: str) -> int:
 def extract_relocations(config: EbinConfig, elf_file: str) -> List[Relocation]:
     """Extract relocations from ELF file"""
     readelf = f'{config.toolchain_prefix}readelf'
+    objcopy = f'{config.toolchain_prefix}objcopy'
     
-    # First, get section addresses
+    # First, get section addresses and sizes
     result = subprocess.run([readelf, '-S', elf_file], capture_output=True, text=True)
     section_addrs = {}
+    section_sizes = {}
     for line in result.stdout.split('\n'):
         # Parse section entries: [Nr] Name Type Addr Off Size ...
-        if '.text' in line:
-            match = re.search(r'\.text\s+\S+\s+([0-9a-fA-F]+)', line)
-            if match:
-                section_addrs['text'] = int(match.group(1), 16)
-        elif '.data' in line and '.rel' not in line:
-            match = re.search(r'\.data\s+\S+\s+([0-9a-fA-F]+)', line)
-            if match:
-                section_addrs['data'] = int(match.group(1), 16)
-        elif '.rodata' in line and '.rel' not in line:
-            match = re.search(r'\.rodata\s+\S+\s+([0-9a-fA-F]+)', line)
-            if match:
-                section_addrs['rodata'] = int(match.group(1), 16)
+        # Match sections precisely (exact name match to avoid .rela.text matching .text)
+        for sec_name in ['text', 'data', 'rodata', 'got', 'bss']:
+            # Use word boundary matching: section name followed by whitespace and type
+            pattern = r'\.' + sec_name + r'\s+(\S+)\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)'
+            if re.search(r'\]\s+\.' + sec_name + r'\s', line):
+                match = re.search(pattern, line)
+                if match:
+                    section_addrs[sec_name] = int(match.group(2), 16)
+                    section_sizes[sec_name] = int(match.group(4), 16)
     
     text_base = section_addrs.get('text', 0)
     data_base = section_addrs.get('data', 0)
@@ -339,6 +343,59 @@ def extract_relocations(config: EbinConfig, elf_file: str) -> List[Relocation]:
                 reloc_type=EBIN_RELOC_ABSOLUTE,
                 section=current_section
             ))
+    
+    # Synthesize relocations for GOT entries
+    # With -fPIC, the compiler accesses globals via GOT. The GOT is merged into
+    # .data by our linker script, but the linker doesn't emit relocations for
+    # resolved GOT entries. We scan the GOT content and add relocations for any
+    # entries that contain valid EBIN-internal addresses.
+    got_addr = section_addrs.get('got')
+    got_size = section_sizes.get('got', 0)
+    
+    if got_addr is not None and got_size > 0:
+        # Total addressable range of the EBIN
+        bss_end = section_addrs.get('bss', 0) + section_sizes.get('bss', 0)
+        
+        # Read GOT content via readelf hex dump
+        got_result = subprocess.run([readelf, '-x', '.got', elf_file],
+                                     capture_output=True, text=True)
+        
+        # Parse the hex dump to read GOT entries
+        data_bytes = {}
+        for hline in got_result.stdout.split('\n'):
+            hmatch = re.match(r'\s+0x([0-9a-fA-F]+)\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)', hline)
+            if hmatch:
+                addr = int(hmatch.group(1), 16)
+                for i, grp in enumerate([hmatch.group(2), hmatch.group(3), hmatch.group(4), hmatch.group(5)]):
+                    word_bytes = bytes.fromhex(grp)
+                    data_bytes[addr + i * 4] = struct.unpack('<I', word_bytes)[0]
+        
+        # Check each GOT entry
+        got_reloc_count = 0
+        existing_offsets = {r.offset for r in relocations if r.section == 1}
+        
+        for i in range(0, got_size, 4):
+            entry_addr = got_addr + i
+            entry_value = data_bytes.get(entry_addr, 0)
+            
+            # Offset of this GOT entry within the .data section
+            data_offset = entry_addr - data_base
+            
+            # Skip if already has a relocation
+            if data_offset in existing_offsets:
+                continue
+            
+            # If the entry contains a valid EBIN-internal address, add a relocation
+            if 0 < entry_value <= bss_end:
+                relocations.append(Relocation(
+                    offset=data_offset,
+                    reloc_type=EBIN_RELOC_ABSOLUTE,
+                    section=1  # data section
+                ))
+                got_reloc_count += 1
+        
+        if got_reloc_count > 0:
+            print(f"Synthesized {got_reloc_count} GOT relocation(s)")
     
     return relocations
 
@@ -417,6 +474,13 @@ SECTIONS
     .data : {
         *(.data .data.*)
         *(.sdata .sdata.*)
+    }
+    
+    . = ALIGN(4);
+    
+    .got : {
+        *(.got)
+        *(.got.plt)
     }
     
     . = ALIGN(4);

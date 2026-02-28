@@ -14,14 +14,23 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# EBIN source locations (in order of preference)
-EBIN_SOURCES=(
+# EBIN component definitions: "source_path:sdcard_dest_dir"
+# Each entry maps a build artifact to its SD card location.
+# The script will search for each EBIN and copy it if found.
+
+# Test component (I/O type)
+TEST_COMPONENT_SOURCES=(
     "$PROJECT_ROOT/tools/ebin_builder/test_component/test_component.ebin"
     "$PROJECT_ROOT/test_apps/esptari_loader_integration/spiffs_data/test_component.ebin"
 )
+TEST_COMPONENT_DIR="components"
 
-# Target directory on SD card
-TARGET_DIR="components"
+# MC68000 CPU core
+M68K_SOURCES=(
+    "$PROJECT_ROOT/test_apps/m68000_cpu_test/m68000.ebin"
+    "/tmp/m68000.ebin"
+)
+M68K_DIR="cores/cpu"
 
 # Colors for output
 RED='\033[0;31m'
@@ -215,62 +224,96 @@ verify_and_mount() {
     log_success "Mounted successfully"
 }
 
-# Find EBIN source file
-find_ebin_source() {
-    for src in "${EBIN_SOURCES[@]}"; do
+# Find first existing file from a list of paths
+# Sets FOUND_FILE to the path, or empty if none found
+find_first_file() {
+    local -n paths=$1
+    FOUND_FILE=""
+    for src in "${paths[@]}"; do
         if [[ -f "$src" ]]; then
-            EBIN_SOURCE="$src"
-            log_success "Found EBIN: $src"
+            FOUND_FILE="$src"
             return 0
         fi
     done
-    
-    log_error "No EBIN file found!"
-    echo ""
-    echo "Expected locations:"
-    for src in "${EBIN_SOURCES[@]}"; do
-        echo "  - $src"
-    done
-    echo ""
-    echo "Please build the test component first:"
-    echo "  cd $PROJECT_ROOT/tools/ebin_builder/test_component"
-    echo "  make"
-    exit 1
+    return 1
 }
 
-# Create directory structure and copy files
-setup_sdcard() {
-    local target_path="$MOUNT_POINT/$TARGET_DIR"
-    
-    log_info "Creating directory structure..."
-    
-    # Create components directory
-    if [[ ! -d "$target_path" ]]; then
-        mkdir -p "$target_path"
-        log_success "Created: $TARGET_DIR/"
+# Discover all available EBINs
+find_ebin_sources() {
+    EBIN_ENTRIES=()  # array of "source:dest_dir" pairs
+    local found_any=0
+
+    # Test component
+    if find_first_file TEST_COMPONENT_SOURCES; then
+        EBIN_ENTRIES+=("$FOUND_FILE:$TEST_COMPONENT_DIR")
+        log_success "Found test_component: $FOUND_FILE"
+        found_any=1
     else
-        log_info "Directory exists: $TARGET_DIR/"
+        log_warn "test_component.ebin not found (skipping)"
     fi
-    
-    # Copy EBIN file
-    local ebin_name=$(basename "$EBIN_SOURCE")
-    local dest_file="$target_path/$ebin_name"
-    
-    log_info "Copying $ebin_name..."
-    cp "$EBIN_SOURCE" "$dest_file"
-    
-    # Verify copy
-    local src_size=$(stat -c%s "$EBIN_SOURCE")
-    local dst_size=$(stat -c%s "$dest_file")
-    
-    if [[ "$src_size" -eq "$dst_size" ]]; then
-        log_success "Copied: $ebin_name ($src_size bytes)"
+
+    # MC68000 CPU core
+    if find_first_file M68K_SOURCES; then
+        EBIN_ENTRIES+=("$FOUND_FILE:$M68K_DIR")
+        log_success "Found m68000: $FOUND_FILE"
+        found_any=1
     else
-        log_error "Size mismatch after copy!"
+        log_warn "m68000.ebin not found (skipping)"
+    fi
+
+    if [[ $found_any -eq 0 ]]; then
+        log_error "No EBIN files found!"
+        echo ""
+        echo "Build components first:"
+        echo "  Test component:  cd $PROJECT_ROOT/tools/ebin_builder && bash build_test.sh"
+        echo "  M68000 CPU core: cd $PROJECT_ROOT && python3 tools/ebin_builder/ebin_builder.py \\"
+        echo "                     cores/cpu/m68000/m68000.c cores/cpu/m68000/m68000_ea.c \\"
+        echo "                     cores/cpu/m68000/m68000_ops.c -o m68000.ebin -t cpu -v"
         exit 1
     fi
-    
-    # Sync to ensure write completes
+}
+
+# Create directory structure and copy all discovered EBINs
+setup_sdcard() {
+    log_info "Creating directory structure and copying EBINs..."
+    echo ""
+
+    local copied=0
+
+    for entry in "${EBIN_ENTRIES[@]}"; do
+        local src="${entry%%:*}"
+        local dest_dir="${entry#*:}"
+        local target_path="$MOUNT_POINT/$dest_dir"
+        local ebin_name=$(basename "$src")
+        local dest_file="$target_path/$ebin_name"
+
+        # Create target directory
+        if [[ ! -d "$target_path" ]]; then
+            mkdir -p "$target_path"
+            log_success "Created: $dest_dir/"
+        fi
+
+        # Copy EBIN file
+        log_info "Copying $ebin_name -> $dest_dir/"
+        cp "$src" "$dest_file"
+
+        # Verify copy
+        local src_size=$(stat -c%s "$src")
+        local dst_size=$(stat -c%s "$dest_file")
+
+        if [[ "$src_size" -eq "$dst_size" ]]; then
+            log_success "Copied: $dest_dir/$ebin_name ($src_size bytes)"
+            copied=$((copied + 1))
+        else
+            log_error "Size mismatch for $ebin_name!"
+            exit 1
+        fi
+    done
+
+    echo ""
+    log_info "Copied $copied EBIN file(s)"
+
+    # Sync to ensure writes complete
     sync
     log_success "Filesystem synced"
 }
@@ -283,18 +326,40 @@ show_summary() {
     echo "========================================"
     echo ""
     echo "SD Card Contents:"
-    ls -la "$MOUNT_POINT/$TARGET_DIR/"
+
+    # Show each destination directory
+    local shown_dirs=()
+    for entry in "${EBIN_ENTRIES[@]}"; do
+        local dest_dir="${entry#*:}"
+        # Avoid showing the same dir twice
+        local already=0
+        for d in "${shown_dirs[@]}"; do
+            [[ "$d" == "$dest_dir" ]] && already=1
+        done
+        if [[ $already -eq 0 ]]; then
+            echo "  /$dest_dir/:"
+            ls -la "$MOUNT_POINT/$dest_dir/" 2>/dev/null | grep -v '^total' | sed 's/^/    /'
+            shown_dirs+=("$dest_dir")
+        fi
+    done
+
     echo ""
     echo "The SD card is ready for use with espTari."
     echo ""
-    
+
     if [[ -n "$NEEDS_UNMOUNT" ]]; then
         echo "To safely remove the SD card:"
         echo "  sudo umount $MOUNT_POINT"
         echo ""
     fi
-    
-    echo "Expected path on ESP32: /sdcard/$TARGET_DIR/test_component.ebin"
+
+    echo "Expected paths on ESP32:"
+    for entry in "${EBIN_ENTRIES[@]}"; do
+        local src="${entry%%:*}"
+        local dest_dir="${entry#*:}"
+        local name=$(basename "$src")
+        echo "  /sdcard/$dest_dir/$name"
+    done
 }
 
 # Cleanup on exit
@@ -318,7 +383,7 @@ main() {
     
     detect_sdcard
     verify_and_mount
-    find_ebin_source
+    find_ebin_sources
     setup_sdcard
     show_summary
 }
