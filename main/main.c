@@ -18,6 +18,7 @@
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
+#include "sd_pwr_ctrl_by_on_chip_ldo.h"
 
 #include "esptari_loader.h"
 #include "esptari_core.h"
@@ -58,7 +59,7 @@ static esp_err_t init_spiffs(void)
     ESP_LOGI(TAG, "Initializing SPIFFS");
     
     esp_vfs_spiffs_conf_t conf = {
-        .base_path = "/config",
+        .base_path = "/spiffs",
         .partition_label = "spiffs",
         .max_files = 5,
         .format_if_mount_failed = true
@@ -87,6 +88,9 @@ static esp_err_t init_spiffs(void)
 
 /**
  * @brief Initialize SD card for ROM and component storage
+ *
+ * ESP32-P4-NANO: SD card on SDMMC Slot 0 (Slot 1 is used by ESP-Hosted for C6).
+ * Requires on-chip LDO channel 4 to power the SD card I/O domain.
  */
 static esp_err_t init_sdcard(void)
 {
@@ -101,15 +105,35 @@ static esp_err_t init_sdcard(void)
     sdmmc_card_t *card;
     const char mount_point[] = "/sdcard";
     
-    ESP_LOGI(TAG, "Using SDMMC peripheral");
+    ESP_LOGI(TAG, "Using SDMMC peripheral (Slot 0)");
+    
+    // Enable on-chip LDO channel 4 for SD card power
+    sd_pwr_ctrl_ldo_config_t ldo_config = {
+        .ldo_chan_id = 4,
+    };
+    sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
+    esp_err_t ret = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to init SD LDO power (%s)", esp_err_to_name(ret));
+        return ret;
+    }
     
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
     host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
+    host.slot = SDMMC_HOST_SLOT_0;          // Slot 0 = SD card (Slot 1 = ESP-Hosted C6)
+    host.pwr_ctrl_handle = pwr_ctrl_handle;
     
     sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
-    slot_config.width = 4;  // 4-bit SD mode
+    slot_config.width = 4;
+    slot_config.clk = 43;
+    slot_config.cmd = 44;
+    slot_config.d0  = 39;
+    slot_config.d1  = 40;
+    slot_config.d2  = 41;
+    slot_config.d3  = 42;
+    slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
     
-    esp_err_t ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, 
+    ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, 
                                              &mount_config, &card);
     if (ret != ESP_OK) {
         if (ret == ESP_FAIL) {
