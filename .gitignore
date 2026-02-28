@@ -20,3 +20,7 @@ CMakeUserPresets.json
 build/
 sdkconfig
 sdkconfig.old
+
+# TOS ROM images and cache (downloaded by scraper)
+assets/emulator/*/
+assets/emulator/.tos_cache/
