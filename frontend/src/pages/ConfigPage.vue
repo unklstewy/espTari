@@ -5,9 +5,9 @@ import { api, type MachineProfile, type EmulatorConfig } from '../services/api'
 
 const config = ref<EmulatorConfig>({
   machine: 'st',
-  display: { resolution: 'low', crt_effects: false },
-  audio: { sample_rate: 44100, volume: 80 },
-  memory: { ram_kb: 1024 },
+  memory_kb: 1024,
+  display: { resolution: 'low', palette: 'st' },
+  audio: { enabled: true, sample_rate: 44100 },
 })
 const saving = ref(false)
 const saveMsg = ref('')
@@ -71,12 +71,11 @@ onMounted(loadConfig)
         </select>
       </div>
       <div class="config-row">
-        <label>CRT Effects</label>
-        <label class="toggle">
-          <input type="checkbox" v-model="config.display.crt_effects" />
-          <span class="toggle-slider"></span>
-          Scanlines + curvature
-        </label>
+        <label>Palette</label>
+        <select class="config-select" v-model="config.display.palette">
+          <option value="st">ST</option>
+          <option value="ste">STe (4096 colors)</option>
+        </select>
       </div>
     </div>
 
@@ -90,9 +89,11 @@ onMounted(loadConfig)
         </select>
       </div>
       <div class="config-row">
-        <label>Volume</label>
-        <input type="range" min="0" max="100" v-model.number="config.audio.volume" class="config-range" />
-        <span class="config-value">{{ config.audio.volume }}%</span>
+        <label>Enabled</label>
+        <label class="toggle">
+          <input type="checkbox" v-model="config.audio.enabled" />
+          <span class="toggle-slider"></span>
+        </label>
       </div>
     </div>
 
@@ -100,7 +101,7 @@ onMounted(loadConfig)
       <h3 class="section-title">Memory</h3>
       <div class="config-row">
         <label>RAM Size</label>
-        <select class="config-select" v-model.number="config.memory.ram_kb">
+        <select class="config-select" v-model.number="config.memory_kb">
           <option :value="512">512 KB</option>
           <option :value="1024">1024 KB (1 MB)</option>
           <option :value="2048">2048 KB (2 MB)</option>

@@ -19,8 +19,9 @@ export interface MachineProfile {
   mmu: string
   memory: { ram_kb: number; rom: string }
   video: { chip: string; default_resolution: string }
-  audio: { chip: string }
+  audio: { chip?: string; chips?: string[] }
   peripherals: string[]
+  notes?: string
 }
 
 export interface EmulatorState {
@@ -114,9 +115,14 @@ export interface StreamStatsResponse {
 
 export interface EmulatorConfig {
   machine: string
-  display: { resolution: string; crt_effects: boolean }
-  audio: { sample_rate: number; volume: number }
-  memory: { ram_kb: number }
+  tos_rom?: string
+  memory_kb: number
+  auto_start?: boolean
+  web_port?: number
+  stream_port?: number
+  display: { resolution: string; palette?: string; crt_effects?: boolean }
+  audio: { enabled?: boolean; sample_rate: number; volume?: number }
+  input?: { mouse_speed?: number; joystick_port?: number }
 }
 
 export interface OtaStatus {

@@ -48,7 +48,7 @@ onMounted(load)
           · {{ m.memory.ram_kb }}KB
         </div>
         <div class="machine-chips">
-          {{ [m.video.chip, m.audio.chip, ...m.peripherals].join(' · ') }}
+          {{ [m.video.chip, ...(m.audio.chips ?? (m.audio.chip ? [m.audio.chip] : [])), ...m.peripherals].join(' · ') }}
         </div>
       </button>
     </div>
