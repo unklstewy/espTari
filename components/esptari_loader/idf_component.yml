@@ -1,0 +1,6 @@
+version: "0.1.0"
+description: "espTari Dynamic Component Loader"
+
+dependencies:
+  idf:
+    version: ">=5.0.0"

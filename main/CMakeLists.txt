@@ -1,0 +1,13 @@
+idf_component_register(
+    SRCS
+        "main.c"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        esptari_loader
+        esp_psram
+        fatfs
+        spiffs
+        nvs_flash
+        app_update
+)
