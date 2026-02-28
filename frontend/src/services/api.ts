@@ -26,7 +26,9 @@ export interface MachineProfile {
 export interface EmulatorState {
   state: string          // stopped | running | paused | error
   free_heap: number
+  total_heap: number
   free_psram: number
+  total_psram: number
   min_free_heap: number
   uptime_ms: number
 }

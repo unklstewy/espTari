@@ -32,14 +32,13 @@ function fmtUptime(ms: number): string {
 }
 
 function heapPercent(s: EmulatorState): number {
-  // Rough estimate: ESP32-P4 has ~450KB internal SRAM
-  const total = 450 * 1024
-  return Math.round((s.free_heap / total) * 100)
+  if (!s.total_heap) return 0
+  return Math.min(100, Math.round((s.free_heap / s.total_heap) * 100))
 }
 
 function psramPercent(s: EmulatorState): number {
-  const total = 32 * 1024 * 1024 // 32MB PSRAM
-  return Math.round((s.free_psram / total) * 100)
+  if (!s.total_psram) return 0
+  return Math.min(100, Math.round((s.free_psram / s.total_psram) * 100))
 }
 
 onMounted(() => { poll(); timer = setInterval(poll, 3000) })
@@ -88,7 +87,7 @@ onUnmounted(() => clearInterval(timer))
         <div class="progress-bar">
           <div class="progress-fill psram" :style="{ width: psramPercent(status) + '%' }"></div>
         </div>
-        <div class="stat-detail">{{ psramPercent(status) }}% free of 32 MB</div>
+        <div class="stat-detail">{{ psramPercent(status) }}% free of {{ fmtBytes(status.total_psram) }}</div>
       </div>
     </div>
 

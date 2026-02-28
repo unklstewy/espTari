@@ -257,17 +257,21 @@ static const char *state_to_str(esptari_state_t s)
 static esp_err_t system_get_handler(httpd_req_t *req)
 {
     esptari_state_t st = esptari_core_get_state();
-    char buf[256];
+    char buf[384];
     int len = snprintf(buf, sizeof(buf),
         "{\"state\":\"%s\","
         "\"free_heap\":%lu,"
+        "\"total_heap\":%lu,"
         "\"free_psram\":%lu,"
+        "\"total_psram\":%lu,"
         "\"min_free_heap\":%lu,"
         "\"uptime_ms\":%lld}",
         state_to_str(st),
-        (unsigned long)esp_get_free_heap_size(),
+        (unsigned long)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+        (unsigned long)heap_caps_get_total_size(MALLOC_CAP_INTERNAL),
         (unsigned long)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
-        (unsigned long)esp_get_minimum_free_heap_size(),
+        (unsigned long)heap_caps_get_total_size(MALLOC_CAP_SPIRAM),
+        (unsigned long)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
         (long long)(esp_log_timestamp())
     );
     httpd_resp_set_type(req, "application/json");
