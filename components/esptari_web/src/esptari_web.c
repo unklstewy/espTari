@@ -10,6 +10,8 @@
  * SPDX-License-Identifier: MIT
  */
 #include "esptari_web.h"
+#include "esptari_core.h"
+#include "esptari_network.h"
 #include "esp_log.h"
 #include "esp_http_server.h"
 #include "esp_chip_info.h"
@@ -17,6 +19,7 @@
 #include "esp_mac.h"
 #include <stdio.h>
 #include <string.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #include <errno.h>
 
@@ -238,6 +241,215 @@ static const httpd_uri_t uri_status = {
     .handler   = status_get_handler,
 };
 
+/* ── /api/system — emulator state ──────────────────────────────────── */
+
+static const char *state_to_str(esptari_state_t s)
+{
+    switch (s) {
+        case ESPTARI_STATE_STOPPED: return "stopped";
+        case ESPTARI_STATE_RUNNING: return "running";
+        case ESPTARI_STATE_PAUSED:  return "paused";
+        case ESPTARI_STATE_ERROR:   return "error";
+        default:                    return "unknown";
+    }
+}
+
+static esp_err_t system_get_handler(httpd_req_t *req)
+{
+    esptari_state_t st = esptari_core_get_state();
+    char buf[256];
+    int len = snprintf(buf, sizeof(buf),
+        "{\"state\":\"%s\","
+        "\"free_heap\":%lu,"
+        "\"free_psram\":%lu,"
+        "\"min_free_heap\":%lu,"
+        "\"uptime_ms\":%lld}",
+        state_to_str(st),
+        (unsigned long)esp_get_free_heap_size(),
+        (unsigned long)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+        (unsigned long)esp_get_minimum_free_heap_size(),
+        (long long)(esp_log_timestamp())
+    );
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, buf, len);
+}
+
+static const httpd_uri_t uri_system = {
+    .uri       = "/api/system",
+    .method    = HTTP_GET,
+    .handler   = system_get_handler,
+};
+
+/* ── /api/machines — list machine profiles from SD card ────────────── */
+
+static esp_err_t machines_get_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+
+    DIR *dir = opendir("/sdcard/machines");
+    if (!dir) {
+        return httpd_resp_send(req, "[]", 2);
+    }
+
+    /* Build a JSON array by reading each .json file and emitting it */
+    httpd_resp_send_chunk(req, "[", 1);
+    bool first = true;
+    struct dirent *ent;
+    char path[296];        /* /sdcard/machines/ (18) + d_name (255) + NUL */
+    char fbuf[512];
+
+    while ((ent = readdir(dir)) != NULL) {
+        /* Skip non-json files */
+        const char *dot = strrchr(ent->d_name, '.');
+        if (!dot || strcasecmp(dot, ".json") != 0) continue;
+
+        snprintf(path, sizeof(path), "/sdcard/machines/%s", ent->d_name);
+        FILE *f = fopen(path, "r");
+        if (!f) continue;
+
+        size_t n = fread(fbuf, 1, sizeof(fbuf) - 1, f);
+        fclose(f);
+        if (n == 0) continue;
+        fbuf[n] = '\0';
+
+        if (!first) httpd_resp_send_chunk(req, ",", 1);
+        httpd_resp_send_chunk(req, fbuf, n);
+        first = false;
+    }
+    closedir(dir);
+
+    httpd_resp_send_chunk(req, "]", 1);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static const httpd_uri_t uri_machines = {
+    .uri       = "/api/machines",
+    .method    = HTTP_GET,
+    .handler   = machines_get_handler,
+};
+
+/* ── /api/roms — list ROM/TOS files from SD card ──────────────────── */
+
+static void list_roms_in_dir(httpd_req_t *req, const char *dirpath,
+                             const char *category, bool *first)
+{
+    DIR *dir = opendir(dirpath);
+    if (!dir) return;
+
+    struct dirent *ent;
+    struct stat st;
+    char path[296];        /* dirpath + / + d_name (255) + NUL */
+    char json[320];
+
+    while ((ent = readdir(dir)) != NULL) {
+        if (ent->d_name[0] == '.') continue;   /* skip hidden / .gitkeep */
+
+        snprintf(path, sizeof(path), "%s/%s", dirpath, ent->d_name);
+        if (stat(path, &st) != 0 || !S_ISREG(st.st_mode)) continue;
+
+        int len = snprintf(json, sizeof(json),
+            "%s{\"name\":\"%s\",\"category\":\"%s\",\"size\":%ld}",
+            (*first) ? "" : ",",
+            ent->d_name, category, (long)st.st_size);
+        httpd_resp_send_chunk(req, json, len);
+        *first = false;
+    }
+    closedir(dir);
+}
+
+static esp_err_t roms_get_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send_chunk(req, "[", 1);
+
+    bool first = true;
+    list_roms_in_dir(req, "/sdcard/roms/tos",        "tos",       &first);
+    list_roms_in_dir(req, "/sdcard/roms/cartridges",  "cartridge", &first);
+    list_roms_in_dir(req, "/sdcard/roms/bios",        "bios",      &first);
+
+    httpd_resp_send_chunk(req, "]", 1);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static const httpd_uri_t uri_roms = {
+    .uri       = "/api/roms",
+    .method    = HTTP_GET,
+    .handler   = roms_get_handler,
+};
+
+/* ── /api/network/status — network interface info ─────────────────── */
+
+static const char *if_status_str(esptari_if_status_t s)
+{
+    switch (s) {
+        case ESPTARI_IF_STATUS_DOWN:      return "down";
+        case ESPTARI_IF_STATUS_STARTED:   return "started";
+        case ESPTARI_IF_STATUS_CONNECTED: return "connected";
+        case ESPTARI_IF_STATUS_GOT_IP:    return "got_ip";
+        default:                          return "unknown";
+    }
+}
+
+static esp_err_t network_status_get_handler(httpd_req_t *req)
+{
+    esptari_net_config_t cfg;
+    esptari_if_info_t wifi_info = {0};
+    esptari_if_info_t eth_info  = {0};
+
+    esptari_net_get_config(&cfg);
+    esptari_net_get_if_info(ESPTARI_IF_WIFI, &wifi_info);
+    esptari_net_get_if_info(ESPTARI_IF_ETH,  &eth_info);
+    bool connected = esptari_net_is_connected();
+
+    char buf[640];
+    int len = snprintf(buf, sizeof(buf),
+        "{"
+        "\"connected\":%s,"
+        "\"hostname\":\"%s\","
+        "\"wifi\":{"
+            "\"enabled\":%s,"
+            "\"status\":\"%s\","
+            "\"ip\":\"%s\","
+            "\"netmask\":\"%s\","
+            "\"gateway\":\"%s\","
+            "\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\""
+        "},"
+        "\"ethernet\":{"
+            "\"enabled\":%s,"
+            "\"status\":\"%s\","
+            "\"ip\":\"%s\","
+            "\"netmask\":\"%s\","
+            "\"gateway\":\"%s\","
+            "\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\""
+        "},"
+        "\"mdns_enabled\":%s"
+        "}",
+        connected ? "true" : "false",
+        cfg.hostname,
+        cfg.wifi_enabled ? "true" : "false",
+        if_status_str(wifi_info.status),
+        wifi_info.ip, wifi_info.netmask, wifi_info.gateway,
+        wifi_info.mac[0], wifi_info.mac[1], wifi_info.mac[2],
+        wifi_info.mac[3], wifi_info.mac[4], wifi_info.mac[5],
+        cfg.eth_enabled ? "true" : "false",
+        if_status_str(eth_info.status),
+        eth_info.ip, eth_info.netmask, eth_info.gateway,
+        eth_info.mac[0], eth_info.mac[1], eth_info.mac[2],
+        eth_info.mac[3], eth_info.mac[4], eth_info.mac[5],
+        cfg.mdns_enabled ? "true" : "false"
+    );
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, buf, len);
+}
+
+static const httpd_uri_t uri_network_status = {
+    .uri       = "/api/network/status",
+    .method    = HTTP_GET,
+    .handler   = network_status_get_handler,
+};
+
 /* ── Server lifecycle ──────────────────────────────────────────────── */
 
 esp_err_t esptari_web_init(uint16_t port)
@@ -247,6 +459,7 @@ esp_err_t esptari_web_init(uint16_t port)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = port;
     config.uri_match_fn = httpd_uri_match_wildcard;
+    config.max_uri_handlers = 12;       /* API endpoints + wildcard catch-all */
 
     esp_err_t ret = httpd_start(&s_server, &config);
     if (ret != ESP_OK) {
@@ -256,6 +469,10 @@ esp_err_t esptari_web_init(uint16_t port)
 
     /* Register API routes first (matched before the wildcard) */
     httpd_register_uri_handler(s_server, &uri_status);
+    httpd_register_uri_handler(s_server, &uri_system);
+    httpd_register_uri_handler(s_server, &uri_machines);
+    httpd_register_uri_handler(s_server, &uri_roms);
+    httpd_register_uri_handler(s_server, &uri_network_status);
 
     /* Wildcard catch-all — serves SD card files or embedded fallback */
     const httpd_uri_t uri_catch_all = {
@@ -274,14 +491,7 @@ esp_err_t esptari_web_init(uint16_t port)
         ESP_LOGI(TAG, "Tip: place web files in %s/ on the SD card", WEB_ROOT);
     }
 
-    /* TODO: Register more API handlers:
-     *   POST /api/machine — load machine profile
-     *   POST /api/control — start/stop/reset
-     *   GET  /api/roms    — list available ROMs
-     *   WS   /ws          — streaming endpoint (Phase 3)
-     */
-
-    ESP_LOGI(TAG, "Web server started on port %u", port);
+    ESP_LOGI(TAG, "Web server started — %d API endpoints + file server", 5);
     return ESP_OK;
 }
 
