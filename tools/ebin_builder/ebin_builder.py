@@ -104,13 +104,15 @@ def find_toolchain() -> str:
     raise RuntimeError("Could not find RISC-V toolchain. Ensure ESP-IDF is installed and sourced.")
 
 
-def compile_sources(config: EbinConfig, output_obj: str) -> None:
-    """Compile C sources to object file"""
+def compile_sources(config: EbinConfig, output_dir: str) -> List[str]:
+    """Compile C sources to object files (one per source)
+    
+    Returns list of object file paths.
+    """
     gcc = f'{config.toolchain_prefix}gcc'
     
-    # Build compile command
-    cmd = [
-        gcc,
+    # Common compile flags
+    common_flags = [
         '-c',
         '-fPIC',                    # Position-independent code
         '-fno-common',              # No common symbols
@@ -127,32 +129,38 @@ def compile_sources(config: EbinConfig, output_obj: str) -> None:
     ]
     
     if config.debug:
-        cmd.append('-g')
+        common_flags.append('-g')
     
     # Add include directories
     for inc in config.include_dirs:
-        cmd.extend(['-I', inc])
+        common_flags.extend(['-I', inc])
     
     # Add defines
     for define in config.defines:
-        cmd.extend(['-D', define])
+        common_flags.extend(['-D', define])
     
-    # Add output
-    cmd.extend(['-o', output_obj])
+    obj_files = []
+    for src in config.sources:
+        # Derive object file name from source file name
+        src_basename = os.path.splitext(os.path.basename(src))[0]
+        obj_file = os.path.join(output_dir, f'{src_basename}.o')
+        
+        cmd = [gcc] + common_flags + ['-o', obj_file, src]
+        
+        print(f"Compiling: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            print(f"Compilation failed for {src}:\n{result.stderr}")
+            sys.exit(1)
+        
+        obj_files.append(obj_file)
     
-    # Add sources
-    cmd.extend(config.sources)
-    
-    print(f"Compiling: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    
-    if result.returncode != 0:
-        print(f"Compilation failed:\n{result.stderr}")
-        sys.exit(1)
+    return obj_files
 
 
-def link_object(config: EbinConfig, obj_file: str, output_elf: str, linker_script: str) -> None:
-    """Link object file with linker script"""
+def link_object(config: EbinConfig, obj_files: List[str], output_elf: str, linker_script: str) -> None:
+    """Link object files with linker script"""
     ld = f'{config.toolchain_prefix}ld'
     
     cmd = [
@@ -164,8 +172,7 @@ def link_object(config: EbinConfig, obj_file: str, output_elf: str, linker_scrip
         '--no-relax',  # Disable relaxation (preserves auipc+addi pairs)
         '--gc-sections',
         '-q',  # Emit relocations
-        obj_file,
-    ]
+    ] + obj_files
     
     print(f"Linking: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -483,18 +490,17 @@ def main():
     
     # Create temp directory for intermediates
     with tempfile.TemporaryDirectory() as tmpdir:
-        obj_file = os.path.join(tmpdir, 'component.o')
         elf_file = os.path.join(tmpdir, 'component.elf')
         ld_script = os.path.join(tmpdir, 'component.ld')
         
         # Create linker script
         create_linker_script(ld_script)
         
-        # Compile sources
-        compile_sources(config, obj_file)
+        # Compile sources (one .o per source file)
+        obj_files = compile_sources(config, tmpdir)
         
-        # Link
-        link_object(config, obj_file, elf_file, ld_script)
+        # Link all object files
+        link_object(config, obj_files, elf_file, ld_script)
         
         # Extract sections
         code, data, bss_size = extract_sections(config, elf_file)
