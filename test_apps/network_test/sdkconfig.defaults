@@ -1,13 +1,13 @@
-# espTari SDK Configuration Defaults
-# Target: ESP32-P4
+# espTari Network Test - SDK Configuration Defaults
+# Target: ESP32-P4-NANO
 
 # Target chip
 CONFIG_IDF_TARGET="esp32p4"
 
-# Partition table
+# Partition table (use espTari's main partition table)
 CONFIG_PARTITION_TABLE_CUSTOM=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
-CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="../../partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="../../partitions.csv"
 
 # Flash size (16MB)
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
@@ -24,12 +24,11 @@ CONFIG_SPIRAM_USE_CAPS_ALLOC=y
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_400=y
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=400
 
-# Heap
-CONFIG_HEAP_POISONING_LIGHT=y
-
 # FreeRTOS
 CONFIG_FREERTOS_HZ=1000
-CONFIG_FREERTOS_TIMER_TASK_STACK_DEPTH=3072
+
+# Main task needs extra stack for YAML serialization + logging
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 
 # Log level
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
@@ -38,25 +37,18 @@ CONFIG_LOG_DEFAULT_LEVEL=3
 # SPIFFS
 CONFIG_SPIFFS_MAX_PARTITIONS=1
 
-# FAT filesystem
-CONFIG_FATFS_LFN_HEAP=y
-CONFIG_FATFS_MAX_LFN=255
-
-# SD card
-CONFIG_SOC_SDMMC_USE_GPIO_MATRIX=y
-
 # Ethernet (internal EMAC + IP101 PHY)
 CONFIG_ETH_ENABLED=y
 CONFIG_ETH_USE_ESP32_EMAC=y
 
-# WiFi (via ESP32-C6 co-processor)
+# WiFi — disable SoftAP support (STA only)
 CONFIG_ESP_WIFI_SOFTAP_SUPPORT=n
-
-# OTA
-CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
-
-# Watchdog
-CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
 
 # Optimization
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+# Watchdog — generous for network init
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=15
+
+# lwIP — needed for mDNS and networking
+CONFIG_LWIP_IPV6=n

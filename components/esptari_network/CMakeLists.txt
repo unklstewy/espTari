@@ -1,0 +1,15 @@
+idf_component_register(
+    SRCS
+        "esptari_network.c"
+        "esptari_yaml.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        esp_wifi
+        esp_eth
+        esp_netif
+        esp_event
+        nvs_flash
+        mdns
+        spiffs
+)

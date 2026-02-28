@@ -24,3 +24,7 @@ sdkconfig.old
 # TOS ROM images and cache (downloaded by scraper)
 assets/emulator/*/
 assets/emulator/.tos_cache/
+
+# IDF Component Manager downloaded dependencies
+managed_components/
+dependencies.lock

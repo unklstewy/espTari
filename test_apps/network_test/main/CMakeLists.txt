@@ -1,0 +1,13 @@
+idf_component_register(
+    SRCS
+        "network_test_main.c"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        esptari_network
+        esp_wifi
+        esp_eth
+        esp_netif
+        nvs_flash
+        spiffs
+)
