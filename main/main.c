@@ -213,6 +213,9 @@ void app_main(void)
     // Initialize core emulation framework
     esptari_core_init();
 
+    // Initialize input subsystem
+    esptari_input_init();
+
     // Initialize web server (if network is up)
     if (esptari_net_is_connected()) {
         esptari_web_init(CONFIG_ESPTARI_WEB_PORT);

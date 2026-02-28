@@ -12,13 +12,18 @@
 #include "esptari_web.h"
 #include "esptari_core.h"
 #include "esptari_network.h"
+#include "esptari_input.h"
 #include "esptari_stream.h"
 #include "esp_log.h"
 #include "esp_http_server.h"
 #include "esp_chip_info.h"
 #include "esp_system.h"
 #include "esp_mac.h"
+#include "esp_ota_ops.h"
+#include "esp_partition.h"
+#include "esp_app_format.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -285,6 +290,62 @@ static const httpd_uri_t uri_system = {
     .handler   = system_get_handler,
 };
 
+/* ── POST /api/system — control emulator (start/stop/pause/reset) ──── */
+
+static esp_err_t system_post_handler(httpd_req_t *req)
+{
+    char body[128];
+    int len = httpd_req_recv(req, body, sizeof(body) - 1);
+    if (len <= 0) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty body");
+        return ESP_OK;
+    }
+    body[len] = '\0';
+
+    /* Minimal JSON parse: find "action":"<value>" */
+    const char *a = strstr(body, "\"action\"");
+    if (!a) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing action"); return ESP_OK; }
+    const char *q1 = strchr(a + 8, '"'); /* opening quote after colon */
+    if (!q1) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Bad JSON"); return ESP_OK; }
+    q1++;  /* skip quote */
+    const char *q2 = strchr(q1, '"');
+    if (!q2) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Bad JSON"); return ESP_OK; }
+    char action[16] = {0};
+    size_t alen = q2 - q1;
+    if (alen >= sizeof(action)) alen = sizeof(action) - 1;
+    memcpy(action, q1, alen);
+
+    esp_err_t ret = ESP_OK;
+    if (strcmp(action, "start") == 0) {
+        ret = esptari_core_start();
+    } else if (strcmp(action, "stop") == 0) {
+        esptari_core_stop();
+    } else if (strcmp(action, "pause") == 0) {
+        esptari_core_pause();
+    } else if (strcmp(action, "resume") == 0) {
+        esptari_core_resume();
+    } else if (strcmp(action, "reset") == 0) {
+        esptari_core_reset();
+    } else {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Unknown action");
+        return ESP_OK;
+    }
+
+    if (ret != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, esp_err_to_name(ret));
+        return ESP_OK;
+    }
+
+    /* Return updated state */
+    return system_get_handler(req);
+}
+
+static const httpd_uri_t uri_system_post = {
+    .uri       = "/api/system",
+    .method    = HTTP_POST,
+    .handler   = system_post_handler,
+};
+
 /* ── /api/machines — list machine profiles from SD card ────────────── */
 
 static esp_err_t machines_get_handler(httpd_req_t *req)
@@ -487,6 +548,494 @@ static const httpd_uri_t uri_stream_stats = {
     .handler   = stream_stats_get_handler,
 };
 
+/* ── /api/config — emulation configuration (read/write to SD card) ──── */
+
+#define CONFIG_PATH "/sdcard/config/esptari.json"
+#define CONFIG_MAX_SIZE 2048
+
+static esp_err_t config_get_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+    FILE *f = fopen(CONFIG_PATH, "r");
+    if (!f) {
+        /* Return defaults */
+        const char *def =
+            "{\"machine\":\"st\","
+            "\"display\":{\"resolution\":\"low\",\"crt_effects\":false},"
+            "\"audio\":{\"sample_rate\":44100,\"volume\":80},"
+            "\"memory\":{\"ram_kb\":1024}}";
+        return httpd_resp_send(req, def, strlen(def));
+    }
+    char *buf = malloc(CONFIG_MAX_SIZE);
+    if (!buf) { fclose(f); httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OOM"); return ESP_OK; }
+    size_t n = fread(buf, 1, CONFIG_MAX_SIZE - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    httpd_resp_send(req, buf, n);
+    free(buf);
+    return ESP_OK;
+}
+
+static const httpd_uri_t uri_config_get = {
+    .uri = "/api/config", .method = HTTP_GET, .handler = config_get_handler,
+};
+
+static esp_err_t config_put_handler(httpd_req_t *req)
+{
+    if (req->content_len > CONFIG_MAX_SIZE) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Config too large");
+        return ESP_OK;
+    }
+    char *buf = malloc(req->content_len + 1);
+    if (!buf) { httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OOM"); return ESP_OK; }
+    int len = httpd_req_recv(req, buf, req->content_len);
+    if (len <= 0) { free(buf); httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty body"); return ESP_OK; }
+    buf[len] = '\0';
+
+    FILE *f = fopen(CONFIG_PATH, "w");
+    if (!f) { free(buf); httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Cannot write config"); return ESP_OK; }
+    fwrite(buf, 1, len, f);
+    fclose(f);
+    free(buf);
+
+    ESP_LOGI(TAG, "Configuration saved (%d bytes)", len);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, "{\"ok\":true}", 11);
+}
+
+static const httpd_uri_t uri_config_put = {
+    .uri = "/api/config", .method = HTTP_PUT, .handler = config_put_handler,
+};
+
+/* ── /api/config/machine — get/set active machine ──────────────────── */
+
+static char s_active_machine[32] = "st";  /* default */
+
+static esp_err_t config_machine_get_handler(httpd_req_t *req)
+{
+    char buf[64];
+    int len = snprintf(buf, sizeof(buf), "{\"machine\":\"%s\"}", s_active_machine);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, buf, len);
+}
+
+static const httpd_uri_t uri_config_machine_get = {
+    .uri = "/api/config/machine", .method = HTTP_GET, .handler = config_machine_get_handler,
+};
+
+static esp_err_t config_machine_put_handler(httpd_req_t *req)
+{
+    char body[128];
+    int len = httpd_req_recv(req, body, sizeof(body) - 1);
+    if (len <= 0) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty body"); return ESP_OK; }
+    body[len] = '\0';
+
+    /* Parse "machine":"<value>" */
+    const char *m = strstr(body, "\"machine\"");
+    if (!m) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing machine"); return ESP_OK; }
+    const char *q1 = strchr(m + 9, '"');
+    if (!q1) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Bad JSON"); return ESP_OK; }
+    q1++;
+    const char *q2 = strchr(q1, '"');
+    if (!q2 || (size_t)(q2 - q1) >= sizeof(s_active_machine)) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Bad machine name");
+        return ESP_OK;
+    }
+    memcpy(s_active_machine, q1, q2 - q1);
+    s_active_machine[q2 - q1] = '\0';
+    ESP_LOGI(TAG, "Active machine set to '%s'", s_active_machine);
+
+    /* Map to enum and call core */
+    esptari_machine_t mach = ESPTARI_MACHINE_ST;
+    if (strcmp(s_active_machine, "stfm") == 0) mach = ESPTARI_MACHINE_STFM;
+    else if (strcmp(s_active_machine, "mega_st") == 0) mach = ESPTARI_MACHINE_MEGA_ST;
+    else if (strcmp(s_active_machine, "ste") == 0) mach = ESPTARI_MACHINE_STE;
+    else if (strcmp(s_active_machine, "mega_ste") == 0) mach = ESPTARI_MACHINE_MEGA_STE;
+    else if (strcmp(s_active_machine, "tt030") == 0) mach = ESPTARI_MACHINE_TT030;
+    else if (strcmp(s_active_machine, "falcon030") == 0) mach = ESPTARI_MACHINE_FALCON030;
+    esptari_core_load_machine(mach);
+
+    return config_machine_get_handler(req);
+}
+
+static const httpd_uri_t uri_config_machine_put = {
+    .uri = "/api/config/machine", .method = HTTP_PUT, .handler = config_machine_put_handler,
+};
+
+/* ── /api/disks — list disk images from SD card ────────────────────── */
+
+static void list_disks_in_dir(httpd_req_t *req, const char *dirpath,
+                              const char *dtype, bool *first)
+{
+    DIR *dir = opendir(dirpath);
+    if (!dir) return;
+
+    struct dirent *ent;
+    struct stat st;
+    char path[296];
+    char json[384];
+
+    while ((ent = readdir(dir)) != NULL) {
+        if (ent->d_name[0] == '.') continue;
+        snprintf(path, sizeof(path), "%s/%s", dirpath, ent->d_name);
+        if (stat(path, &st) != 0 || !S_ISREG(st.st_mode)) continue;
+
+        int len = snprintf(json, sizeof(json),
+            "%s{\"name\":\"%s\",\"type\":\"%s\",\"size\":%ld}",
+            (*first) ? "" : ",", ent->d_name, dtype, (long)st.st_size);
+        httpd_resp_send_chunk(req, json, len);
+        *first = false;
+    }
+    closedir(dir);
+}
+
+static esp_err_t disks_get_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send_chunk(req, "[", 1);
+
+    bool first = true;
+    list_disks_in_dir(req, "/sdcard/disks/floppy",  "floppy", &first);
+    list_disks_in_dir(req, "/sdcard/disks/hard",    "hard",   &first);
+
+    httpd_resp_send_chunk(req, "]", 1);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static const httpd_uri_t uri_disks = {
+    .uri = "/api/disks", .method = HTTP_GET, .handler = disks_get_handler,
+};
+
+/* ── POST /api/disks/mount — mount/eject disk ──────────────────────── */
+
+static char s_floppy_a[128] = "";   /* currently mounted floppy A: */
+static char s_floppy_b[128] = "";   /* currently mounted floppy B: */
+
+static esp_err_t disks_mount_handler(httpd_req_t *req)
+{
+    char body[256];
+    int len = httpd_req_recv(req, body, sizeof(body) - 1);
+    if (len <= 0) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty body"); return ESP_OK; }
+    body[len] = '\0';
+
+    /* Parse drive (0=A, 1=B) and path */
+    int drive = 0;
+    const char *d = strstr(body, "\"drive\"");
+    if (d) {
+        const char *colon = strchr(d + 7, ':');
+        if (colon) drive = atoi(colon + 1);
+    }
+
+    const char *p = strstr(body, "\"path\"");
+    char disk_path[128] = "";
+    if (p) {
+        const char *q1 = strchr(p + 6, '"');
+        if (q1) {
+            q1++;
+            const char *q2 = strchr(q1, '"');
+            if (q2 && (size_t)(q2 - q1) < sizeof(disk_path)) {
+                memcpy(disk_path, q1, q2 - q1);
+                disk_path[q2 - q1] = '\0';
+            }
+        }
+    }
+
+    char *dest = (drive == 1) ? s_floppy_b : s_floppy_a;
+    strlcpy(dest, disk_path, 128);
+    ESP_LOGI(TAG, "Mounted drive %c: %s", 'A' + drive, disk_path[0] ? disk_path : "(ejected)");
+
+    char resp[256];
+    int rlen = snprintf(resp, sizeof(resp),
+        "{\"ok\":true,\"drive\":%d,\"path\":\"%s\"}", drive, dest);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, resp, rlen);
+}
+
+static const httpd_uri_t uri_disks_mount = {
+    .uri = "/api/disks/mount", .method = HTTP_POST, .handler = disks_mount_handler,
+};
+
+/* ── /api/network/config — read/write network configuration ────────── */
+
+static esp_err_t network_config_get_handler(httpd_req_t *req)
+{
+    esptari_net_config_t cfg;
+    esptari_net_get_config(&cfg);
+
+    char buf[512];
+    int len = snprintf(buf, sizeof(buf),
+        "{\"wifi_enabled\":%s,\"eth_enabled\":%s,"
+        "\"hostname\":\"%s\",\"mdns_enabled\":%s,"
+        "\"wifi_ssid\":\"%s\","
+        "\"wifi_dhcp\":%s,\"wifi_ip\":\"%s\","
+        "\"wifi_netmask\":\"%s\",\"wifi_gateway\":\"%s\","
+        "\"eth_dhcp\":%s,\"eth_ip\":\"%s\","
+        "\"eth_netmask\":\"%s\",\"eth_gateway\":\"%s\","
+        "\"failover_enabled\":%s}",
+        cfg.wifi_enabled ? "true" : "false",
+        cfg.eth_enabled ? "true" : "false",
+        cfg.hostname, cfg.mdns_enabled ? "true" : "false",
+        (cfg.wifi_ap_count > 0) ? cfg.wifi_aps[0].ssid : "",
+        cfg.wifi_ip.dhcp ? "true" : "false",
+        cfg.wifi_ip.ip, cfg.wifi_ip.netmask, cfg.wifi_ip.gateway,
+        cfg.eth_ip.dhcp ? "true" : "false",
+        cfg.eth_ip.ip, cfg.eth_ip.netmask, cfg.eth_ip.gateway,
+        cfg.failover_enabled ? "true" : "false");
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, buf, len);
+}
+
+static const httpd_uri_t uri_network_config_get = {
+    .uri = "/api/network/config", .method = HTTP_GET, .handler = network_config_get_handler,
+};
+
+static esp_err_t network_config_put_handler(httpd_req_t *req)
+{
+    /* For now, save the raw JSON to the SPIFFS config file */
+    if (req->content_len > 1024) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Config too large");
+        return ESP_OK;
+    }
+    char *buf = malloc(req->content_len + 1);
+    if (!buf) { httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OOM"); return ESP_OK; }
+    int len = httpd_req_recv(req, buf, req->content_len);
+    if (len <= 0) { free(buf); httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty"); return ESP_OK; }
+    buf[len] = '\0';
+
+    /* TODO: Parse JSON and call esptari_net_set_config() */
+    ESP_LOGI(TAG, "Network config update received (%d bytes) — restart to apply", len);
+    free(buf);
+
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, "{\"ok\":true,\"note\":\"Restart to apply\"}", 37);
+}
+
+static const httpd_uri_t uri_network_config_put = {
+    .uri = "/api/network/config", .method = HTTP_PUT, .handler = network_config_put_handler,
+};
+
+/* ── /api/network/scan — scan for WiFi networks ───────────────────── */
+
+static esp_err_t network_scan_get_handler(httpd_req_t *req)
+{
+    /* WiFi scan — returns list of visible APs */
+    /* The ESP32-C6 co-processor handles WiFi. For now scan is not
+       directly accessible through esp_wifi (remote), so return
+       a status message indicating this. Real implementation would
+       call esp_wifi_scan_start / esp_wifi_scan_get_ap_records. */
+    httpd_resp_set_type(req, "application/json");
+    const char *msg = "{\"supported\":false,\"note\":\"WiFi scan via ESP32-C6 co-processor not yet implemented\",\"networks\":[]}";
+    return httpd_resp_send(req, msg, strlen(msg));
+}
+
+static const httpd_uri_t uri_network_scan = {
+    .uri = "/api/network/scan", .method = HTTP_GET, .handler = network_scan_get_handler,
+};
+
+/* ── /api/ota — firmware update management ─────────────────────────── */
+
+static esp_err_t ota_status_get_handler(httpd_req_t *req)
+{
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    const esp_partition_t *update = esp_ota_get_next_update_partition(NULL);
+    const esp_app_desc_t *app = esp_app_get_description();
+
+    char buf[512];
+    int len = snprintf(buf, sizeof(buf),
+        "{\"version\":\"%s\","
+        "\"idf_version\":\"%s\","
+        "\"compile_date\":\"%s\","
+        "\"compile_time\":\"%s\","
+        "\"running_partition\":\"%s\","
+        "\"next_update_partition\":\"%s\","
+        "\"secure_version\":%lu}",
+        app->version, app->idf_ver,
+        app->date, app->time,
+        running ? running->label : "unknown",
+        update ? update->label : "none",
+        (unsigned long)app->secure_version);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, buf, len);
+}
+
+static const httpd_uri_t uri_ota_status = {
+    .uri = "/api/ota/status", .method = HTTP_GET, .handler = ota_status_get_handler,
+};
+
+static esp_err_t ota_upload_handler(httpd_req_t *req)
+{
+    ESP_LOGI(TAG, "OTA upload started, content_len=%d", req->content_len);
+    const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
+    if (!update_partition) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No update partition");
+        return ESP_OK;
+    }
+
+    esp_ota_handle_t ota_handle;
+    esp_err_t ret = esp_ota_begin(update_partition, OTA_WITH_SEQUENTIAL_WRITES, &ota_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_begin failed: %s", esp_err_to_name(ret));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, esp_err_to_name(ret));
+        return ESP_OK;
+    }
+
+    char *buf = malloc(4096);
+    if (!buf) {
+        esp_ota_abort(ota_handle);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OOM");
+        return ESP_OK;
+    }
+
+    int received = 0;
+    int total = req->content_len;
+    while (received < total) {
+        int read = httpd_req_recv(req, buf, 4096);
+        if (read <= 0) {
+            ESP_LOGE(TAG, "OTA recv error at %d/%d", received, total);
+            free(buf);
+            esp_ota_abort(ota_handle);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Receive error");
+            return ESP_OK;
+        }
+        ret = esp_ota_write(ota_handle, buf, read);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "esp_ota_write failed: %s", esp_err_to_name(ret));
+            free(buf);
+            esp_ota_abort(ota_handle);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, esp_err_to_name(ret));
+            return ESP_OK;
+        }
+        received += read;
+    }
+    free(buf);
+
+    ret = esp_ota_end(ota_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_end failed: %s", esp_err_to_name(ret));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, esp_err_to_name(ret));
+        return ESP_OK;
+    }
+
+    ret = esp_ota_set_boot_partition(update_partition);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_set_boot_partition failed: %s", esp_err_to_name(ret));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, esp_err_to_name(ret));
+        return ESP_OK;
+    }
+
+    ESP_LOGI(TAG, "OTA update successful (%d bytes). Restarting...", total);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, "{\"ok\":true,\"message\":\"Firmware updated, rebooting...\"}", 54);
+
+    /* Give time for response to be sent, then reboot */
+    vTaskDelay(pdMS_TO_TICKS(500));
+    esp_restart();
+    return ESP_OK;  /* never reached */
+}
+
+static const httpd_uri_t uri_ota_upload = {
+    .uri = "/api/ota/upload", .method = HTTP_POST, .handler = ota_upload_handler,
+};
+
+static esp_err_t ota_rollback_handler(httpd_req_t *req)
+{
+    esp_err_t ret = esp_ota_mark_app_invalid_rollback_and_reboot();
+    if (ret != ESP_OK) {
+        char msg[96];
+        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"%s\"}", esp_err_to_name(ret));
+        httpd_resp_set_type(req, "application/json");
+        return httpd_resp_send(req, msg, strlen(msg));
+    }
+    /* Should not reach here — reboot happens above */
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, "{\"ok\":true}", 11);
+}
+
+static const httpd_uri_t uri_ota_rollback = {
+    .uri = "/api/ota/rollback", .method = HTTP_POST, .handler = ota_rollback_handler,
+};
+
+/* ── /ws/input — WebSocket endpoint for keyboard/mouse/joystick ────── */
+
+static esp_err_t ws_input_handler(httpd_req_t *req)
+{
+    if (req->method == HTTP_GET) {
+        /* WS handshake */
+        ESP_LOGI(TAG, "Input WS client connected (fd=%d)", httpd_req_to_sockfd(req));
+        return ESP_OK;
+    }
+
+    httpd_ws_frame_t ws_pkt;
+    memset(&ws_pkt, 0, sizeof(ws_pkt));
+    ws_pkt.type = HTTPD_WS_TYPE_BINARY;
+
+    /* First call to get length */
+    esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
+    if (ret != ESP_OK) return ret;
+    if (ws_pkt.len == 0) return ESP_OK;
+    if (ws_pkt.len > 64) return ESP_OK; /* ignore oversized */
+
+    uint8_t buf[64];
+    ws_pkt.payload = buf;
+    ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
+    if (ret != ESP_OK) return ret;
+
+    /*
+     * Binary input protocol:
+     *  [0] = type:  0x01=key, 0x02=mouse, 0x03=joystick
+     *
+     *  Key:    [0x01][scancode:1][pressed:1]
+     *  Mouse:  [0x02][dx:2LE][dy:2LE][buttons:1]  (buttons: bit0=left, bit1=right)
+     *  Joy:    [0x03][port:1][state:1]             (state: bit0=up..bit4=fire)
+     */
+    if (ws_pkt.len < 2) return ESP_OK;
+
+    switch (buf[0]) {
+    case 0x01: /* Key */
+        if (ws_pkt.len >= 3) {
+            esptari_input_key(buf[1], buf[2] != 0);
+        }
+        break;
+    case 0x02: /* Mouse */
+        if (ws_pkt.len >= 6) {
+            esptari_mouse_t m = {
+                .dx = (int16_t)(buf[1] | (buf[2] << 8)),
+                .dy = (int16_t)(buf[3] | (buf[4] << 8)),
+                .left = (buf[5] & 1) != 0,
+                .right = (buf[5] & 2) != 0,
+            };
+            esptari_input_mouse(&m);
+        }
+        break;
+    case 0x03: /* Joystick */
+        if (ws_pkt.len >= 3) {
+            esptari_joystick_t j = {
+                .up    = (buf[2] & 0x01) != 0,
+                .down  = (buf[2] & 0x02) != 0,
+                .left  = (buf[2] & 0x04) != 0,
+                .right = (buf[2] & 0x08) != 0,
+                .fire  = (buf[2] & 0x10) != 0,
+            };
+            esptari_input_joystick(buf[1], &j);
+        }
+        break;
+    default:
+        ESP_LOGD(TAG, "Unknown input type 0x%02x", buf[0]);
+        break;
+    }
+
+    return ESP_OK;
+}
+
+static const httpd_uri_t uri_ws_input = {
+    .uri       = "/ws/input",
+    .method    = HTTP_GET,
+    .handler   = ws_input_handler,
+    .is_websocket = true,
+    .handle_ws_control_frames = true,
+};
+
 /* ── Server lifecycle ──────────────────────────────────────────────── */
 
 esp_err_t esptari_web_init(uint16_t port)
@@ -496,7 +1045,8 @@ esp_err_t esptari_web_init(uint16_t port)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = port;
     config.uri_match_fn = httpd_uri_match_wildcard;
-    config.max_uri_handlers = 12;       /* API endpoints + wildcard catch-all */
+    config.max_uri_handlers = 24;       /* 19 API + /ws + /ws/input + wildcard + spare */
+    config.stack_size = 8192;           /* extra stack for OTA upload */
 
     esp_err_t ret = httpd_start(&s_server, &config);
     if (ret != ESP_OK) {
@@ -507,12 +1057,26 @@ esp_err_t esptari_web_init(uint16_t port)
     /* Register API routes first (matched before the wildcard) */
     httpd_register_uri_handler(s_server, &uri_status);
     httpd_register_uri_handler(s_server, &uri_system);
+    httpd_register_uri_handler(s_server, &uri_system_post);
     httpd_register_uri_handler(s_server, &uri_machines);
     httpd_register_uri_handler(s_server, &uri_roms);
     httpd_register_uri_handler(s_server, &uri_network_status);
     httpd_register_uri_handler(s_server, &uri_stream_stats);
+    httpd_register_uri_handler(s_server, &uri_config_get);
+    httpd_register_uri_handler(s_server, &uri_config_put);
+    httpd_register_uri_handler(s_server, &uri_config_machine_get);
+    httpd_register_uri_handler(s_server, &uri_config_machine_put);
+    httpd_register_uri_handler(s_server, &uri_disks);
+    httpd_register_uri_handler(s_server, &uri_disks_mount);
+    httpd_register_uri_handler(s_server, &uri_network_config_get);
+    httpd_register_uri_handler(s_server, &uri_network_config_put);
+    httpd_register_uri_handler(s_server, &uri_network_scan);
+    httpd_register_uri_handler(s_server, &uri_ota_status);
+    httpd_register_uri_handler(s_server, &uri_ota_upload);
+    httpd_register_uri_handler(s_server, &uri_ota_rollback);
+    httpd_register_uri_handler(s_server, &uri_ws_input);
 
-    ESP_LOGI(TAG, "Web server started — 6 API endpoints registered");
+    ESP_LOGI(TAG, "Web server started — 20 handlers registered");
     ESP_LOGI(TAG, "Call esptari_web_start_file_server() after registering WS endpoints");
     return ESP_OK;
 }

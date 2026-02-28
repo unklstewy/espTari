@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { api, type RomInfo } from '../services/api'
+import { api, type RomInfo, type DiskInfo } from '../services/api'
 
 const roms = ref<RomInfo[]>([])
+const disks = ref<DiskInfo[]>([])
 const loading = ref(true)
 const error = ref('')
+const mountedA = ref('')
+const mountedB = ref('')
+const mountMsg = ref('')
 
 async function load() {
   try {
-    roms.value = await api.getRoms()
-  } catch (e: any) {
-    error.value = e.message || 'Failed to load'
+    const [r, d] = await Promise.all([api.getRoms(), api.getDisks()])
+    roms.value = r
+    disks.value = d
+  } catch (e: unknown) {
+    error.value = (e as Error).message || 'Failed to load'
   } finally {
     loading.value = false
   }
@@ -19,6 +25,31 @@ async function load() {
 function fmtSize(bytes: number): string {
   if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`
   return `${(bytes / 1024).toFixed(0)} KB`
+}
+
+async function mountDisk(name: string, drive: number) {
+  try {
+    const path = `/sdcard/disks/floppy/${name}`
+    const res = await api.mountDisk({ drive, path })
+    if (drive === 0) mountedA.value = res.path
+    else mountedB.value = res.path
+    mountMsg.value = `Drive ${drive === 0 ? 'A' : 'B'}: ${name}`
+    setTimeout(() => mountMsg.value = '', 3000)
+  } catch (e: unknown) {
+    mountMsg.value = `Error: ${(e as Error).message}`
+  }
+}
+
+async function ejectDisk(drive: number) {
+  try {
+    await api.mountDisk({ drive, path: '' })
+    if (drive === 0) mountedA.value = ''
+    else mountedB.value = ''
+    mountMsg.value = `Drive ${drive === 0 ? 'A' : 'B'}: ejected`
+    setTimeout(() => mountMsg.value = '', 3000)
+  } catch (e: unknown) {
+    mountMsg.value = `Error: ${(e as Error).message}`
+  }
 }
 
 onMounted(load)
@@ -58,10 +89,43 @@ onMounted(load)
     <!-- Disk Images -->
     <div class="card file-section">
       <h3 class="section-title">Disk Images</h3>
-      <div class="placeholder">
-        Disk management coming in Phase 5.<br>
+      <div class="drive-status">
+        <span class="drive-label">
+          A: <strong>{{ mountedA || '(empty)' }}</strong>
+          <button v-if="mountedA" class="btn-sm" @click="ejectDisk(0)">⏏</button>
+        </span>
+        <span class="drive-label">
+          B: <strong>{{ mountedB || '(empty)' }}</strong>
+          <button v-if="mountedB" class="btn-sm" @click="ejectDisk(1)">⏏</button>
+        </span>
+        <span v-if="mountMsg" class="mount-msg">{{ mountMsg }}</span>
+      </div>
+      <div v-if="loading" class="placeholder">Loading…</div>
+      <div v-else-if="disks.length === 0" class="placeholder">
+        No disk images found.<br>
         <span class="hint">Place .st / .msa / .stx files in /sdcard/disks/floppy/</span>
       </div>
+      <table v-else class="file-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Size</th>
+            <th>Type</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="disk in disks" :key="disk.name">
+            <td class="fname">{{ disk.name }}</td>
+            <td>{{ fmtSize(disk.size) }}</td>
+            <td><span class="badge info">{{ disk.type }}</span></td>
+            <td class="disk-actions">
+              <button class="btn-sm" @click="mountDisk(disk.name, 0)" title="Insert in drive A:">A:</button>
+              <button class="btn-sm" @click="mountDisk(disk.name, 1)" title="Insert in drive B:">B:</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- SD Card Info -->
@@ -75,13 +139,6 @@ onMounted(load)
         <tr>
           <td class="label">Web Root</td>
           <td>/sdcard/www/</td>
-        </tr>
-        <tr>
-          <td class="label">Upload</td>
-          <td>
-            <button class="btn" disabled>📤 Upload File</button>
-            <span class="hint">Coming in Phase 5</span>
-          </td>
         </tr>
       </table>
     </div>
@@ -153,5 +210,36 @@ onMounted(load)
 .info-table .label {
   color: var(--text-muted);
   width: 100px;
+}
+.drive-status {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+.drive-label {
+  color: var(--text-secondary);
+}
+.mount-msg {
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+.disk-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+.btn-sm {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 4px);
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.btn-sm:hover {
+  border-color: var(--accent);
 }
 </style>

@@ -9,6 +9,7 @@ const navItems = [
   { path: '/config', label: 'Config', icon: '⚙️' },
   { path: '/files', label: 'Files', icon: '📁' },
   { path: '/network', label: 'Network', icon: '📡' },
+  { path: '/update', label: 'Update', icon: '🔄' },
 ]
 </script>
 

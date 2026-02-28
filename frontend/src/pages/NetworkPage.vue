@@ -1,20 +1,62 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { api, type NetworkStatus } from '../services/api'
+import { api, type NetworkStatus, type NetworkConfig } from '../services/api'
 
 const net = ref<NetworkStatus | null>(null)
+const config = ref<NetworkConfig | null>(null)
+const editing = ref(false)
 const loading = ref(true)
 const error = ref('')
+const saveMsg = ref('')
+const scanning = ref(false)
+const scanNote = ref('')
 let timer: ReturnType<typeof setInterval>
 
 async function poll() {
   try {
     net.value = await api.getNetworkStatus()
     error.value = ''
-  } catch (e: any) {
-    error.value = e.message || 'Failed to load'
+  } catch (e: unknown) {
+    error.value = (e as Error).message || 'Failed to load'
   } finally {
     loading.value = false
+  }
+}
+
+async function loadConfig() {
+  try {
+    config.value = await api.getNetworkConfig()
+    editing.value = true
+  } catch (e: unknown) {
+    saveMsg.value = `Error: ${(e as Error).message}`
+  }
+}
+
+async function saveConfig() {
+  if (!config.value) return
+  try {
+    const res = await api.setNetworkConfig(config.value)
+    saveMsg.value = res.note || 'Saved'
+    setTimeout(() => saveMsg.value = '', 5000)
+  } catch (e: unknown) {
+    saveMsg.value = `Error: ${(e as Error).message}`
+  }
+}
+
+async function doScan() {
+  scanning.value = true
+  scanNote.value = ''
+  try {
+    const res = await api.scanNetworks()
+    if (!res.supported) {
+      scanNote.value = res.note
+    } else {
+      scanNote.value = `Found ${res.networks.length} networks`
+    }
+  } catch (e: unknown) {
+    scanNote.value = `Error: ${(e as Error).message}`
+  } finally {
+    scanning.value = false
   }
 }
 
@@ -57,6 +99,12 @@ onUnmounted(() => clearInterval(timer))
             <td class="mono">{{ net.wifi.mac }}</td>
           </tr>
         </table>
+        <div class="scan-row">
+          <button class="btn" @click="doScan" :disabled="scanning">
+            {{ scanning ? 'Scanning…' : '📡 Scan WiFi' }}
+          </button>
+          <span v-if="scanNote" class="hint">{{ scanNote }}</span>
+        </div>
       </div>
 
       <!-- Ethernet -->
@@ -105,18 +153,48 @@ onUnmounted(() => clearInterval(timer))
         </table>
       </div>
 
-      <!-- Config hint -->
+      <!-- Configuration Editor -->
       <div class="card net-section">
         <h3 class="section-title">⚙️ Configuration</h3>
-        <p class="hint-text">
-          Network settings are stored in <code>/spiffs/network.yaml</code>
-          on the ESP32 internal flash. Edit via serial console or future
-          web-based editor.
-        </p>
-        <button class="btn" disabled style="margin-top:0.5rem">
-          ✏️ Edit network.yaml
-        </button>
-        <span class="hint" style="margin-left:0.5rem">Coming soon</span>
+        <div v-if="!editing">
+          <p class="hint-text">
+            Network settings are stored in <code>/spiffs/network.yaml</code>.
+          </p>
+          <button class="btn" @click="loadConfig" style="margin-top:0.5rem">
+            ✏️ Edit Configuration
+          </button>
+        </div>
+        <div v-else-if="config" class="config-editor">
+          <div class="config-row">
+            <label>Hostname</label>
+            <input type="text" v-model="config.hostname" class="config-input" />
+          </div>
+          <div class="config-row">
+            <label>WiFi Enabled</label>
+            <input type="checkbox" v-model="config.wifi_enabled" />
+          </div>
+          <div class="config-row">
+            <label>WiFi DHCP</label>
+            <input type="checkbox" v-model="config.wifi_dhcp" />
+          </div>
+          <div class="config-row">
+            <label>Ethernet Enabled</label>
+            <input type="checkbox" v-model="config.eth_enabled" />
+          </div>
+          <div class="config-row">
+            <label>Failover</label>
+            <input type="checkbox" v-model="config.failover_enabled" />
+          </div>
+          <div class="config-row">
+            <label>mDNS</label>
+            <input type="checkbox" v-model="config.mdns_enabled" />
+          </div>
+          <div class="config-actions">
+            <button class="btn primary" @click="saveConfig">💾 Save</button>
+            <button class="btn" @click="editing = false">Cancel</button>
+            <span v-if="saveMsg" class="save-msg">{{ saveMsg }}</span>
+          </div>
+        </div>
       </div>
     </template>
   </div>
@@ -183,5 +261,45 @@ onUnmounted(() => clearInterval(timer))
 .hint {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+.scan-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.config-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.config-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+.config-row label {
+  min-width: 120px;
+  color: var(--text-secondary);
+}
+.config-input {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 4px);
+  padding: 0.3rem 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+}
+.config-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.save-msg {
+  font-size: 0.85rem;
+  color: var(--accent);
 }
 </style>

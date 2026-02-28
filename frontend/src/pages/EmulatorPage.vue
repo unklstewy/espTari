@@ -3,22 +3,29 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import DisplayCanvas from '../components/DisplayCanvas.vue'
 import { StreamClient, type StreamStats } from '../services/StreamClient'
 import { AudioPlayer } from '../services/AudioPlayer'
+import { InputService } from '../services/InputService'
+import { api } from '../services/api'
 
 /* ── State ─────────────────────────────────────────────── */
 const jpegFrame = ref<Uint8Array | null>(null)
 const frameWidth = ref(0)
 const frameHeight = ref(0)
 const connected = ref(false)
+const emulatorState = ref<string>('stopped')
 const stats = ref<StreamStats>({
   connected: false, framesReceived: 0,
   audioChunksReceived: 0, bytesReceived: 0, fps: 0,
 })
 const audioMuted = ref(false)
 const audioStarted = ref(false)
+const inputActive = ref(false)
+const crtEnabled = ref(false)
+const displayArea = ref<HTMLElement | null>(null)
 
-/* ── Stream + Audio instances ──────────────────────────── */
+/* ── Stream + Audio + Input instances ──────────────────── */
 const stream = new StreamClient()
 const audio = new AudioPlayer()
+const input = new InputService()
 
 stream.onVideoFrame = (jpeg, meta) => {
   jpegFrame.value = jpeg
@@ -40,8 +47,26 @@ stream.onAudioChunk = (pcm, meta) => {
 stream.onConnected = () => { connected.value = true }
 stream.onDisconnected = () => { connected.value = false }
 
-/* Stats poll */
-let statsTimer: ReturnType<typeof setInterval> | null = null
+/* Stats + state poll */
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+async function pollState() {
+  stats.value = stream.stats
+  try {
+    const sys = await api.getSystem()
+    emulatorState.value = sys.state
+  } catch { /* ignore */ }
+}
+
+/* ── Emulator controls ─────────────────────────────────── */
+async function doAction(action: string) {
+  try {
+    const sys = await api.controlSystem(action)
+    emulatorState.value = sys.state
+  } catch (e: unknown) {
+    console.error('Control error:', e)
+  }
+}
 
 function toggleAudio() {
   if (!audioStarted.value) {
@@ -55,17 +80,31 @@ function toggleAudio() {
   audio.resume()
 }
 
+function toggleInput() {
+  if (inputActive.value) {
+    input.disable()
+    inputActive.value = false
+  } else {
+    input.connect()
+    input.enable(displayArea.value ?? undefined)
+    inputActive.value = true
+  }
+}
+
+function toggleCrt() {
+  crtEnabled.value = !crtEnabled.value
+}
+
 onMounted(() => {
   stream.connect()
-  statsTimer = setInterval(() => {
-    stats.value = stream.stats
-  }, 1000)
+  pollTimer = setInterval(pollState, 1000)
 })
 
 onUnmounted(() => {
   stream.disconnect()
   audio.stop()
-  if (statsTimer) clearInterval(statsTimer)
+  input.disconnect()
+  if (pollTimer) clearInterval(pollTimer)
 })
 </script>
 
@@ -74,12 +113,28 @@ onUnmounted(() => {
     <div class="emu-header">
       <h1 class="page-title">Emulator</h1>
       <div class="emu-controls">
-        <button class="btn primary" disabled title="Phase 4: Start emulation">
-          ▶ Start
+        <button
+          class="btn primary"
+          :disabled="emulatorState === 'running'"
+          @click="doAction(emulatorState === 'paused' ? 'resume' : 'start')"
+        >
+          ▶ {{ emulatorState === 'paused' ? 'Resume' : 'Start' }}
         </button>
-        <button class="btn" disabled>⏸ Pause</button>
-        <button class="btn" disabled>🔄 Reset</button>
-        <button class="btn danger" disabled>⏹ Stop</button>
+        <button
+          class="btn"
+          :disabled="emulatorState !== 'running'"
+          @click="doAction('pause')"
+        >⏸ Pause</button>
+        <button
+          class="btn"
+          :disabled="emulatorState === 'stopped'"
+          @click="doAction('reset')"
+        >🔄 Reset</button>
+        <button
+          class="btn danger"
+          :disabled="emulatorState === 'stopped'"
+          @click="doAction('stop')"
+        >⏹ Stop</button>
         <button
           class="btn"
           :class="{ active: !audioMuted && audioStarted }"
@@ -88,15 +143,42 @@ onUnmounted(() => {
         >
           {{ audioMuted || !audioStarted ? '🔇' : '🔊' }} Audio
         </button>
+        <button
+          class="btn"
+          :class="{ active: inputActive }"
+          @click="toggleInput"
+          :title="inputActive ? 'Release keyboard/mouse' : 'Capture keyboard/mouse'"
+        >
+          {{ inputActive ? '🎮' : '⌨️' }} Input
+        </button>
+        <button
+          class="btn"
+          :class="{ active: crtEnabled }"
+          @click="toggleCrt"
+          title="Toggle CRT effect"
+        >
+          📺 CRT
+        </button>
       </div>
     </div>
 
-    <DisplayCanvas
-      :jpegFrame="jpegFrame"
-      :frameWidth="frameWidth"
-      :frameHeight="frameHeight"
-      :connected="connected"
-    />
+    <div class="state-badge">
+      <span class="badge" :class="emulatorState === 'running' ? 'ok' : emulatorState === 'paused' ? 'warn' : 'info'">
+        {{ emulatorState.toUpperCase() }}
+      </span>
+    </div>
+
+    <div ref="displayArea" class="display-wrapper" :class="{ 'crt-effect': crtEnabled }">
+      <DisplayCanvas
+        :jpegFrame="jpegFrame"
+        :frameWidth="frameWidth"
+        :frameHeight="frameHeight"
+        :connected="connected"
+      />
+      <div v-if="inputActive && !input.mouseCaptured" class="capture-hint">
+        Click display to capture mouse
+      </div>
+    </div>
 
     <div class="emu-info card">
       <h3 class="section-title">Stream Status</h3>
@@ -156,6 +238,11 @@ onUnmounted(() => {
   display: flex;
   gap: 0.4rem;
 }
+.state-badge {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
 .section-title {
   font-size: 0.8rem;
   text-transform: uppercase;
@@ -175,5 +262,42 @@ onUnmounted(() => {
 .info-table .label {
   color: var(--text-muted);
   width: 100px;
+}
+
+/* ── CRT effect ──────────────────────────────────────── */
+.display-wrapper {
+  position: relative;
+}
+.crt-effect {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 30px rgba(0, 200, 255, 0.15), inset 0 0 60px rgba(0, 0, 0, 0.3);
+}
+.crt-effect::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.15) 2px,
+    rgba(0, 0, 0, 0.15) 4px
+  );
+  z-index: 10;
+}
+.capture-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 0.3rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.8em;
+  z-index: 20;
+  pointer-events: none;
 }
 </style>

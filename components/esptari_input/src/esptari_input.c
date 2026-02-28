@@ -18,19 +18,20 @@ esp_err_t esptari_input_init(void)
 
 void esptari_input_key(esptari_scancode_t scancode, bool pressed)
 {
-    (void)scancode; (void)pressed;
+    ESP_LOGD(TAG, "Key: scancode=0x%02x %s", scancode, pressed ? "pressed" : "released");
     /* TODO: Enqueue key event to IKBD ACIA */
 }
 
 void esptari_input_mouse(const esptari_mouse_t *mouse)
 {
-    (void)mouse;
+    ESP_LOGD(TAG, "Mouse: dx=%d dy=%d L=%d R=%d", mouse->dx, mouse->dy, mouse->left, mouse->right);
     /* TODO: Enqueue relative mouse packet to IKBD */
 }
 
 void esptari_input_joystick(int port, const esptari_joystick_t *joy)
 {
-    (void)port; (void)joy;
+    ESP_LOGD(TAG, "Joy%d: U=%d D=%d L=%d R=%d F=%d", port,
+             joy->up, joy->down, joy->left, joy->right, joy->fire);
     /* TODO: Update joystick register */
 }
 
