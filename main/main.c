@@ -20,6 +20,14 @@
 #include "driver/sdmmc_host.h"
 
 #include "esptari_loader.h"
+#include "esptari_core.h"
+#include "esptari_network.h"
+#include "esptari_video.h"
+#include "esptari_audio.h"
+#include "esptari_input.h"
+#include "esptari_storage.h"
+#include "esptari_web.h"
+#include "esptari_stream.h"
 
 static const char *TAG = "espTari";
 
@@ -163,16 +171,39 @@ void app_main(void)
         ESP_LOGE(TAG, "Failed to initialize component loader");
     }
     
+    // Initialize network manager (WiFi + Ethernet + mDNS)
+    ret = esptari_net_init();
+    if (ret == ESP_OK) {
+        esptari_net_start();
+        ESP_LOGI(TAG, "Waiting for network connectivity...");
+        ret = esptari_net_wait_connected(15000);  // 15s timeout
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "Network connected");
+        } else {
+            ESP_LOGW(TAG, "Network not available — web interface disabled");
+        }
+    } else {
+        ESP_LOGW(TAG, "Network init failed: %s", esp_err_to_name(ret));
+    }
+
+    // Initialize core emulation framework
+    esptari_core_init();
+
+    // Initialize web server (if network is up)
+    if (esptari_net_is_connected()) {
+        esptari_web_init(CONFIG_ESPTARI_WEB_PORT);
+    }
+
     // Mark OTA as successful if we got this far
     mark_ota_valid();
     
     ESP_LOGI(TAG, "Initialization complete");
+    ESP_LOGI(TAG, "Web interface: http://esptari.local:%d", CONFIG_ESPTARI_WEB_PORT);
+
+    // TODO: Load default machine profile (CONFIG_ESPTARI_DEFAULT_MACHINE)
+    // TODO: Auto-start emulation if CONFIG_ESPTARI_AUTO_START
     
-    // TODO: Initialize network manager
-    // TODO: Initialize web server
-    // TODO: Load default machine profile
-    
-    // Main loop placeholder
+    // Main loop — keep alive
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }

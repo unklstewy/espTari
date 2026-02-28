@@ -1,0 +1,25 @@
+# espTari Network Configuration
+network:
+  version: 1
+  renderer: esptari
+
+  ethernets:
+    eth0:
+      dhcp4: true
+
+  wifis:
+    wlan0:
+      dhcp4: true
+      optional: true
+      access-points:
+      priority: 10
+
+  routing:
+    default-interface: eth0
+    failover: true
+    failover-timeout-ms: 5000
+
+  services:
+    mdns:
+      enabled: true
+      hostname: esptari

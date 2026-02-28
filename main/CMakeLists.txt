@@ -4,7 +4,16 @@ idf_component_register(
     INCLUDE_DIRS
         "."
     REQUIRES
+        esptari_core
         esptari_loader
+        esptari_memory
+        esptari_network
+        esptari_storage
+        esptari_video
+        esptari_audio
+        esptari_input
+        esptari_web
+        esptari_stream
         esp_psram
         fatfs
         spiffs

@@ -1,0 +1,25 @@
+{
+    "name": "Atari Mega STe",
+    "model": "mega_ste",
+    "cpu": {
+        "core": "m68000",
+        "clock_hz": 16000000
+    },
+    "mmu": "ste_mmu",
+    "memory": {
+        "ram_kb": 4096,
+        "rom": "tos/tos206.img"
+    },
+    "video": {
+        "chip": "ste_shifter",
+        "default_resolution": "low"
+    },
+    "audio": {
+        "chips": ["ym2149", "dma_audio"]
+    },
+    "peripherals": [
+        "mfp68901",
+        "fdc_wd1772",
+        "blitter"
+    ]
+}

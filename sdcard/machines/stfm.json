@@ -1,0 +1,25 @@
+{
+    "name": "Atari STFM",
+    "model": "stfm",
+    "cpu": {
+        "core": "m68000",
+        "clock_hz": 8000000
+    },
+    "mmu": "st_mmu",
+    "memory": {
+        "ram_kb": 1024,
+        "rom": "tos/tos104.img"
+    },
+    "video": {
+        "chip": "shifter",
+        "default_resolution": "low"
+    },
+    "audio": {
+        "chip": "ym2149"
+    },
+    "peripherals": [
+        "mfp68901",
+        "fdc_wd1772"
+    ],
+    "notes": "STFM is ST with built-in floppy and RF modulator"
+}

@@ -1,0 +1,30 @@
+menu "espTari Configuration"
+
+    config ESPTARI_DEFAULT_MACHINE
+        string "Default machine profile"
+        default "st"
+        help
+            Name of the default machine profile to load on boot.
+            Must match a JSON file in /sdcard/machines/ (without .json extension).
+
+    config ESPTARI_WEB_PORT
+        int "Web server HTTP port"
+        default 80
+        help
+            Port number for the espTari web interface.
+
+    config ESPTARI_STREAM_PORT
+        int "Streaming WebSocket port"
+        default 8080
+        help
+            Port number for the A/V streaming WebSocket endpoint.
+
+    config ESPTARI_AUTO_START
+        bool "Auto-start emulation on boot"
+        default n
+        help
+            If enabled, the emulator will automatically start the default
+            machine profile after initialization. Otherwise, start via
+            the web interface.
+
+endmenu

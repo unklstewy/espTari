@@ -28,3 +28,7 @@ assets/emulator/.tos_cache/
 # IDF Component Manager downloaded dependencies
 managed_components/
 dependencies.lock
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/

@@ -1,0 +1,25 @@
+{
+    "name": "Atari Mega ST",
+    "model": "mega_st",
+    "cpu": {
+        "core": "m68000",
+        "clock_hz": 8000000
+    },
+    "mmu": "st_mmu",
+    "memory": {
+        "ram_kb": 4096,
+        "rom": "tos/tos206.img"
+    },
+    "video": {
+        "chip": "shifter",
+        "default_resolution": "low"
+    },
+    "audio": {
+        "chip": "ym2149"
+    },
+    "peripherals": [
+        "mfp68901",
+        "fdc_wd1772",
+        "blitter"
+    ]
+}
