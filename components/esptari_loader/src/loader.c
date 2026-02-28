@@ -177,8 +177,17 @@ esp_err_t loader_load_component(const char *path,
     ESP_LOGI(TAG, "Loading component: %s (%lu bytes)", path, 
              (unsigned long)total_size);
     
-    /* Allocate PSRAM for code + data + bss */
-    void *mem = heap_caps_malloc(total_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    /* Allocate memory for code + data + bss */
+    /* Note: We need MALLOC_CAP_EXEC for code to be executable.
+     * On ESP32-P4, only internal RAM (L2MEM) supports execution.
+     * Don't combine with MALLOC_CAP_8BIT as it may not be available.
+     */
+    void *mem = heap_caps_malloc(total_size, MALLOC_CAP_EXEC);
+    if (!mem) {
+        /* Fall back to SPIRAM - will NOT be executable */
+        ESP_LOGW(TAG, "No executable memory, trying SPIRAM (will NOT be executable!)");
+        mem = heap_caps_malloc(total_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    }
     if (!mem) {
         ESP_LOGE(TAG, "Failed to allocate %lu bytes in PSRAM",
                  (unsigned long)total_size);
@@ -239,6 +248,19 @@ esp_err_t loader_load_component(const char *path,
             return err;
         }
     }
+
+    /* Synchronize memory and instruction cache before executing loaded code.
+     * This is required because we loaded code into memory via data writes,
+     * and both the data cache and instruction cache may have stale data.
+     * On ESP32-P4, we must:
+     * 1. Complete all pending memory writes with fence
+     * 2. Write back data cache to memory with cache_hal_writeback_addr
+     * 3. Invalidate instruction cache with fence.i
+     */
+    __asm__ __volatile__("fence rw, rw" ::: "memory");
+    extern void cache_hal_writeback_addr(uint32_t vaddr, uint32_t size);
+    cache_hal_writeback_addr((uint32_t)comp->code_base, comp->header.code_size);
+    __asm__ __volatile__("fence.i" ::: "memory");
     
     /* Call entry point to get interface */
     component_entry_fn entry = (component_entry_fn)((uint8_t*)comp->code_base + 
