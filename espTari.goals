@@ -1,0 +1,49 @@
+You are an expert developer of 16bit home computer emulators, your particular focus is on the Atari brand of home compters the Atart ST, Atari STM, Atar STFM, Atari ST Mega,Atari Falcon.
+
+Your goal for this project is to create emulators for the Waveshare ESP32-P4-Mini development board. 
+
+The project will feature an advanced web interface that will provide a menubase configuration system to select the emulated system from the above systems. The web interface will also provide a means to render the output of the Atari home computers int the browser window.
+
+The devboard has the following characteristics:
+
+ESP32-P4-NANO is a dual-core RISC-V high-performance development board based on ESP32-P4 chip designed by Waveshare. It supports a wide range of human-computer interfaces, including MIPI-CSI (Integrated Image Signal Processor, ISP) and MIPI-DSI interfaces, as well as common peripherals such as SPI, I2S, I2C, LED PWM, MCPWM, RMT, ADC, UART, and TWAI™. It also supports USB OTG 2.0 HS, Ethernet, and SDIO Host 3.0 for high-speed connectivity. The chip integrates a digital signature peripheral and a dedicated key management unit to ensure its security. ESP32-P4-NANO is specifically designed for high-performance and high-security applications, fully meeting the higher demands of embedded applications in areas such as support for human-machine interfaces, edge computing capabilities, and IO connectivity characteristics.
+
+Features
+Processor
+Equipped with RISC-V 32-bit dual-core processor (HP system), it features DSP and instruction set expansions, along with floating point units (FPU), and the main frequency is up to 400MHz
+Equipped with a RISC-V 32-bit single-core processor (LP system) , the main frequency is up to 40MHz
+Equipped with ESP32-C6 WIFI/BT co-processor, expand WIFI 6/Bluetooth 5 and other functions through SDIO
+Memory
+128 KB of high-performance (HP) system read-only memory (ROM)
+16 KB of low-power (LP) system read-only memory (ROM)
+768 KB of high-performance (HP) L2 memory (L2MEM)
+32 KB of low-power (LP) SRAM
+8 KB of system tightly coupled memory (TCM)
+32 MB PSRAM is stacked in the package, and the QSPI interface is connected to 16MB Nor Flash
+Peripheral interfaces
+Onboard two-way 2*13 pin headers lead to 28 programmable GPIOs to support a wide range of peripherals
+Onboard Type-A USB 2.0 OTG interface, 100Mbps Ethernet interface, SDIO3.0 TF card slot, Type-C UART flashing port, for convenient use in different scenarios
+On-board speaker interface, microphone, Codec chip and power amplifier chip can be used to achieve the ideal audio function requirements
+Onboard MIPI-CSI high-definition camera interface, support full HD 1080P picture acquisition and encoding, integrated image signal processor (ISP) and H264 video encoder, support H.264 & JPEG video encoding (1080P @30fps), easy to apply to computer vision, machine vision and other fields
+On-board MIPI-DSI high-definition screen display interface, integrated pixel processing accelerator (PPA), 2D graphics acceleration controller (2D DMA), supporting JPEG image decoding (1080P @30fps), providing strong support for high-definition screen display and smooth HMI experience, convenient for application to smart home central control screen, industrial central control screen, vending machine and other scenarios
+Reserved PoE module interface makes the power supply mode of the development board more flexible, and only one network cable can be connected to the PoE device to enable the ESP32-S3-NANO series to network and power supply
+
+The documentation along with example code for using differnt board assets and onboard components can be found at: https://www.waveshare.com/wiki/ESP32-P4-Nano-StartPage
+
+The SD-Card slot can be used to store roms for versions of TOS, GEM, etc. The sdcard should be well structured with a directory layout that makes programtic sense.
+
+The code for the project should be atomic in nature creating a clear separation of concerns. 
+
+This will be a complex project as you will have to emulate multiple cycle accurate cpu and microcontroller designs ranging from the Motorola 68000 thru the 68060 each with it's own unique quirts, Memory management units, blitter chips for differnt systems, autdio processors, emulated hard disks, floppy controllers, ide interfaces etc. 
+
+I want you to first devise a master plan for implementation, tackling the low hanging fruit first and then proceeding through more complex tasks. 
+
+
+
+
+
+Web Interface Design can start fairly basic, but with the end goal of rendering the desktop in full screen mode, or inside of a mimic Atari CRT Monitor. Allow for usb gamepad to replicate joystick inputs, 
+
+Tool Chain: esp-idf: /home/sannis/esp/esp-idf
+Examples for Waveshare ESP32-P4-NANO and Components: /home/sannis/electronics/esp32p4/projects/espTari/examples
+ADHERE TO A STRICT COMMIT POLICY, CREATING BRANCHES AS WE ADD NEW FEATURES
