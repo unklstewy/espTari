@@ -86,7 +86,50 @@ static int op_group_0(uint16_t opcode)
 {
     int cycles = 4;  /* Base cycles */
     
-    /* Check for immediate operations */
+    /* BTST, BCHG, BCLR, BSET - immediate bit number ($08xx range)
+     * Must be checked BEFORE ALU immediate ops because bit 8 is also 0 */
+    if ((opcode & 0x0F00) == 0x0800) {
+        int bit_op = (opcode >> 6) & 0x3;
+        int mode = OP_MODE_SRC(opcode);
+        int reg = OP_REG_SRC(opcode);
+        
+        uint32_t bit_num = FETCH_WORD() & 0xFF;
+        
+        int size;
+        if (mode == EA_MODE_DREG) {
+            size = SIZE_LONG;
+            bit_num &= 31;
+        } else {
+            size = SIZE_BYTE;
+            bit_num &= 7;
+        }
+        
+        uint32_t data = m68k_read_ea(mode, reg, size);
+        uint32_t mask = 1 << bit_num;
+        
+        SET_FLAG_IF(SR_Z, !(data & mask));
+        
+        switch (bit_op) {
+            case 0: /* BTST */
+                break;
+            case 1: /* BCHG */
+                data ^= mask;
+                m68k_write_ea(mode, reg, size, data);
+                break;
+            case 2: /* BCLR */
+                data &= ~mask;
+                m68k_write_ea(mode, reg, size, data);
+                break;
+            case 3: /* BSET */
+                data |= mask;
+                m68k_write_ea(mode, reg, size, data);
+                break;
+        }
+        
+        return (size == SIZE_LONG) ? 12 : 10;
+    }
+    
+    /* Check for immediate ALU operations */
     if ((opcode & 0x0100) == 0) {
         /* ORI, ANDI, SUBI, ADDI, EORI, CMPI */
         int op = (opcode >> 9) & 0x7;
@@ -257,48 +300,6 @@ static int op_group_0(uint16_t opcode)
         return (size == SIZE_LONG) ? 8 : 6;
     }
     
-    /* BTST, BCHG, BCLR, BSET - immediate bit number */
-    if ((opcode & 0x0F00) == 0x0800) {
-        int bit_op = (opcode >> 6) & 0x3;
-        int mode = OP_MODE_SRC(opcode);
-        int reg = OP_REG_SRC(opcode);
-        
-        uint32_t bit_num = FETCH_WORD() & 0xFF;
-        
-        int size;
-        if (mode == EA_MODE_DREG) {
-            size = SIZE_LONG;
-            bit_num &= 31;
-        } else {
-            size = SIZE_BYTE;
-            bit_num &= 7;
-        }
-        
-        uint32_t data = m68k_read_ea(mode, reg, size);
-        uint32_t mask = 1 << bit_num;
-        
-        SET_FLAG_IF(SR_Z, !(data & mask));
-        
-        switch (bit_op) {
-            case 0: /* BTST */
-                break;
-            case 1: /* BCHG */
-                data ^= mask;
-                m68k_write_ea(mode, reg, size, data);
-                break;
-            case 2: /* BCLR */
-                data &= ~mask;
-                m68k_write_ea(mode, reg, size, data);
-                break;
-            case 3: /* BSET */
-                data |= mask;
-                m68k_write_ea(mode, reg, size, data);
-                break;
-        }
-        
-        return (size == SIZE_LONG) ? 12 : 10;
-    }
-    
 illegal:
     m68k_exception(VEC_ILLEGAL_INST);
     return 34;
@@ -329,12 +330,20 @@ static int op_move(uint16_t opcode)
     /* Read source */
     uint32_t value = m68k_read_ea(src_mode, src_reg, size);
     
-    /* Write destination */
-    /* Note: for MOVE, destination mode/reg are swapped in encoding */
-    m68k_write_ea(dst_mode, dst_reg, size, value);
-    
-    /* Set flags (N, Z cleared; V, C cleared) */
-    m68k_set_flags_move(size, value);
+    /* Check for MOVEA (destination is address register) */
+    if (dst_mode == EA_MODE_AREG) {
+        /* MOVEA: write full 32-bit An, no flags affected */
+        if (size == SIZE_WORD) {
+            g_cpu.a[dst_reg] = (uint32_t)(int32_t)(int16_t)value;
+        } else {
+            g_cpu.a[dst_reg] = value;
+        }
+        /* MOVEA does not set condition codes */
+    } else {
+        /* Normal MOVE: write destination and set flags */
+        m68k_write_ea(dst_mode, dst_reg, size, value);
+        m68k_set_flags_move(size, value);
+    }
     
     /* Add timing for long word operations */
     if (size == SIZE_LONG) {
@@ -364,13 +373,57 @@ static int op_group_4(uint16_t opcode)
     int reg = OP_REG_SRC(opcode);
     
     switch (subop) {
-        case 0x0: /* NEGX */
+        case 0x0: /* NEGX / MOVE from SR */
         case 0x2: /* CLR */
-        case 0x4: /* NEG */
-        case 0x6: /* NOT */
+        case 0x4: /* NEG / MOVE to CCR */
+        case 0x6: /* NOT / MOVE to SR */
         {
+            int size_bits = (opcode >> 6) & 0x3;
+            
+            /* Size field = 11 means MOVE to/from SR/CCR */
+            if (size_bits == 3) {
+                switch (subop) {
+                    case 0x0: {
+                        /* MOVE from SR (not privileged on 68000) */
+                        m68k_write_ea(mode, reg, SIZE_WORD, g_cpu.sr);
+                        cycles = (mode == EA_MODE_DREG) ? 6 : 8;
+                        break;
+                    }
+                    case 0x4: {
+                        /* MOVE to CCR */
+                        uint16_t val = (uint16_t)m68k_read_ea(mode, reg, SIZE_WORD);
+                        g_cpu.sr = (g_cpu.sr & 0xFF00) | (val & 0xFF);
+                        cycles = 12;
+                        break;
+                    }
+                    case 0x6: {
+                        /* MOVE to SR - privileged */
+                        if (!IS_SUPERVISOR()) {
+                            m68k_exception(VEC_PRIVILEGE);
+                            return 34;
+                        }
+                        uint16_t new_sr = (uint16_t)m68k_read_ea(mode, reg, SIZE_WORD);
+                        uint16_t old_sr = g_cpu.sr;
+                        g_cpu.sr = new_sr;
+                        /* Handle supervisor/user mode switch */
+                        if ((old_sr & SR_S) && !(new_sr & SR_S)) {
+                            g_cpu.ssp = g_cpu.a[7];
+                            g_cpu.a[7] = g_cpu.usp;
+                        } else if (!(old_sr & SR_S) && (new_sr & SR_S)) {
+                            g_cpu.usp = g_cpu.a[7];
+                            g_cpu.a[7] = g_cpu.ssp;
+                        }
+                        cycles = 12;
+                        break;
+                    }
+                    default:
+                        goto illegal;
+                }
+                break;
+            }
+            
             int size;
-            switch ((opcode >> 6) & 0x3) {
+            switch (size_bits) {
                 case 0: size = SIZE_BYTE; break;
                 case 1: size = SIZE_WORD; break;
                 case 2: size = SIZE_LONG; break;
@@ -458,6 +511,43 @@ static int op_group_4(uint16_t opcode)
                 g_cpu.a[7] -= 4;
                 WRITE_LONG(g_cpu.a[7], ea);
                 cycles = 12;
+            } else if (opcode & 0x0080) {
+                /* MOVEM register to memory */
+                int lsize = (opcode & 0x0040) ? SIZE_LONG : SIZE_WORD;
+                uint16_t mask = FETCH_WORD();
+                int inc = (lsize == SIZE_LONG) ? 4 : 2;
+                int count = 0;
+                
+                if (mode == EA_MODE_AREG_DEC) {
+                    /* Predecrement: reversed register order */
+                    uint32_t addr = g_cpu.a[reg];
+                    for (int i = 15; i >= 0; i--) {
+                        if (mask & (1 << i)) {
+                            addr -= inc;
+                            uint32_t val;
+                            if (i < 8)
+                                val = g_cpu.a[7 - i];
+                            else
+                                val = g_cpu.d[15 - i];
+                            if (lsize == SIZE_LONG) WRITE_LONG(addr, val);
+                            else WRITE_WORD(addr, (uint16_t)val);
+                            count++;
+                        }
+                    }
+                    g_cpu.a[reg] = addr;
+                } else {
+                    uint32_t addr = m68k_get_ea(mode, reg, lsize);
+                    for (int i = 0; i < 16; i++) {
+                        if (mask & (1 << i)) {
+                            uint32_t val = (i < 8) ? g_cpu.d[i] : g_cpu.a[i - 8];
+                            if (lsize == SIZE_LONG) WRITE_LONG(addr, val);
+                            else WRITE_WORD(addr, (uint16_t)val);
+                            addr += inc;
+                            count++;
+                        }
+                    }
+                }
+                cycles = 8 + count * ((lsize == SIZE_LONG) ? 8 : 4);
             }
             break;
             
@@ -617,6 +707,47 @@ static int op_group_4(uint16_t opcode)
                     g_cpu.pc = ea;
                     cycles = 16;
                 }
+            }
+            break;
+            
+        case 0xC:
+            if (opcode & 0x0080) {
+                /* MOVEM memory to register */
+                int lsize = (opcode & 0x0040) ? SIZE_LONG : SIZE_WORD;
+                uint16_t mask = FETCH_WORD();
+                int inc = (lsize == SIZE_LONG) ? 4 : 2;
+                int count = 0;
+                uint32_t addr;
+                
+                if (mode == EA_MODE_AREG_INC) {
+                    addr = g_cpu.a[reg];
+                } else {
+                    addr = m68k_get_ea(mode, reg, lsize);
+                }
+                
+                for (int i = 0; i < 16; i++) {
+                    if (mask & (1 << i)) {
+                        if (lsize == SIZE_LONG) {
+                            uint32_t val = READ_LONG(addr);
+                            if (i < 8) g_cpu.d[i] = val;
+                            else g_cpu.a[i - 8] = val;
+                        } else {
+                            int16_t val = (int16_t)READ_WORD(addr);
+                            if (i < 8) g_cpu.d[i] = (uint32_t)(int32_t)val;
+                            else g_cpu.a[i - 8] = (uint32_t)(int32_t)val;
+                        }
+                        addr += inc;
+                        count++;
+                    }
+                }
+                
+                if (mode == EA_MODE_AREG_INC) {
+                    g_cpu.a[reg] = addr;
+                }
+                
+                cycles = 12 + count * ((lsize == SIZE_LONG) ? 8 : 4);
+            } else {
+                goto illegal;
             }
             break;
             
@@ -814,17 +945,41 @@ static int op_arithmetic(uint16_t opcode)
         case 4: size = SIZE_BYTE; to_reg = false; break;
         case 5: size = SIZE_WORD; to_reg = false; break;
         case 6: size = SIZE_LONG; to_reg = false; break;
-        case 3: /* DIVU/DIVS or MULU/MULS word size - special */
-        case 7: /* DIVS or MULS long word - special */
+        case 3: /* SUBA.W/ADDA.W/CMPA.W or DIVU/MULU */
+        case 7: /* SUBA.L/ADDA.L/CMPA.L or DIVS/MULS */
             /* Handle MUL/DIV separately */
             if (group == 8 || group == 12) {
                 goto mul_div;
             }
-            /* For SUB/ADD with An */
-            size = (opmode == 3) ? SIZE_WORD : SIZE_LONG;
-            to_reg = true;
-            mode = EA_MODE_AREG;  /* SUBA/ADDA */
-            break;
+            /* SUBA/ADDA/CMPA - source from EA, destination is An */
+            {
+                int asize = (opmode == 3) ? SIZE_WORD : SIZE_LONG;
+                uint32_t src_val = m68k_read_ea(mode, reg, asize);
+                /* Sign-extend word source to long */
+                if (asize == SIZE_WORD) {
+                    src_val = (uint32_t)(int32_t)(int16_t)src_val;
+                }
+                uint32_t dst_val = g_cpu.a[dreg];
+                uint32_t result;
+                
+                if (group == 9) {
+                    /* SUBA */
+                    result = dst_val - src_val;
+                } else if (group == 13) {
+                    /* ADDA */
+                    result = dst_val + src_val;
+                } else if (group == 11) {
+                    /* CMPA */
+                    result = dst_val - src_val;
+                    m68k_set_flags_sub(SIZE_LONG, src_val, dst_val, result);
+                    return 6;
+                } else {
+                    goto illegal;
+                }
+                /* SUBA/ADDA don't affect condition codes */
+                g_cpu.a[dreg] = result;
+                return (asize == SIZE_LONG) ? 8 : 8;
+            }
         default:
             goto illegal;
     }

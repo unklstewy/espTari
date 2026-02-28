@@ -209,7 +209,7 @@ storage,   data, fat,      0x732000, 0x8CE000,       # ~9MB for storage
        ▼             ▼             ▼                ▼
 ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
 │   SPIFFS    │ │  Ethernet   │ │   WiFi 6    │ │   DNS-SD    │
-│ (YAML cfg) │ │  (Internal) │ │  (ESP32-C6) │ │  Services   │
+│ (YAML cfg)  │ │  (Internal) │ │  (ESP32-C6) │ │  Services   │
 └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘
 ```
 

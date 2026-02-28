@@ -27,10 +27,40 @@ TEST_COMPONENT_DIR="components"
 
 # MC68000 CPU core
 M68K_SOURCES=(
+    "$PROJECT_ROOT/build/ebins/cpu/m68000.ebin"
     "$PROJECT_ROOT/test_apps/m68000_cpu_test/m68000.ebin"
     "/tmp/m68000.ebin"
 )
 M68K_DIR="cores/cpu"
+
+# MFP 68901 (I/O type - timers, interrupts, USART)
+MFP_SOURCES=(
+    "$PROJECT_ROOT/build/ebins/misc/mfp68901.ebin"
+    "/tmp/mfp68901.ebin"
+)
+MFP_DIR="cores/misc"
+
+# Shifter (Video type - bitplane decode, palette)
+SHIFTER_SOURCES=(
+    "$PROJECT_ROOT/build/ebins/video/shifter.ebin"
+    "/tmp/shifter.ebin"
+)
+SHIFTER_DIR="cores/video"
+
+# YM2149 PSG (Audio type - tone, noise, envelope)
+YM2149_SOURCES=(
+    "$PROJECT_ROOT/build/ebins/audio/ym2149.ebin"
+    "/tmp/ym2149.ebin"
+)
+YM2149_DIR="cores/audio"
+
+# TOS ROM image (TOS 1.04 US "Rainbow TOS" - 192KB, most compatible)
+TOS_SOURCES=(
+    "/tmp/tos104us.img"
+    "$PROJECT_ROOT/assets/emulator/roms/tos104us.img"
+    "$HOME/tos104us.img"
+)
+TOS_DIR="roms/tos"
 
 # Colors for output
 RED='\033[0;31m'
@@ -261,14 +291,57 @@ find_ebin_sources() {
         log_warn "m68000.ebin not found (skipping)"
     fi
 
+    # MFP 68901
+    if find_first_file MFP_SOURCES; then
+        EBIN_ENTRIES+=("$FOUND_FILE:$MFP_DIR")
+        log_success "Found mfp68901: $FOUND_FILE"
+        found_any=1
+    else
+        log_warn "mfp68901.ebin not found (skipping)"
+    fi
+
+    # Shifter
+    if find_first_file SHIFTER_SOURCES; then
+        EBIN_ENTRIES+=("$FOUND_FILE:$SHIFTER_DIR")
+        log_success "Found shifter: $FOUND_FILE"
+        found_any=1
+    else
+        log_warn "shifter.ebin not found (skipping)"
+    fi
+
+    # YM2149 PSG
+    if find_first_file YM2149_SOURCES; then
+        EBIN_ENTRIES+=("$FOUND_FILE:$YM2149_DIR")
+        log_success "Found ym2149: $FOUND_FILE"
+        found_any=1
+    else
+        log_warn "ym2149.ebin not found (skipping)"
+    fi
+
+    # TOS ROM
+    if find_first_file TOS_SOURCES; then
+        EBIN_ENTRIES+=("$FOUND_FILE:$TOS_DIR")
+        log_success "Found TOS ROM: $FOUND_FILE"
+        found_any=1
+    else
+        log_warn "TOS ROM not found (skipping)"
+        log_warn "Place tos206.img in ~/tos206.img or assets/emulator/roms/"
+    fi
+
     if [[ $found_any -eq 0 ]]; then
         log_error "No EBIN files found!"
         echo ""
         echo "Build components first:"
         echo "  Test component:  cd $PROJECT_ROOT/tools/ebin_builder && bash build_test.sh"
-        echo "  M68000 CPU core: cd $PROJECT_ROOT && python3 tools/ebin_builder/ebin_builder.py \\"
+        echo "  M68000 CPU core: python3 tools/ebin_builder/ebin_builder.py \\"
         echo "                     cores/cpu/m68000/m68000.c cores/cpu/m68000/m68000_ea.c \\"
-        echo "                     cores/cpu/m68000/m68000_ops.c -o m68000.ebin -t cpu -v"
+        echo "                     cores/cpu/m68000/m68000_ops.c -o /tmp/m68000.ebin -t cpu -v"
+        echo "  MFP 68901:       python3 tools/ebin_builder/ebin_builder.py \\"
+        echo "                     cores/misc/mfp68901/mfp68901.c -o /tmp/mfp68901.ebin -t io -v"
+        echo "  Shifter:         python3 tools/ebin_builder/ebin_builder.py \\"
+        echo "                     cores/video/shifter/shifter.c -o /tmp/shifter.ebin -t video -v"
+        echo "  YM2149:          python3 tools/ebin_builder/ebin_builder.py \\"
+        echo "                     cores/audio/ym2149/ym2149.c -o /tmp/ym2149.ebin -t audio -v"
         exit 1
     fi
 }
