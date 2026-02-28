@@ -1,55 +1,102 @@
 <script setup lang="ts">
 /**
- * DisplayCanvas — placeholder for Phase 3 video streaming.
- * Shows a retro-styled "no signal" screen until the emulator
- * is running and streaming frames via WebSocket.
+ * DisplayCanvas — renders JPEG video frames received from the
+ * WebSocket stream via createImageBitmap → canvas.drawImage.
+ * Falls back to a retro "no signal" screen when not streaming.
  */
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+
+const props = defineProps<{
+  /** Raw JPEG bytes from the stream (reactive) */
+  jpegFrame?: Uint8Array | null
+  /** Frame width reported by backend */
+  frameWidth?: number
+  /** Frame height reported by backend */
+  frameHeight?: number
+  /** Whether the stream is connected */
+  connected?: boolean
+}>()
 
 const canvas = ref<HTMLCanvasElement | null>(null)
-let animId = 0
+const label = ref('640 × 400 · No Signal')
 
 const ST_WIDTH = 640
 const ST_HEIGHT = 400
 
+/* ── No-signal pattern ─────────────────────────────────── */
 function drawNoSignal(ctx: CanvasRenderingContext2D) {
   ctx.fillStyle = '#0a0c10'
   ctx.fillRect(0, 0, ST_WIDTH, ST_HEIGHT)
 
-  // Subtle scanlines
   ctx.fillStyle = 'rgba(255,255,255,0.015)'
-  for (let y = 0; y < ST_HEIGHT; y += 2) {
-    ctx.fillRect(0, y, ST_WIDTH, 1)
-  }
+  for (let y = 0; y < ST_HEIGHT; y += 2) ctx.fillRect(0, y, ST_WIDTH, 1)
 
-  // CRT vignette
   const grad = ctx.createRadialGradient(
     ST_WIDTH / 2, ST_HEIGHT / 2, ST_HEIGHT * 0.3,
-    ST_WIDTH / 2, ST_HEIGHT / 2, ST_HEIGHT * 0.7
+    ST_WIDTH / 2, ST_HEIGHT / 2, ST_HEIGHT * 0.7,
   )
   grad.addColorStop(0, 'rgba(0,0,0,0)')
   grad.addColorStop(1, 'rgba(0,0,0,0.5)')
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, ST_WIDTH, ST_HEIGHT)
 
-  // "No Signal" text
   ctx.font = '16px "JetBrains Mono", monospace'
   ctx.textAlign = 'center'
   ctx.fillStyle = '#333a4a'
   ctx.fillText('NO SIGNAL', ST_WIDTH / 2, ST_HEIGHT / 2 - 10)
   ctx.font = '11px "JetBrains Mono", monospace'
   ctx.fillStyle = '#252a38'
-  ctx.fillText('Start emulation to begin streaming', ST_WIDTH / 2, ST_HEIGHT / 2 + 12)
+  ctx.fillText('Waiting for WebSocket stream…', ST_WIDTH / 2, ST_HEIGHT / 2 + 12)
 }
 
+/* ── JPEG → canvas ─────────────────────────────────────── */
+let rendering = false
+
+async function renderJpeg(jpeg: Uint8Array) {
+  if (rendering || !canvas.value) return
+  rendering = true
+  try {
+    const blob = new Blob([jpeg as BlobPart], { type: 'image/jpeg' })
+    const bmp = await createImageBitmap(blob)
+    const ctx = canvas.value.getContext('2d')!
+    ctx.drawImage(bmp, 0, 0, ST_WIDTH, ST_HEIGHT)
+    bmp.close()
+  } catch {
+    /* corrupt frame — skip */
+  }
+  rendering = false
+}
+
+/* ── Reactive watchers ─────────────────────────────────── */
+watch(() => props.jpegFrame, (jpeg) => {
+  if (jpeg && jpeg.byteLength > 0) renderJpeg(jpeg)
+})
+
+watch(() => props.connected, (c) => {
+  if (!c) {
+    const ctx = canvas.value?.getContext('2d')
+    if (ctx) drawNoSignal(ctx)
+  }
+})
+
+watch(
+  () => [props.frameWidth, props.frameHeight, props.connected] as const,
+  ([w, h, c]) => {
+    if (c && w && h) {
+      label.value = `${w} × ${h} · WebSocket Stream`
+    } else {
+      label.value = `${ST_WIDTH} × ${ST_HEIGHT} · No Signal`
+    }
+  },
+)
+
+/* ── Lifecycle ─────────────────────────────────────────── */
 onMounted(() => {
   const ctx = canvas.value?.getContext('2d')
   if (ctx) drawNoSignal(ctx)
 })
 
-onUnmounted(() => {
-  if (animId) cancelAnimationFrame(animId)
-})
+onUnmounted(() => { /* nothing to clean up */ })
 </script>
 
 <template>
@@ -63,7 +110,7 @@ onUnmounted(() => {
       />
     </div>
     <div class="display-label">
-      640 × 400 · ST Low Resolution · WebSocket
+      {{ label }}
     </div>
   </div>
 </template>

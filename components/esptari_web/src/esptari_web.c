@@ -12,6 +12,7 @@
 #include "esptari_web.h"
 #include "esptari_core.h"
 #include "esptari_network.h"
+#include "esptari_stream.h"
 #include "esp_log.h"
 #include "esp_http_server.h"
 #include "esp_chip_info.h"
@@ -454,6 +455,38 @@ static const httpd_uri_t uri_network_status = {
     .handler   = network_status_get_handler,
 };
 
+/* ── Stream stats endpoint ─────────────────────────────────────────── */
+
+static esp_err_t stream_stats_get_handler(httpd_req_t *req)
+{
+    esptari_stream_stats_t st;
+    esptari_stream_get_stats(&st);
+
+    char buf[256];
+    int len = snprintf(buf, sizeof(buf),
+        "{\"frames_sent\":%lu,\"audio_chunks_sent\":%lu,"
+        "\"bytes_sent\":%llu,\"fps\":%.1f,"
+        "\"clients\":%lu,\"dropped_frames\":%lu,"
+        "\"encode_time_us\":%lu,\"jpeg_quality\":%u}",
+        (unsigned long)st.frames_sent,
+        (unsigned long)st.audio_chunks_sent,
+        (unsigned long long)st.bytes_sent,
+        (double)st.fps,
+        (unsigned long)st.clients,
+        (unsigned long)st.dropped_frames,
+        (unsigned long)st.encode_time_us,
+        (unsigned)st.jpeg_quality);
+
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, buf, len);
+}
+
+static const httpd_uri_t uri_stream_stats = {
+    .uri       = "/api/stream/stats",
+    .method    = HTTP_GET,
+    .handler   = stream_stats_get_handler,
+};
+
 /* ── Server lifecycle ──────────────────────────────────────────────── */
 
 esp_err_t esptari_web_init(uint16_t port)
@@ -477,8 +510,18 @@ esp_err_t esptari_web_init(uint16_t port)
     httpd_register_uri_handler(s_server, &uri_machines);
     httpd_register_uri_handler(s_server, &uri_roms);
     httpd_register_uri_handler(s_server, &uri_network_status);
+    httpd_register_uri_handler(s_server, &uri_stream_stats);
 
-    /* Wildcard catch-all — serves SD card files or embedded fallback */
+    ESP_LOGI(TAG, "Web server started — 6 API endpoints registered");
+    ESP_LOGI(TAG, "Call esptari_web_start_file_server() after registering WS endpoints");
+    return ESP_OK;
+}
+
+void esptari_web_start_file_server(void)
+{
+    if (!s_server) return;
+
+    /* Wildcard catch-all — MUST be registered last (after /ws etc.) */
     const httpd_uri_t uri_catch_all = {
         .uri       = "/*",
         .method    = HTTP_GET,
@@ -494,9 +537,6 @@ esp_err_t esptari_web_init(uint16_t port)
         ESP_LOGI(TAG, "SD card web root not found — using embedded fallback");
         ESP_LOGI(TAG, "Tip: place web files in %s/ on the SD card", WEB_ROOT);
     }
-
-    ESP_LOGI(TAG, "Web server started — %d API endpoints + file server", 5);
-    return ESP_OK;
 }
 
 void esptari_web_stop(void)
@@ -511,4 +551,9 @@ void esptari_web_stop(void)
 bool esptari_web_is_running(void)
 {
     return s_server != NULL;
+}
+
+httpd_handle_t esptari_web_get_server(void)
+{
+    return s_server;
 }

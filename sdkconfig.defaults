@@ -64,3 +64,6 @@ CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
 
 # Optimization
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+# HTTP server — WebSocket support for A/V streaming
+CONFIG_HTTPD_WS_SUPPORT=y

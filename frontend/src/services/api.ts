@@ -61,6 +61,17 @@ export interface NetworkStatus {
   mdns_enabled: boolean
 }
 
+export interface StreamStatsResponse {
+  frames_sent: number
+  audio_chunks_sent: number
+  bytes_sent: number
+  fps: number
+  clients: number
+  dropped_frames: number
+  encode_time_us: number
+  jpeg_quality: number
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`)
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
@@ -95,4 +106,7 @@ export const api = {
 
   /** Network interface status */
   getNetworkStatus: () => get<NetworkStatus>('/api/network/status'),
+
+  /** Streaming subsystem stats */
+  getStreamStats: () => get<StreamStatsResponse>('/api/stream/stats'),
 }

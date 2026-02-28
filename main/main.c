@@ -218,6 +218,32 @@ void app_main(void)
         esptari_web_init(CONFIG_ESPTARI_WEB_PORT);
     }
 
+    // Initialize A/V subsystems
+    esptari_video_init();
+    esptari_audio_fmt_t afmt = { .sample_rate = 44100, .channels = 2, .bits = 16 };
+    esptari_audio_init(&afmt);
+
+    // Initialize streaming (registers /ws on the web server)
+    if (esptari_web_is_running()) {
+        httpd_handle_t server = esptari_web_get_server();
+        if (server) {
+            ret = esptari_stream_init(server);
+            if (ret == ESP_OK) {
+                // Generate test pattern + tone so streaming has content immediately
+                esptari_video_generate_test_pattern();
+                // Fill audio ring buffer with ~500 ms of 440 Hz test tone
+                for (int i = 0; i < 25; i++) {
+                    esptari_audio_generate_test_tone();
+                }
+                esptari_stream_start();
+            } else {
+                ESP_LOGW(TAG, "Stream init failed: %s", esp_err_to_name(ret));
+            }
+        }
+        // Register wildcard file server AFTER /ws to avoid route conflict
+        esptari_web_start_file_server();
+    }
+
     // Mark OTA as successful if we got this far
     mark_ota_valid();
     
