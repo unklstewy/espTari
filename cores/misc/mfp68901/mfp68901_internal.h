@@ -105,7 +105,7 @@ static const int mfp_timer_prescale[] = {
 typedef struct {
     uint8_t  control;    /**< Timer control register value */
     uint8_t  data;       /**< Timer data register (counter reload) */
-    uint8_t  counter;    /**< Current counter value */
+    uint16_t counter;    /**< Current counter value (0 means not loaded) */
     int      prescale;   /**< Current prescaler divisor */
     int      accum;      /**< Cycle accumulator for prescaling */
 } mfp_timer_t;

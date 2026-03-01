@@ -164,6 +164,9 @@ esp_err_t machine_parse_profile(const char *path, machine_profile_t *profile)
     /* Parse components */
     cJSON *components = cJSON_GetObjectItem(root, "components");
     if (components) {
+        item = cJSON_GetObjectItem(components, "unified");
+        if (item) parse_component(item, &profile->unified);
+
         item = cJSON_GetObjectItem(components, "cpu");
         if (item) parse_component(item, &profile->cpu);
         
@@ -240,12 +243,27 @@ static esp_err_t load_component_by_name(const char *filename,
         case COMPONENT_TYPE_VIDEO: subdir = "video"; break;
         case COMPONENT_TYPE_AUDIO: subdir = "audio"; break;
         case COMPONENT_TYPE_IO:    subdir = "io"; break;
+        case COMPONENT_TYPE_SYSTEM:subdir = "system"; break;
         default:                   return ESP_ERR_INVALID_ARG;
     }
     
     snprintf(path, sizeof(path), "%s/%s/%s", CORES_PATH, subdir, filename);
-    
+
     esp_err_t err = loader_load_component(path, type, interface_out);
+    if (err != ESP_OK && type == COMPONENT_TYPE_IO) {
+        /* Compatibility fallback: existing SD prep scripts place I/O cores
+         * under /sdcard/cores/misc. Prefer /io for new layouts but try /misc
+         * automatically to avoid breaking existing cards during migration.
+         */
+        snprintf(path, sizeof(path), "%s/misc/%s", CORES_PATH, filename);
+        err = loader_load_component(path, type, interface_out);
+    } else if (err != ESP_OK && type == COMPONENT_TYPE_SYSTEM) {
+        /* Transitional fallback: during migration, monolithic artifacts may
+         * be staged under /sdcard/cores/misc.
+         */
+        snprintf(path, sizeof(path), "%s/misc/%s", CORES_PATH, filename);
+        err = loader_load_component(path, type, interface_out);
+    }
     if (err != ESP_OK) {
         return err;
     }
@@ -360,9 +378,21 @@ esp_err_t machine_load(const char *profile_name)
     
     /* Load components */
     machine_profile_t *p = &s_machine.profile;
+
+    if (p->unified.file[0]) {
+        err = load_component_by_name(p->unified.file,
+                                     COMPONENT_TYPE_SYSTEM,
+                                     p->unified.role[0] ? p->unified.role : "system",
+                                     (void **)&s_machine.system);
+        if (err != ESP_OK && !p->unified.optional) {
+            ESP_LOGE(TAG, "Failed to load unified system: %s", p->unified.file);
+            machine_unload();
+            return err;
+        }
+    }
     
     /* CPU */
-    if (p->cpu.file[0]) {
+    if (!s_machine.system && p->cpu.file[0]) {
         err = load_component_by_name(p->cpu.file, COMPONENT_TYPE_CPU, "cpu",
                                       (void**)&s_machine.cpu);
         if (err != ESP_OK) {
@@ -373,7 +403,7 @@ esp_err_t machine_load(const char *profile_name)
     }
     
     /* Video */
-    if (p->video.file[0]) {
+    if (!s_machine.system && p->video.file[0]) {
         err = load_component_by_name(p->video.file, COMPONENT_TYPE_VIDEO, "video",
                                       (void**)&s_machine.video);
         if (err != ESP_OK && !p->video.optional) {
@@ -384,29 +414,33 @@ esp_err_t machine_load(const char *profile_name)
     }
     
     /* Audio components */
-    for (int i = 0; i < p->audio_count; i++) {
-        if (p->audio[i].file[0]) {
-            err = load_component_by_name(p->audio[i].file, COMPONENT_TYPE_AUDIO,
-                                          p->audio[i].role,
-                                          (void**)&s_machine.audio[i]);
-            if (err != ESP_OK && !p->audio[i].optional) {
-                ESP_LOGE(TAG, "Failed to load audio: %s", p->audio[i].file);
-                machine_unload();
-                return err;
+    if (!s_machine.system) {
+        for (int i = 0; i < p->audio_count; i++) {
+            if (p->audio[i].file[0]) {
+                err = load_component_by_name(p->audio[i].file, COMPONENT_TYPE_AUDIO,
+                                              p->audio[i].role,
+                                              (void**)&s_machine.audio[i]);
+                if (err != ESP_OK && !p->audio[i].optional) {
+                    ESP_LOGE(TAG, "Failed to load audio: %s", p->audio[i].file);
+                    machine_unload();
+                    return err;
+                }
             }
         }
     }
     
     /* I/O components */
-    for (int i = 0; i < p->io_count; i++) {
-        if (p->io[i].file[0]) {
-            err = load_component_by_name(p->io[i].file, COMPONENT_TYPE_IO,
-                                          p->io[i].role,
-                                          (void**)&s_machine.io[i]);
-            if (err != ESP_OK && !p->io[i].optional) {
-                ESP_LOGE(TAG, "Failed to load I/O: %s", p->io[i].file);
-                machine_unload();
-                return err;
+    if (!s_machine.system) {
+        for (int i = 0; i < p->io_count; i++) {
+            if (p->io[i].file[0]) {
+                err = load_component_by_name(p->io[i].file, COMPONENT_TYPE_IO,
+                                              p->io[i].role,
+                                              (void**)&s_machine.io[i]);
+                if (err != ESP_OK && !p->io[i].optional) {
+                    ESP_LOGE(TAG, "Failed to load I/O: %s", p->io[i].file);
+                    machine_unload();
+                    return err;
+                }
             }
         }
     }
@@ -433,6 +467,11 @@ esp_err_t machine_unload(void)
     registry_shutdown_all();
     
     /* Unload components */
+    if (s_machine.system) {
+        loader_unload_component(s_machine.system);
+        s_machine.system = NULL;
+    }
+
     if (s_machine.cpu) {
         loader_unload_component(s_machine.cpu);
         s_machine.cpu = NULL;
@@ -506,6 +545,11 @@ io_interface_t* machine_get_io(int index)
         return NULL;
     }
     return s_machine.io[index];
+}
+
+system_interface_t* machine_get_system(void)
+{
+    return s_machine_loaded ? s_machine.system : NULL;
 }
 
 esp_err_t machine_swap_component(int type, const char *filename)

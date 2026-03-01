@@ -503,7 +503,7 @@ static const struct {
 /* EBIN Entry Point                                                          */
 /*===========================================================================*/
 
-void* component_entry(void)
+void* shifter_entry(void)
 {
     return (void*)&s_interface;
 }

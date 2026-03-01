@@ -40,6 +40,7 @@ extern "C" {
 #define EBIN_TYPE_VIDEO     2
 #define EBIN_TYPE_AUDIO     3
 #define EBIN_TYPE_IO        4
+#define EBIN_TYPE_SYSTEM    5
 
 /** EBIN flags */
 #define EBIN_FLAG_HAS_SYMBOLS   (1 << 0)  /**< Symbol table present */

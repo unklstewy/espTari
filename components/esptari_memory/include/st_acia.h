@@ -47,6 +47,13 @@ typedef struct {
     int rx_tail;
 } acia_state_t;
 
+typedef struct {
+    uint8_t kbd_status;
+    uint8_t kbd_control;
+    uint8_t kbd_last_tx;
+    uint8_t kbd_rx_pending;
+} st_acia_debug_t;
+
 /**
  * @brief Initialize ACIA stubs and register I/O handlers
  */
@@ -63,6 +70,11 @@ void st_acia_reset(void);
  * Used by the keyboard controller emulation to send scan codes.
  */
 void st_acia_kbd_push(uint8_t byte);
+
+/**
+ * @brief Get lightweight ACIA debug state for telemetry logging
+ */
+void st_acia_get_debug(st_acia_debug_t *out);
 
 #ifdef __cplusplus
 }

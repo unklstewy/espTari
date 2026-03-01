@@ -34,6 +34,7 @@ static httpd_handle_t s_server = NULL;
 
 #define WEB_ROOT "/sdcard/www"
 #define FILE_BUF_SIZE 2048          /* streaming chunk size */
+#define STACKTRACE_PATH "/sdcard/logs/stacktrace.txt"
 
 /* ── Embedded fallback landing page ────────────────────────────────── */
 
@@ -344,6 +345,95 @@ static const httpd_uri_t uri_system_post = {
     .uri       = "/api/system",
     .method    = HTTP_POST,
     .handler   = system_post_handler,
+};
+
+/* ── /api/debug/stacktrace — dump/retrieve CPU stack trace ─────────── */
+
+static esp_err_t debug_stacktrace_post_handler(httpd_req_t *req)
+{
+    char query[96] = {0};
+    uint32_t words = 128U;
+
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
+        char words_str[16] = {0};
+        if (httpd_query_key_value(query, "words", words_str, sizeof(words_str)) == ESP_OK) {
+            char *end = NULL;
+            unsigned long parsed = strtoul(words_str, &end, 10);
+            if (end != words_str && parsed > 0UL) {
+                words = (uint32_t)parsed;
+            }
+        }
+    }
+
+    esp_err_t ret = esptari_core_dump_stacktrace(STACKTRACE_PATH, words);
+    if (ret != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, esp_err_to_name(ret));
+        return ESP_OK;
+    }
+
+    struct stat st;
+    long size = 0;
+    if (stat(STACKTRACE_PATH, &st) == 0) {
+        size = (long)st.st_size;
+    }
+
+    char buf[256];
+    int len = snprintf(buf, sizeof(buf),
+        "{\"status\":\"ok\",\"path\":\"%s\",\"words\":%lu,\"size\":%ld}",
+        STACKTRACE_PATH,
+        (unsigned long)words,
+        size);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, buf, len);
+}
+
+static esp_err_t debug_stacktrace_get_handler(httpd_req_t *req)
+{
+    FILE *f = fopen(STACKTRACE_PATH, "r");
+    if (!f) {
+        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "No stacktrace available");
+        return ESP_OK;
+    }
+
+    httpd_resp_set_type(req, "text/plain");
+    char *buf = malloc(FILE_BUF_SIZE);
+    if (!buf) {
+        fclose(f);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Out of memory");
+        return ESP_OK;
+    }
+
+    esp_err_t ret = ESP_OK;
+    while (1) {
+        size_t got = fread(buf, 1, FILE_BUF_SIZE, f);
+        if (got == 0) {
+            break;
+        }
+        if (httpd_resp_send_chunk(req, buf, got) != ESP_OK) {
+            ret = ESP_FAIL;
+            break;
+        }
+    }
+
+    if (ret == ESP_OK) {
+        httpd_resp_send_chunk(req, NULL, 0);
+    }
+
+    free(buf);
+    fclose(f);
+    return ESP_OK;
+}
+
+static const httpd_uri_t uri_debug_stacktrace_get = {
+    .uri       = "/api/debug/stacktrace",
+    .method    = HTTP_GET,
+    .handler   = debug_stacktrace_get_handler,
+};
+
+static const httpd_uri_t uri_debug_stacktrace_post = {
+    .uri       = "/api/debug/stacktrace",
+    .method    = HTTP_POST,
+    .handler   = debug_stacktrace_post_handler,
 };
 
 /* ── /api/machines — list machine profiles from SD card ────────────── */
@@ -1045,7 +1135,7 @@ esp_err_t esptari_web_init(uint16_t port)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = port;
     config.uri_match_fn = httpd_uri_match_wildcard;
-    config.max_uri_handlers = 24;       /* 19 API + /ws + /ws/input + wildcard + spare */
+    config.max_uri_handlers = 24;       /* 21 API + /ws + /ws/input + wildcard */
     config.stack_size = 8192;           /* extra stack for OTA upload */
 
     esp_err_t ret = httpd_start(&s_server, &config);
@@ -1058,6 +1148,8 @@ esp_err_t esptari_web_init(uint16_t port)
     httpd_register_uri_handler(s_server, &uri_status);
     httpd_register_uri_handler(s_server, &uri_system);
     httpd_register_uri_handler(s_server, &uri_system_post);
+    httpd_register_uri_handler(s_server, &uri_debug_stacktrace_get);
+    httpd_register_uri_handler(s_server, &uri_debug_stacktrace_post);
     httpd_register_uri_handler(s_server, &uri_machines);
     httpd_register_uri_handler(s_server, &uri_roms);
     httpd_register_uri_handler(s_server, &uri_network_status);
@@ -1076,7 +1168,7 @@ esp_err_t esptari_web_init(uint16_t port)
     httpd_register_uri_handler(s_server, &uri_ota_rollback);
     httpd_register_uri_handler(s_server, &uri_ws_input);
 
-    ESP_LOGI(TAG, "Web server started — 20 handlers registered");
+    ESP_LOGI(TAG, "Web server started — 22 handlers registered");
     ESP_LOGI(TAG, "Call esptari_web_start_file_server() after registering WS endpoints");
     return ESP_OK;
 }

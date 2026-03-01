@@ -39,6 +39,14 @@ static void *ebin_memset(void *s, int c, unsigned int n)
 
 static mfp_state_t g_mfp;
 
+static uint16_t mfp_timer_reload_value(const mfp_timer_t *timer)
+{
+    if (!timer) {
+        return 0;
+    }
+    return (timer->data == 0) ? 256U : (uint16_t)timer->data;
+}
+
 /*===========================================================================*/
 /* Timer Implementation                                                      */
 /*===========================================================================*/
@@ -64,22 +72,15 @@ bool mfp_timer_clock(mfp_timer_t *timer, int cycles)
     
     while (timer->accum >= timer->prescale) {
         timer->accum -= timer->prescale;
-        
+
         if (timer->counter == 0) {
-            /* Reload from data register */
-            timer->counter = timer->data;
-            /* If data is 0, effectively /256 */
-            if (timer->counter == 0) {
-                timer->counter = 0;  /* Will fire again next tick */
-            }
+            timer->counter = mfp_timer_reload_value(timer);
+        }
+
+        timer->counter--;
+        if (timer->counter == 0) {
             expired = true;
-        } else {
-            timer->counter--;
-            if (timer->counter == 0) {
-                /* Reload */
-                timer->counter = timer->data;
-                expired = true;
-            }
+            timer->counter = mfp_timer_reload_value(timer);
         }
     }
     
@@ -273,6 +274,9 @@ static void mfp_write_register(uint32_t addr, uint8_t val)
             mfp_timer_update_prescale(&g_mfp.timer_a);
             if ((val & 0x07) == 0) {
                 g_mfp.timer_a.accum = 0;
+                g_mfp.timer_a.counter = 0;
+            } else if (g_mfp.timer_a.counter == 0) {
+                g_mfp.timer_a.counter = mfp_timer_reload_value(&g_mfp.timer_a);
             }
             break;
             
@@ -281,6 +285,9 @@ static void mfp_write_register(uint32_t addr, uint8_t val)
             mfp_timer_update_prescale(&g_mfp.timer_b);
             if ((val & 0x07) == 0) {
                 g_mfp.timer_b.accum = 0;
+                g_mfp.timer_b.counter = 0;
+            } else if (g_mfp.timer_b.counter == 0) {
+                g_mfp.timer_b.counter = mfp_timer_reload_value(&g_mfp.timer_b);
             }
             break;
             
@@ -290,34 +297,46 @@ static void mfp_write_register(uint32_t addr, uint8_t val)
             g_mfp.timer_d.control = val & 0x07;
             mfp_timer_update_prescale(&g_mfp.timer_c);
             mfp_timer_update_prescale(&g_mfp.timer_d);
+            if (g_mfp.timer_c.prescale == 0) {
+                g_mfp.timer_c.accum = 0;
+                g_mfp.timer_c.counter = 0;
+            } else if (g_mfp.timer_c.counter == 0) {
+                g_mfp.timer_c.counter = mfp_timer_reload_value(&g_mfp.timer_c);
+            }
+            if (g_mfp.timer_d.prescale == 0) {
+                g_mfp.timer_d.accum = 0;
+                g_mfp.timer_d.counter = 0;
+            } else if (g_mfp.timer_d.counter == 0) {
+                g_mfp.timer_d.counter = mfp_timer_reload_value(&g_mfp.timer_d);
+            }
             break;
             
         case MFP_REG_TADR:
             g_mfp.timer_a.data = val;
             /* If timer stopped, also update counter */
             if (g_mfp.timer_a.prescale == 0) {
-                g_mfp.timer_a.counter = val;
+                g_mfp.timer_a.counter = mfp_timer_reload_value(&g_mfp.timer_a);
             }
             break;
             
         case MFP_REG_TBDR:
             g_mfp.timer_b.data = val;
             if (g_mfp.timer_b.prescale == 0) {
-                g_mfp.timer_b.counter = val;
+                g_mfp.timer_b.counter = mfp_timer_reload_value(&g_mfp.timer_b);
             }
             break;
             
         case MFP_REG_TCDR:
             g_mfp.timer_c.data = val;
             if (g_mfp.timer_c.prescale == 0) {
-                g_mfp.timer_c.counter = val;
+                g_mfp.timer_c.counter = mfp_timer_reload_value(&g_mfp.timer_c);
             }
             break;
             
         case MFP_REG_TDDR:
             g_mfp.timer_d.data = val;
             if (g_mfp.timer_d.prescale == 0) {
-                g_mfp.timer_d.counter = val;
+                g_mfp.timer_d.counter = mfp_timer_reload_value(&g_mfp.timer_d);
             }
             break;
             
@@ -367,7 +386,7 @@ static int mfp_init(simple_io_config_t *config)
     ebin_memset(&g_mfp, 0, sizeof(g_mfp));
     
     /* Power-on defaults */
-    g_mfp.vr = 0x0F;    /* Vector base = $0F (vector $F0-$FF) */
+    g_mfp.vr = 0x48;    /* ST convention: base $40 with S-bit set */
     g_mfp.tsr = 0x80;   /* Transmit buffer empty */
     
     /* GPIO initial state (active-low accent for some pins) */
@@ -402,7 +421,7 @@ static void mfp_reset(void)
     
     g_mfp.tsr = 0x80;
     g_mfp.gpip = 0xFF;
-    g_mfp.vr = 0x0F;
+    g_mfp.vr = 0x48;
 }
 
 static void mfp_shutdown(void)
@@ -567,7 +586,7 @@ static const struct {
 /* EBIN Entry Point                                                          */
 /*===========================================================================*/
 
-void* component_entry(void)
+void* mfp68901_entry(void)
 {
     return (void*)&s_interface;
 }

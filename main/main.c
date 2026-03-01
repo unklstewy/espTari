@@ -29,6 +29,7 @@
 #include "esptari_storage.h"
 #include "esptari_web.h"
 #include "esptari_stream.h"
+#include "machine.h"
 
 static const char *TAG = "espTari";
 
@@ -253,8 +254,30 @@ void app_main(void)
     ESP_LOGI(TAG, "Initialization complete");
     ESP_LOGI(TAG, "Web interface: http://esptari.local:%d", CONFIG_ESPTARI_WEB_PORT);
 
-    // TODO: Load default machine profile (CONFIG_ESPTARI_DEFAULT_MACHINE)
-    // TODO: Auto-start emulation if CONFIG_ESPTARI_AUTO_START
+    esptari_loader_log_unified_config();
+
+#ifdef CONFIG_ESPTARI_UNIFIED_EBIN_ENABLE
+    const char *boot_profile = esptari_loader_get_resolved_profile_name();
+    ret = machine_load(boot_profile);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Unified boot profile load failed (%s): %s",
+                 boot_profile, esp_err_to_name(ret));
+    } else {
+        ESP_LOGI(TAG, "Unified boot profile loaded: %s", boot_profile);
+
+#if CONFIG_ESPTARI_AUTO_START
+        ret = esptari_core_start();
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "Auto-started emulation");
+        } else {
+            ESP_LOGW(TAG, "Auto-start failed: %s", esp_err_to_name(ret));
+        }
+#endif
+    }
+#else
+    ESP_LOGI(TAG,
+             "Unified boot disabled; use API/UI to load machine or enable menuconfig unified mode");
+#endif
     
     // Main loop — keep alive
     while (1) {

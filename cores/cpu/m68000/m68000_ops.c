@@ -519,16 +519,17 @@ static int op_group_4(uint16_t opcode)
                 int count = 0;
                 
                 if (mode == EA_MODE_AREG_DEC) {
-                    /* Predecrement: reversed register order */
+                    /* Predecrement: reversed transfer order and reversed mask encoding */
                     uint32_t addr = g_cpu.a[reg];
                     for (int i = 15; i >= 0; i--) {
                         if (mask & (1 << i)) {
                             addr -= inc;
                             uint32_t val;
-                            if (i < 8)
+                            if (i < 8) {
                                 val = g_cpu.a[7 - i];
-                            else
+                            } else {
                                 val = g_cpu.d[15 - i];
+                            }
                             if (lsize == SIZE_LONG) WRITE_LONG(addr, val);
                             else WRITE_WORD(addr, (uint16_t)val);
                             count++;
@@ -799,7 +800,7 @@ static int op_group_5(uint16_t opcode)
                 REG_D(reg) = (REG_D(reg) & 0xFFFF0000) | (uint16_t)count;
                 
                 if (count != -1) {
-                    g_cpu.pc += disp - 2;  /* -2 because PC already advanced */
+                    g_cpu.pc += disp;
                     cycles = 10;
                 } else {
                     cycles = 14;  /* Loop ended */

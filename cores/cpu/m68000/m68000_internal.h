@@ -163,8 +163,10 @@ typedef struct {
     /* Exception state */
     uint8_t  exception_pending;
     uint8_t  exception_vector;
+    bool     bus_error_pending;
     bool     address_error_pending;
     uint32_t fault_address;
+    bool     fault_write;
     
     /* User context */
     void    *context;
@@ -221,12 +223,19 @@ extern m68k_state_t g_cpu;
 #define LONG(v)     (v)
 
 /* Memory access via bus */
-#define READ_BYTE(a)    (g_cpu.bus.read_byte(a))
-#define READ_WORD(a)    (g_cpu.bus.read_word(a))
-#define READ_LONG(a)    (g_cpu.bus.read_long(a))
-#define WRITE_BYTE(a,v) (g_cpu.bus.write_byte(a, v))
-#define WRITE_WORD(a,v) (g_cpu.bus.write_word(a, v))
-#define WRITE_LONG(a,v) (g_cpu.bus.write_long(a, v))
+uint8_t  m68k_bus_read_byte(uint32_t addr);
+uint16_t m68k_bus_read_word(uint32_t addr);
+uint32_t m68k_bus_read_long(uint32_t addr);
+void     m68k_bus_write_byte(uint32_t addr, uint8_t val);
+void     m68k_bus_write_word(uint32_t addr, uint16_t val);
+void     m68k_bus_write_long(uint32_t addr, uint32_t val);
+
+#define READ_BYTE(a)    (m68k_bus_read_byte(a))
+#define READ_WORD(a)    (m68k_bus_read_word(a))
+#define READ_LONG(a)    (m68k_bus_read_long(a))
+#define WRITE_BYTE(a,v) (m68k_bus_write_byte(a, v))
+#define WRITE_WORD(a,v) (m68k_bus_write_word(a, v))
+#define WRITE_LONG(a,v) (m68k_bus_write_long(a, v))
 
 /* Fetch instruction word and advance PC */
 #define FETCH_WORD()    (g_cpu.pc += 2, READ_WORD(g_cpu.pc - 2))
@@ -243,6 +252,7 @@ void m68k_reset(void);
 int  m68k_execute(int cycles);
 void m68k_exception(int vector);
 void m68k_set_irq(int level);
+void m68k_set_level6_vector(int vector);
 
 /* Instruction decoder/executor (m68000_ops.c) */
 int m68k_decode_execute(uint16_t opcode);

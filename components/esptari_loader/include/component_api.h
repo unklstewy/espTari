@@ -35,6 +35,9 @@ extern "C" {
 /** I/O interface version 1.0 */
 #define IO_INTERFACE_V1     0x00010000
 
+/** Unified monolithic system interface version 1.0 */
+#define SYSTEM_INTERFACE_V1 0x00010000
+
 /*===========================================================================*/
 /* Forward Declarations                                                      */
 /*===========================================================================*/
@@ -413,6 +416,35 @@ typedef struct {
     bool (*bus_held)(void);
     
 } io_interface_t;
+
+/*===========================================================================*/
+/* Unified Monolithic System Interface                                       */
+/*===========================================================================*/
+
+/**
+ * @brief Interface exposed by a monolithic unified EBIN.
+ *
+ * A unified EBIN can package CPU, video, audio, and I/O in one artifact.
+ * Runtime can request individual sub-interfaces from this contract.
+ */
+typedef struct {
+    /** Interface version (must be SYSTEM_INTERFACE_V1) */
+    uint32_t interface_version;
+
+    /** Component name (for example "ST Monolith") */
+    const char *name;
+
+    /** Lifecycle */
+    int  (*init)(void *config);
+    void (*reset)(void);
+    void (*shutdown)(void);
+
+    /** Accessors for sub-interfaces */
+    cpu_interface_t   *(*get_cpu)(void);
+    video_interface_t *(*get_video)(void);
+    audio_interface_t *(*get_audio)(int index);
+    io_interface_t    *(*get_io)(int index);
+} system_interface_t;
 
 /*===========================================================================*/
 /* Component Entry Point                                                     */

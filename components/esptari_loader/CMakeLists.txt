@@ -5,6 +5,7 @@ idf_component_register(
         "src/loader.c"
         "src/registry.c"
         "src/machine_config.c"
+        "src/unified_profile.c"
     INCLUDE_DIRS
         "include"
     REQUIRES

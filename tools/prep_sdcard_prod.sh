@@ -85,7 +85,7 @@ Arguments:
 
 Directory layout created on SD card:
   /config/              Configuration files
-  /cores/{cpu,mmu,video,audio,misc}/   EBIN component binaries
+    /cores/{cpu,mmu,video,audio,io,system,misc}/   EBIN component binaries
   /disks/{floppy,hard}/                Disk images
   /machines/            Machine profile JSON files
   /roms/{tos,cartridges,bios}/         ROM images
@@ -299,6 +299,8 @@ create_directories() {
         "cores/mmu"
         "cores/video"
         "cores/audio"
+        "cores/io"
+        "cores/system"
         "cores/misc"
         "disks/floppy"
         "disks/hard"
@@ -409,16 +411,17 @@ copy_ebin_components() {
     #   name  dest_dir  search_path1  search_path2  ...
     local -a components=(
         "m68000.ebin|cores/cpu|$PROJECT_ROOT/build/ebins/cpu/m68000.ebin|$PROJECT_ROOT/test_apps/m68000_cpu_test/m68000.ebin|/tmp/m68000.ebin"
-        "mfp68901.ebin|cores/misc|$PROJECT_ROOT/build/ebins/misc/mfp68901.ebin|/tmp/mfp68901.ebin"
+        "mfp68901.ebin|cores/io|$PROJECT_ROOT/build/ebins/misc/mfp68901.ebin|/tmp/mfp68901.ebin"
         "shifter.ebin|cores/video|$PROJECT_ROOT/build/ebins/video/shifter.ebin|/tmp/shifter.ebin"
         "ym2149.ebin|cores/audio|$PROJECT_ROOT/build/ebins/audio/ym2149.ebin|/tmp/ym2149.ebin"
-        "blitter.ebin|cores/misc|$PROJECT_ROOT/build/ebins/misc/blitter.ebin|/tmp/blitter.ebin"
-        "fdc_wd1772.ebin|cores/misc|$PROJECT_ROOT/build/ebins/misc/fdc_wd1772.ebin|/tmp/fdc_wd1772.ebin"
+        "blitter.ebin|cores/io|$PROJECT_ROOT/build/ebins/misc/blitter.ebin|/tmp/blitter.ebin"
+        "fdc_wd1772.ebin|cores/io|$PROJECT_ROOT/build/ebins/misc/fdc_wd1772.ebin|/tmp/fdc_wd1772.ebin"
         "st_mmu.ebin|cores/mmu|$PROJECT_ROOT/build/ebins/mmu/st_mmu.ebin|/tmp/st_mmu.ebin"
         "ste_mmu.ebin|cores/mmu|$PROJECT_ROOT/build/ebins/mmu/ste_mmu.ebin|/tmp/ste_mmu.ebin"
         "ste_shifter.ebin|cores/video|$PROJECT_ROOT/build/ebins/video/ste_shifter.ebin|/tmp/ste_shifter.ebin"
         "dma_audio.ebin|cores/audio|$PROJECT_ROOT/build/ebins/audio/dma_audio.ebin|/tmp/dma_audio.ebin"
-        "test_component.ebin|cores/misc|$PROJECT_ROOT/tools/ebin_builder/test_component/test_component.ebin|$PROJECT_ROOT/test_apps/esptari_loader_integration/spiffs_data/test_component.ebin"
+        "st_monolith.ebin|cores/system|$PROJECT_ROOT/build/ebins/system/st_monolith.ebin|/tmp/st_monolith.ebin"
+        "test_component.ebin|cores/io|$PROJECT_ROOT/tools/ebin_builder/test_component/test_component.ebin|$PROJECT_ROOT/test_apps/esptari_loader_integration/spiffs_data/test_component.ebin"
     )
 
     local found=0

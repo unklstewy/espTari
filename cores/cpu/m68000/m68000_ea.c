@@ -58,13 +58,12 @@ uint32_t m68k_get_ea(int mode, int reg, int size)
             break;
             
         case EA_MODE_AREG_DEC:
-            /* -(An) - decrement first */
+            /* -(An) - predecrement addressing */
             {
                 int inc = (size == SIZE_BYTE && reg != 7) ? 1 : 
                           (size == SIZE_BYTE) ? 2 :  /* SP always word-aligned */
                           (size == SIZE_WORD) ? 2 : 4;
-                REG_A(reg) -= inc;
-                ea = REG_A(reg);
+                ea = REG_A(reg) - inc;
                 ADD_CYCLES(EA_TIME_AREG_DEC);
             }
             break;
@@ -221,14 +220,19 @@ uint32_t m68k_read_ea(int mode, int reg, int size)
             break;
             
         case EA_MODE_AREG_DEC:
-            /* -(An) - already decremented in get_ea, just read */
+            /* -(An) */
             {
+                int inc = (size == SIZE_BYTE && reg != 7) ? 1 : 
+                          (size == SIZE_BYTE) ? 2 :
+                          (size == SIZE_WORD) ? 2 : 4;
+                REG_A(reg) -= inc;
                 uint32_t ea = REG_A(reg);
                 switch (size) {
                     case SIZE_BYTE: value = READ_BYTE(ea); break;
                     case SIZE_WORD: value = READ_WORD(ea); break;
                     case SIZE_LONG: value = READ_LONG(ea); break;
                 }
+                ADD_CYCLES(EA_TIME_AREG_DEC);
             }
             break;
             

@@ -256,6 +256,19 @@ uint32_t st_memory_get_rom_size(void);
  */
 void st_memory_reset(void);
 
+/**
+ * @brief Get memory bus statistics counters
+ */
+void st_memory_get_stats(uint64_t *reads, uint64_t *writes, uint64_t *bus_errors);
+
+/**
+ * @brief Get last bus/address error details captured by memory subsystem
+ *
+ * @param[out] addr  Last fault address (24-bit bus address)
+ * @param[out] write True if fault came from write path, false for read path
+ */
+void st_memory_get_last_bus_error(uint32_t *addr, bool *write);
+
 #ifdef __cplusplus
 }
 #endif

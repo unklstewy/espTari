@@ -18,13 +18,104 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdio.h>
+#include <inttypes.h>
 #include "m68000_internal.h"
+#include "esptari_memory.h"
 
 /*===========================================================================*/
 /* Global State                                                              */
 /*===========================================================================*/
 
 m68k_state_t g_cpu;
+static int g_level6_vector = -1;
+
+#define MICROTRACE_PC_MIN   0x00FC01B4U
+#define MICROTRACE_PC_MAX   0x00FC01D4U
+#define MICROTRACE_BUF_SIZE 4096
+#define PROBE_FASTFWD_PC_MIN 0x00FC01BCU
+#define PROBE_FASTFWD_PC_MAX 0x00FC01CEU
+#define PROBE_FASTFWD_A0_MIN 0x00010000U
+#define PROBE_FASTFWD_A0_SET 0x00000480U
+
+static char g_microtrace_buf[MICROTRACE_BUF_SIZE];
+static int g_microtrace_len = 0;
+static uint32_t g_microtrace_seq = 0;
+static bool g_microtrace_full = false;
+static bool g_probe_fastfwd_done = false;
+
+static void microtrace_reset(void)
+{
+    g_microtrace_len = 0;
+    g_microtrace_seq = 0;
+    g_microtrace_full = false;
+    g_microtrace_buf[0] = '\0';
+}
+
+static void microtrace_append(uint32_t pc_before,
+                              uint16_t opcode,
+                              uint32_t a0_before,
+                              uint32_t a0_after,
+                              uint16_t sr_before,
+                              uint16_t sr_after,
+                              uint32_t d4,
+                              uint32_t pc_after)
+{
+    if (g_microtrace_full) {
+        return;
+    }
+
+    if (pc_before < MICROTRACE_PC_MIN || pc_before > MICROTRACE_PC_MAX) {
+        return;
+    }
+
+    int remain = MICROTRACE_BUF_SIZE - g_microtrace_len;
+    if (remain <= 96) {
+        g_microtrace_full = true;
+        return;
+    }
+
+    int n = snprintf(&g_microtrace_buf[g_microtrace_len],
+                     (size_t)remain,
+                     "%03lu pc=%06" PRIX32 " op=%04X a0=%06" PRIX32 "->%06" PRIX32 " sr=%04X->%04X d4=%08" PRIX32 " next=%06" PRIX32 "\n",
+                     (unsigned long)g_microtrace_seq,
+                     pc_before & 0x00FFFFFFU,
+                     (unsigned)opcode,
+                     a0_before & 0x00FFFFFFU,
+                     a0_after & 0x00FFFFFFU,
+                     (unsigned)sr_before,
+                     (unsigned)sr_after,
+                     d4,
+                     pc_after & 0x00FFFFFFU);
+    if (n <= 0 || n >= remain) {
+        g_microtrace_full = true;
+        return;
+    }
+
+    g_microtrace_len += n;
+    g_microtrace_seq++;
+}
+
+int m68k_get_microtrace_text(char *buf, int buf_size)
+{
+    if (!buf || buf_size <= 0) {
+        return g_microtrace_len;
+    }
+
+    if (g_microtrace_len <= 0) {
+        buf[0] = '\0';
+        return 0;
+    }
+
+    int copy_len = g_microtrace_len;
+    if (copy_len >= (buf_size - 1)) {
+        copy_len = buf_size - 1;
+    }
+
+    memcpy(buf, g_microtrace_buf, (size_t)copy_len);
+    buf[copy_len] = '\0';
+    return copy_len;
+}
 
 /*===========================================================================*/
 /* Bus Interface (set by system)                                             */
@@ -76,6 +167,112 @@ static void null_address_error(uint32_t addr, bool write)
 {
     (void)addr;
     (void)write;
+}
+
+static uint64_t bus_error_counter_snapshot(void)
+{
+    if (!g_cpu.bus.context) {
+        return 0;
+    }
+
+    const st_memory_t *mem = (const st_memory_t *)g_cpu.bus.context;
+    return mem->bus_errors;
+}
+
+static void normalize_address_state(void)
+{
+    g_cpu.pc &= 0x00FFFFFFU;
+    g_cpu.usp &= 0x00FFFFFFU;
+    g_cpu.ssp &= 0x00FFFFFFU;
+
+    for (int i = 0; i < 8; i++) {
+        g_cpu.a[i] &= 0x00FFFFFFU;
+    }
+}
+
+static void note_bus_error_if_changed(uint64_t before, uint32_t addr)
+{
+    if (bus_error_counter_snapshot() != before) {
+        g_cpu.bus_error_pending = true;
+        g_cpu.fault_address = addr;
+        g_cpu.fault_write = false;
+    }
+}
+
+uint8_t m68k_bus_read_byte(uint32_t addr)
+{
+    uint64_t before = bus_error_counter_snapshot();
+    uint8_t value = g_cpu.bus.read_byte(addr);
+    note_bus_error_if_changed(before, addr);
+    return value;
+}
+
+uint16_t m68k_bus_read_word(uint32_t addr)
+{
+    if (addr & 1U) {
+        g_cpu.address_error_pending = true;
+        g_cpu.fault_address = addr;
+        g_cpu.fault_write = false;
+        return 0xFFFF;
+    }
+
+    uint64_t before = bus_error_counter_snapshot();
+    uint16_t value = g_cpu.bus.read_word(addr);
+    note_bus_error_if_changed(before, addr);
+    return value;
+}
+
+uint32_t m68k_bus_read_long(uint32_t addr)
+{
+    if (addr & 1U) {
+        g_cpu.address_error_pending = true;
+        g_cpu.fault_address = addr;
+        g_cpu.fault_write = false;
+        return 0xFFFFFFFF;
+    }
+
+    uint64_t before = bus_error_counter_snapshot();
+    uint32_t value = g_cpu.bus.read_long(addr);
+    note_bus_error_if_changed(before, addr);
+    return value;
+}
+
+void m68k_bus_write_byte(uint32_t addr, uint8_t val)
+{
+    uint64_t before = bus_error_counter_snapshot();
+    g_cpu.bus.write_byte(addr, val);
+    g_cpu.fault_write = true;
+    note_bus_error_if_changed(before, addr);
+}
+
+void m68k_bus_write_word(uint32_t addr, uint16_t val)
+{
+    if (addr & 1U) {
+        g_cpu.address_error_pending = true;
+        g_cpu.fault_address = addr;
+        g_cpu.fault_write = true;
+        return;
+    }
+
+    uint64_t before = bus_error_counter_snapshot();
+    g_cpu.bus.write_word(addr, val);
+    g_cpu.fault_write = true;
+    note_bus_error_if_changed(before, addr);
+}
+
+void m68k_bus_write_long(uint32_t addr, uint32_t val)
+{
+    if (addr & 1U) {
+        g_cpu.address_error_pending = true;
+        g_cpu.fault_address = addr;
+        g_cpu.fault_write = true;
+        return;
+    }
+
+    uint64_t before = bus_error_counter_snapshot();
+    g_cpu.bus.write_long(addr, val);
+    g_cpu.fault_write = true;
+    note_bus_error_if_changed(before, addr);
 }
 
 /*===========================================================================*/
@@ -164,14 +361,21 @@ void m68k_exception(int vector)
     
     /* Clear trace bits */
     g_cpu.sr &= ~(SR_T1 | SR_T0);
-    
-    /* For group 0 exceptions (reset, bus error, address error),
-     * additional information is pushed */
-    if (vector == VEC_ADDRESS_ERROR || vector == VEC_BUS_ERROR) {
-        /* Push additional info (simplified - full format is more complex) */
-        push_word(g_cpu.ir);                    /* Instruction register */
-        push_long(g_cpu.fault_address);         /* Access address */
-        push_word(0);                           /* Function code + R/W */
+
+    /* Group-0 exceptions (bus/address): push additional frame fields
+     * before SR/PC so handlers can inspect fault context. */
+    if (vector == VEC_BUS_ERROR || vector == VEC_ADDRESS_ERROR) {
+        uint16_t special_status = 0;
+        if (!g_cpu.fault_write) {
+            special_status |= 0x0010; /* R/W bit: 1 = read, 0 = write */
+        }
+        if (IS_SUPERVISOR()) {
+            special_status |= 0x0004; /* Function code supervisor data */
+        }
+
+        push_word(g_cpu.ir);
+        push_long(g_cpu.fault_address & 0x00FFFFFFU);
+        push_word(special_status);
     }
     
     /* Push PC and SR */
@@ -180,6 +384,7 @@ void m68k_exception(int vector)
     
     /* Read new PC from vector table */
     g_cpu.pc = READ_LONG(vector * 4);
+    normalize_address_state();
     
     /* Add cycles for exception processing */
     /* Group 0: 50 cycles, Group 1/2: 34 cycles */
@@ -212,14 +417,23 @@ static void check_interrupts(void)
         /* Update interrupt mask */
         g_cpu.sr = (g_cpu.sr & ~SR_IPM) | (level << SR_IPM_SHIFT);
         
-        /* Process autovector interrupt */
-        m68k_exception(VEC_AUTOVECTOR_1 + level - 1);
-        
-        /* Clear pending interrupt (edge-triggered for level 7) */
-        if (level == 7) {
-            g_cpu.pending_irq = 0;
+        /* Process interrupt */
+        if (level == 6 && g_level6_vector >= 0) {
+            m68k_exception(g_level6_vector & 0xFF);
+            g_level6_vector = -1;
+        } else {
+            m68k_exception(VEC_AUTOVECTOR_1 + level - 1);
         }
+
+        /* Clear pending interrupt; external glue/mfp will reassert
+         * on subsequent clocks if the level is still active. */
+        g_cpu.pending_irq = 0;
     }
+}
+
+void m68k_set_level6_vector(int vector)
+{
+    g_level6_vector = vector;
 }
 
 /*===========================================================================*/
@@ -231,6 +445,9 @@ static void check_interrupts(void)
  */
 void m68k_reset(void)
 {
+    microtrace_reset();
+    g_probe_fastfwd_done = false;
+
     /* Clear all registers */
     for (int i = 0; i < 8; i++) {
         g_cpu.d[i] = 0;
@@ -245,12 +462,15 @@ void m68k_reset(void)
     g_cpu.halted = 0;
     g_cpu.pending_irq = 0;
     g_cpu.exception_pending = 0;
+    g_cpu.bus_error_pending = false;
     g_cpu.address_error_pending = false;
+    g_cpu.fault_write = false;
     
     /* Read initial SSP and PC from vector table */
     g_cpu.ssp = READ_LONG(0);
     g_cpu.a[7] = g_cpu.ssp;
     g_cpu.pc = READ_LONG(4);
+    normalize_address_state();
     
     /* Reset cycle count */
     g_cpu.cycles = 0;
@@ -286,6 +506,13 @@ int m68k_execute(int cycles)
         
         /* Check pending interrupts */
         check_interrupts();
+
+        /* Check for pending bus error */
+        if (g_cpu.bus_error_pending) {
+            g_cpu.bus_error_pending = false;
+            m68k_exception(VEC_BUS_ERROR);
+            continue;
+        }
         
         /* Check for pending address error */
         if (g_cpu.address_error_pending) {
@@ -294,13 +521,39 @@ int m68k_execute(int cycles)
             continue;
         }
         
+        uint32_t pc_before = g_cpu.pc;
+        uint32_t a0_before = g_cpu.a[0];
+        uint16_t sr_before = g_cpu.sr;
+
         /* Fetch instruction */
         uint16_t opcode = FETCH_WORD();
         g_cpu.ir = opcode;
+
+        /* Temporary bootstrap accelerator: shorten known RAM probe loop.
+         * This is intentionally narrow and one-shot per reset. */
+        if (!g_probe_fastfwd_done &&
+            pc_before >= PROBE_FASTFWD_PC_MIN && pc_before <= PROBE_FASTFWD_PC_MAX &&
+            opcode == 0x48E0U &&
+            g_cpu.d[4] == 0x00000400U &&
+            g_cpu.a[0] > PROBE_FASTFWD_A0_MIN) {
+            g_cpu.a[0] = PROBE_FASTFWD_A0_SET;
+            g_probe_fastfwd_done = true;
+        }
         
         /* Decode and execute */
         int inst_cycles = m68k_decode_execute(opcode);
         ADD_CYCLES(inst_cycles);
+
+        normalize_address_state();
+
+        microtrace_append(pc_before,
+                  opcode,
+                  a0_before,
+                  g_cpu.a[0],
+                  sr_before,
+                  g_cpu.sr,
+                  g_cpu.d[4],
+                  g_cpu.pc);
         
         /* Check for trace mode */
         if (g_cpu.sr & SR_T) {
@@ -668,7 +921,7 @@ static const struct {
  * Called by loader after relocations are applied.
  * Returns pointer to the interface structure.
  */
-void* __attribute__((section(".text.component_entry"))) component_entry(void)
+void* __attribute__((section(".text.component_entry"))) m68000_entry(void)
 {
     return (void*)&s_interface;
 }

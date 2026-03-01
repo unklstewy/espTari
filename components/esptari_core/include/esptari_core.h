@@ -78,6 +78,18 @@ esptari_state_t esptari_core_get_state(void);
  */
 void esptari_core_reset(void);
 
+/**
+ * @brief Capture a debug stack trace snapshot to a text file
+ *
+ * Captures CPU register state, current opcode window, and a stack word dump
+ * from the active emulated stack pointer.
+ *
+ * @param path Absolute output path (for example: /sdcard/logs/stacktrace.txt)
+ * @param stack_words Number of 16-bit words to dump from stack pointer
+ * @return ESP_OK on success
+ */
+esp_err_t esptari_core_dump_stacktrace(const char *path, uint32_t stack_words);
+
 #ifdef __cplusplus
 }
 #endif

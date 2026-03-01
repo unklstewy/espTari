@@ -28,6 +28,7 @@ typedef enum {
     COMPONENT_TYPE_VIDEO  = 2,  /**< Video chip (Shifter, VIDEL) */
     COMPONENT_TYPE_AUDIO  = 3,  /**< Audio chip (YM2149, DMA Sound) */
     COMPONENT_TYPE_IO     = 4,  /**< I/O chips (MFP, Blitter, ACIA) */
+    COMPONENT_TYPE_SYSTEM = 5,  /**< Unified monolithic system component */
 } component_type_t;
 
 /**
@@ -128,6 +129,29 @@ esp_err_t loader_scan_components(component_type_t type,
                                   char **paths,
                                   size_t max_count,
                                   size_t *count);
+
+/**
+ * @brief Check whether menuconfig-driven unified profile mode is enabled
+ *
+ * @return true if unified mode is enabled
+ */
+bool esptari_loader_unified_enabled(void);
+
+/**
+ * @brief Get machine profile name resolved from menuconfig unified settings
+ *
+ * Returns a machine profile identifier (without .json extension), such as
+ * "mega_ste". In non-unified mode this falls back to
+ * CONFIG_ESPTARI_DEFAULT_MACHINE.
+ *
+ * @return Profile name string (static storage)
+ */
+const char *esptari_loader_get_resolved_profile_name(void);
+
+/**
+ * @brief Log resolved unified configuration and capability matrix
+ */
+void esptari_loader_log_unified_config(void);
 
 #ifdef __cplusplus
 }

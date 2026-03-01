@@ -1,25 +1,53 @@
 {
-    "name": "Atari STe",
-    "model": "ste",
-    "cpu": {
-        "core": "m68000",
-        "clock_hz": 8000000
+    "machine": "ste",
+    "display_name": "Atari STe",
+    "description": "Atari STe enhanced model",
+    "year": 1989,
+    "components": {
+        "cpu": {
+            "file": "m68000.ebin",
+            "clock_hz": 8000000,
+            "role": "cpu"
+        },
+        "mmu": {
+            "file": "ste_mmu.ebin",
+            "role": "mmu",
+            "optional": true
+        },
+        "video": {
+            "file": "ste_shifter.ebin",
+            "role": "video"
+        },
+        "audio": [
+            {
+                "file": "ym2149.ebin",
+                "role": "psg"
+            },
+            {
+                "file": "dma_audio.ebin",
+                "role": "dma",
+                "optional": true
+            }
+        ],
+        "io": [
+            {
+                "file": "mfp68901.ebin",
+                "role": "mfp"
+            },
+            {
+                "file": "fdc_wd1772.ebin",
+                "role": "fdc"
+            },
+            {
+                "file": "blitter.ebin",
+                "role": "blitter",
+                "optional": true
+            }
+        ]
     },
-    "mmu": "ste_mmu",
     "memory": {
         "ram_kb": 4096,
-        "rom": "tos/tos206.img"
-    },
-    "video": {
-        "chip": "ste_shifter",
-        "default_resolution": "low"
-    },
-    "audio": {
-        "chips": ["ym2149", "dma_audio"]
-    },
-    "peripherals": [
-        "mfp68901",
-        "fdc_wd1772",
-        "blitter"
-    ]
+        "tos_file": "tos206.img",
+        "tos_required": true
+    }
 }

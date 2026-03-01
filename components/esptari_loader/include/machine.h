@@ -56,6 +56,7 @@ typedef struct {
     machine_component_t cpu;     /**< CPU configuration */
     machine_component_t mmu;     /**< MMU configuration */
     machine_component_t video;   /**< Video configuration */
+    machine_component_t unified; /**< Unified monolithic system component */
     machine_component_t audio[MACHINE_MAX_AUDIO];  /**< Audio components */
     int                 audio_count;               /**< Number of audio components */
     machine_component_t io[MACHINE_MAX_IO];        /**< I/O components */
@@ -72,6 +73,7 @@ typedef struct {
     machine_profile_t    profile;      /**< Active profile */
     cpu_interface_t     *cpu;          /**< Loaded CPU interface */
     video_interface_t   *video;        /**< Loaded video interface */
+    system_interface_t  *system;       /**< Loaded unified system interface */
     audio_interface_t   *audio[MACHINE_MAX_AUDIO];  /**< Loaded audio interfaces */
     io_interface_t      *io[MACHINE_MAX_IO];        /**< Loaded I/O interfaces */
     uint8_t             *ram;          /**< Allocated RAM */
@@ -145,6 +147,13 @@ audio_interface_t* machine_get_audio(int index);
  * @return I/O interface, or NULL if not available
  */
 io_interface_t* machine_get_io(int index);
+
+/**
+ * @brief Get unified system interface of current machine
+ *
+ * @return System interface, or NULL if machine is not unified or not loaded
+ */
+system_interface_t* machine_get_system(void);
 
 /**
  * @brief Hot-swap a component (e.g., accelerator board)

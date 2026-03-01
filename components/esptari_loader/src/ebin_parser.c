@@ -37,7 +37,7 @@ static esp_err_t validate_header(const ebin_header_t *header)
     }
     
     /* Check type */
-    if (header->type < EBIN_TYPE_CPU || header->type > EBIN_TYPE_IO) {
+    if (header->type < EBIN_TYPE_CPU || header->type > EBIN_TYPE_SYSTEM) {
         ESP_LOGE(TAG, "Invalid component type: %d", header->type);
         return ESP_ERR_INVALID_ARG;
     }
@@ -68,6 +68,7 @@ static const char* type_name(uint16_t type)
         case EBIN_TYPE_VIDEO: return "Video";
         case EBIN_TYPE_AUDIO: return "Audio";
         case EBIN_TYPE_IO:    return "I/O";
+        case EBIN_TYPE_SYSTEM:return "System";
         default:              return "Unknown";
     }
 }

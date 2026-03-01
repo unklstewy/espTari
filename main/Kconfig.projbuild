@@ -1,5 +1,91 @@
 menu "espTari Configuration"
 
+    menu "Unified EBIN Composition"
+
+        config ESPTARI_UNIFIED_EBIN_ENABLE
+            bool "Enable unified-EBIN boot profile resolver"
+            default n
+            help
+                Enables menuconfig-driven unified machine profile selection.
+                This is the migration path toward unified composition while
+                preserving atomic EBIN component compatibility.
+
+        config ESPTARI_UNIFIED_ALLOW_RUNTIME_PROFILE_OVERRIDE
+            bool "Allow runtime profile override from API/UI"
+            default y
+            depends on ESPTARI_UNIFIED_EBIN_ENABLE
+            help
+                When enabled, API/UI profile selection can override the
+                menuconfig-selected unified profile.
+
+        choice ESPTARI_UNIFIED_BASE_PROFILE
+            prompt "Unified base profile"
+            default ESPTARI_UNIFIED_PROFILE_MEGA_STE_16MB
+            depends on ESPTARI_UNIFIED_EBIN_ENABLE
+            help
+                Selects the canonical baseline profile used by unified mode.
+                The initial implementation focuses on Mega STe (16MB target).
+
+            config ESPTARI_UNIFIED_PROFILE_ST
+                bool "Atari ST baseline"
+
+            config ESPTARI_UNIFIED_PROFILE_STFM
+                bool "Atari STFM baseline"
+
+            config ESPTARI_UNIFIED_PROFILE_STE
+                bool "Atari STe baseline"
+
+            config ESPTARI_UNIFIED_PROFILE_MEGA_ST
+                bool "Atari Mega ST baseline"
+
+            config ESPTARI_UNIFIED_PROFILE_MEGA_STE_16MB
+                bool "Atari Mega STe baseline (16MB target)"
+
+            config ESPTARI_UNIFIED_PROFILE_MEGA_STE_MONOLITH
+                bool "Atari Mega STe monolithic EBIN prototype"
+
+        endchoice
+
+        menu "Unified module capability matrix"
+            depends on ESPTARI_UNIFIED_EBIN_ENABLE
+
+            config ESPTARI_UNIFIED_MODULE_CPU_M68000
+                bool "CPU module: MC68000"
+                default y
+                help
+                    Required for all currently supported ST-family profiles.
+
+            config ESPTARI_UNIFIED_MODULE_VIDEO_SHIFTER
+                bool "Video module: ST Shifter"
+                default y
+
+            config ESPTARI_UNIFIED_MODULE_VIDEO_STE_SHIFTER
+                bool "Video module: STe Enhanced Shifter"
+                default y
+
+            config ESPTARI_UNIFIED_MODULE_AUDIO_YM2149
+                bool "Audio module: YM2149 PSG"
+                default y
+
+            config ESPTARI_UNIFIED_MODULE_AUDIO_DMA
+                bool "Audio module: DMA audio"
+                default y
+
+            config ESPTARI_UNIFIED_MODULE_IO_MFP68901
+                bool "I/O module: MFP 68901"
+                default y
+
+            config ESPTARI_UNIFIED_MODULE_IO_FDC_WD1772
+                bool "I/O module: WD1772 FDC"
+                default y
+
+            config ESPTARI_UNIFIED_MODULE_IO_BLITTER
+                bool "I/O module: Blitter"
+                default y
+        endmenu
+
+    endmenu
+
     config ESPTARI_DEFAULT_MACHINE
         string "Default machine profile"
         default "st"

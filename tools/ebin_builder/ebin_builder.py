@@ -30,6 +30,7 @@ COMPONENT_TYPES = {
     'video': 2,
     'audio': 3,
     'io': 4,
+    'system': 5,
 }
 
 # Relocation types

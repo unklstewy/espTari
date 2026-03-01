@@ -1,0 +1,17 @@
+{
+    "machine": "mega_ste_monolith",
+    "display_name": "Atari Mega STe (Monolithic EBIN)",
+    "description": "Single-EBIN unified system prototype profile",
+    "year": 1991,
+    "components": {
+        "unified": {
+            "file": "st_monolith.ebin",
+            "role": "system"
+        }
+    },
+    "memory": {
+        "ram_kb": 16384,
+        "tos_file": "tos206.img",
+        "tos_required": true
+    }
+}

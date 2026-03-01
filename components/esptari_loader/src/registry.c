@@ -80,6 +80,10 @@ esp_err_t registry_add(void *interface, component_type_t type, const char *role)
             strncpy(entry->name, ((io_interface_t*)interface)->name,
                     sizeof(entry->name) - 1);
             break;
+        case COMPONENT_TYPE_SYSTEM:
+            strncpy(entry->name, ((system_interface_t*)interface)->name,
+                    sizeof(entry->name) - 1);
+            break;
         default:
             strcpy(entry->name, "Unknown");
     }
@@ -223,6 +227,13 @@ esp_err_t registry_init_all(void *config)
                 }
                 break;
             }
+            case COMPONENT_TYPE_SYSTEM: {
+                system_interface_t *system = s_registry[i].interface;
+                if (system->init) {
+                    result = system->init(config);
+                }
+                break;
+            }
             default:
                 break;
         }
@@ -266,6 +277,11 @@ void registry_reset_all(void)
                 if (io->reset) io->reset();
                 break;
             }
+            case COMPONENT_TYPE_SYSTEM: {
+                system_interface_t *system = s_registry[i].interface;
+                if (system->reset) system->reset();
+                break;
+            }
             default:
                 break;
         }
@@ -303,6 +319,11 @@ void registry_shutdown_all(void)
             case COMPONENT_TYPE_IO: {
                 io_interface_t *io = s_registry[i].interface;
                 if (io->shutdown) io->shutdown();
+                break;
+            }
+            case COMPONENT_TYPE_SYSTEM: {
+                system_interface_t *system = s_registry[i].interface;
+                if (system->shutdown) system->shutdown();
                 break;
             }
             default:

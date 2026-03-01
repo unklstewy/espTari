@@ -1,24 +1,43 @@
 {
-    "name": "Atari ST",
-    "model": "st",
-    "cpu": {
-        "core": "m68000",
-        "clock_hz": 8000000
+    "machine": "st",
+    "display_name": "Atari ST",
+    "description": "Atari ST baseline configuration",
+    "year": 1985,
+    "components": {
+        "cpu": {
+            "file": "m68000.ebin",
+            "clock_hz": 8000000,
+            "role": "cpu"
+        },
+        "mmu": {
+            "file": "st_mmu.ebin",
+            "role": "mmu",
+            "optional": true
+        },
+        "video": {
+            "file": "shifter.ebin",
+            "role": "video"
+        },
+        "audio": [
+            {
+                "file": "ym2149.ebin",
+                "role": "psg"
+            }
+        ],
+        "io": [
+            {
+                "file": "mfp68901.ebin",
+                "role": "mfp"
+            },
+            {
+                "file": "fdc_wd1772.ebin",
+                "role": "fdc"
+            }
+        ]
     },
-    "mmu": "st_mmu",
     "memory": {
         "ram_kb": 1024,
-        "rom": "tos/tos104.img"
-    },
-    "video": {
-        "chip": "shifter",
-        "default_resolution": "low"
-    },
-    "audio": {
-        "chip": "ym2149"
-    },
-    "peripherals": [
-        "mfp68901",
-        "fdc_wd1772"
-    ]
+        "tos_file": "tos104.img",
+        "tos_required": true
+    }
 }

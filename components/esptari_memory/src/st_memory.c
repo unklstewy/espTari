@@ -28,6 +28,19 @@ static const char *TAG = "st_memory";
 
 static st_memory_t s_mem;
 static bus_interface_t s_bus;
+static uint32_t s_last_bus_error_addr;
+static bool s_last_bus_error_write;
+
+static uint8_t mmu_config_for_ram_size(uint32_t ram_size)
+{
+    if (ram_size >= (4U * 1024U * 1024U)) {
+        return 0x0AU;
+    }
+    if (ram_size >= (2U * 1024U * 1024U)) {
+        return 0x08U;
+    }
+    return 0x00U;
+}
 
 /*===========================================================================*/
 /* I/O Handler Dispatch                                                      */
@@ -73,6 +86,10 @@ static uint8_t st_read_byte(uint32_t addr)
     
     /* I/O Space: $FF8000 - $FFFFFF */
     if (addr >= ST_IO_BASE) {
+        if (addr == IO_MMU_CONFIG) {
+            return s_mem.mmu_config;
+        }
+
         io_handler_t *h = find_io_handler(addr);
         if (h && h->read_byte) {
             return h->read_byte(addr, h->context);
@@ -83,15 +100,22 @@ static uint8_t st_read_byte(uint32_t addr)
     }
     
     /* Cartridge ROM: $FA0000 - $FBFFFF */
-    if (addr >= 0xFA0000 && addr < 0xFC0000 && s_mem.cartridge) {
-        uint32_t off = addr - 0xFA0000;
-        if (off < s_mem.cart_size) {
-            return s_mem.cartridge[off];
+    if (addr >= 0xFA0000 && addr < 0xFC0000) {
+        if (s_mem.cartridge) {
+            uint32_t off = addr - 0xFA0000;
+            if (off < s_mem.cart_size) {
+                return s_mem.cartridge[off];
+            }
         }
+        /* No cartridge inserted: open bus */
+        return 0xFF;
     }
     
-    /* Above RAM but below ROM - bus error region */
+    /* Above RAM but below ROM - open bus */
+    ESP_LOGD(TAG, "Read from unmapped address (open bus): $%06" PRIX32, addr);
     s_mem.bus_errors++;
+    s_last_bus_error_addr = addr;
+    s_last_bus_error_write = false;
     ESP_LOGD(TAG, "Read from unmapped address: $%06" PRIX32, addr);
     return 0xFF;
 }
@@ -115,6 +139,10 @@ static uint16_t st_read_word(uint32_t addr)
     
     /* I/O Space */
     if (addr >= ST_IO_BASE) {
+        if (addr == (IO_MMU_CONFIG - 1) || addr == IO_MMU_CONFIG) {
+            return ((uint16_t)s_mem.mmu_config << 8) | s_mem.mmu_config;
+        }
+
         io_handler_t *h = find_io_handler(addr);
         if (h && h->read_word) {
             return h->read_word(addr, h->context);
@@ -130,14 +158,21 @@ static uint16_t st_read_word(uint32_t addr)
     }
     
     /* Cartridge */
-    if (addr >= 0xFA0000 && addr < 0xFC0000 && s_mem.cartridge) {
-        uint32_t off = addr - 0xFA0000;
-        if ((off + 1) < s_mem.cart_size) {
-            return ((uint16_t)s_mem.cartridge[off] << 8) | s_mem.cartridge[off + 1];
+    if (addr >= 0xFA0000 && addr < 0xFC0000) {
+        if (s_mem.cartridge) {
+            uint32_t off = addr - 0xFA0000;
+            if ((off + 1) < s_mem.cart_size) {
+                return ((uint16_t)s_mem.cartridge[off] << 8) | s_mem.cartridge[off + 1];
+            }
         }
+        /* No cartridge inserted: open bus */
+        return 0xFFFF;
     }
     
     s_mem.bus_errors++;
+    s_last_bus_error_addr = addr;
+    s_last_bus_error_write = false;
+    ESP_LOGD(TAG, "Read word from unmapped address: $%06" PRIX32, addr);
     return 0xFFFF;
 }
 
@@ -176,9 +211,20 @@ static void st_write_byte(uint32_t addr, uint8_t val)
         s_mem.ram[addr] = val;
         return;
     }
+
+    /* Reserved pre-I/O window ($FF0000-$FF7FFF): open bus (ignore write) */
+    if (addr >= 0xFF0000 && addr < ST_IO_BASE) {
+        ESP_LOGD(TAG, "Write to reserved pre-I/O ignored: $%06" PRIX32 " = $%02X", addr, val);
+        return;
+    }
     
     /* I/O Space */
     if (addr >= ST_IO_BASE) {
+        if (addr == IO_MMU_CONFIG) {
+            s_mem.mmu_config = val;
+            return;
+        }
+
         io_handler_t *h = find_io_handler(addr);
         if (h && h->write_byte) {
             h->write_byte(addr, val, h->context);
@@ -187,15 +233,22 @@ static void st_write_byte(uint32_t addr, uint8_t val)
         ESP_LOGD(TAG, "Unhandled I/O write byte: $%06" PRIX32 " = $%02X", addr, val);
         return;
     }
+
+    /* Unmapped RAM/expansion gap below ROM: open bus (ignore write) */
+    if (addr < ST_ROM_BASE) {
+        ESP_LOGD(TAG, "Write to unmapped gap ignored: $%06" PRIX32 " = $%02X", addr, val);
+        return;
+    }
     
-    /* Writes to ROM generate bus error on real hardware */
+    /* Writes to ROM: ignore as open bus for compatibility */
     if (addr >= s_mem.rom_base && addr < (s_mem.rom_base + s_mem.rom_size)) {
-        s_mem.bus_errors++;
-        ESP_LOGD(TAG, "Write to ROM: $%06" PRIX32 " = $%02X", addr, val);
+        ESP_LOGD(TAG, "Write to ROM ignored: $%06" PRIX32 " = $%02X", addr, val);
         return;
     }
     
     s_mem.bus_errors++;
+    s_last_bus_error_addr = addr;
+    s_last_bus_error_write = true;
     ESP_LOGD(TAG, "Write to unmapped: $%06" PRIX32 " = $%02X", addr, val);
 }
 
@@ -214,6 +267,11 @@ static void st_write_word(uint32_t addr, uint16_t val)
     
     /* I/O Space */
     if (addr >= ST_IO_BASE) {
+        if (addr == (IO_MMU_CONFIG - 1) || addr == IO_MMU_CONFIG) {
+            s_mem.mmu_config = (uint8_t)(val & 0xFF);
+            return;
+        }
+
         io_handler_t *h = find_io_handler(addr);
         if (h && h->write_word) {
             h->write_word(addr, val, h->context);
@@ -228,13 +286,27 @@ static void st_write_word(uint32_t addr, uint16_t val)
         ESP_LOGD(TAG, "Unhandled I/O write word: $%06" PRIX32 " = $%04X", addr, val);
         return;
     }
+
+    /* Reserved pre-I/O window ($FF0000-$FF7FFF): open bus (ignore write) */
+    if (addr >= 0xFF0000 && addr < ST_IO_BASE) {
+        ESP_LOGD(TAG, "Write word to reserved pre-I/O ignored: $%06" PRIX32 " = $%04X", addr, val);
+        return;
+    }
+
+    /* Unmapped RAM/expansion gap below ROM: open bus (ignore write) */
+    if (addr < ST_ROM_BASE) {
+        ESP_LOGD(TAG, "Write word to unmapped gap ignored: $%06" PRIX32 " = $%04X", addr, val);
+        return;
+    }
     
     if (addr >= s_mem.rom_base && addr < (s_mem.rom_base + s_mem.rom_size)) {
-        s_mem.bus_errors++;
+        ESP_LOGD(TAG, "Write word to ROM ignored: $%06" PRIX32 " = $%04X", addr, val);
         return;
     }
     
     s_mem.bus_errors++;
+    s_last_bus_error_addr = addr;
+    s_last_bus_error_write = true;
 }
 
 static void st_write_long(uint32_t addr, uint32_t val)
@@ -264,12 +336,16 @@ static void st_write_long(uint32_t addr, uint32_t val)
 static void st_bus_error(uint32_t addr, bool write)
 {
     s_mem.bus_errors++;
+    s_last_bus_error_addr = addr & 0x00FFFFFF;
+    s_last_bus_error_write = write;
     ESP_LOGW(TAG, "BUS ERROR: $%06" PRIX32 " %s", addr, write ? "write" : "read");
 }
 
 static void st_address_error(uint32_t addr, bool write)
 {
     s_mem.bus_errors++;
+    s_last_bus_error_addr = addr & 0x00FFFFFF;
+    s_last_bus_error_write = write;
     ESP_LOGW(TAG, "ADDRESS ERROR: $%06" PRIX32 " %s", addr, write ? "write" : "read");
 }
 
@@ -293,6 +369,8 @@ esp_err_t st_memory_init(uint32_t ram_size)
              (unsigned long)(ram_size / 1024));
     
     memset(&s_mem, 0, sizeof(s_mem));
+    s_last_bus_error_addr = 0;
+    s_last_bus_error_write = false;
     
     /* Allocate RAM from PSRAM */
     s_mem.ram = heap_caps_calloc(1, ram_size, MALLOC_CAP_SPIRAM);
@@ -302,6 +380,7 @@ esp_err_t st_memory_init(uint32_t ram_size)
         return ESP_ERR_NO_MEM;
     }
     s_mem.ram_size = ram_size;
+    s_mem.mmu_config = mmu_config_for_ram_size(ram_size);
     
     /* ROM defaults */
     s_mem.rom_base = ST_ROM_BASE;
@@ -516,13 +595,38 @@ void st_memory_reset(void)
         memset(s_mem.ram, 0, s_mem.ram_size);
     }
     
-    /* Reset MMU config */
-    s_mem.mmu_config = 0;
+    /* Reset MMU config to match configured RAM size */
+    s_mem.mmu_config = mmu_config_for_ram_size(s_mem.ram_size);
     
     /* Reset statistics */
     s_mem.reads = 0;
     s_mem.writes = 0;
     s_mem.bus_errors = 0;
+    s_last_bus_error_addr = 0;
+    s_last_bus_error_write = false;
     
     ESP_LOGI(TAG, "Memory reset (RAM cleared, ROM preserved)");
+}
+
+void st_memory_get_stats(uint64_t *reads, uint64_t *writes, uint64_t *bus_errors)
+{
+    if (reads) {
+        *reads = s_mem.reads;
+    }
+    if (writes) {
+        *writes = s_mem.writes;
+    }
+    if (bus_errors) {
+        *bus_errors = s_mem.bus_errors;
+    }
+}
+
+void st_memory_get_last_bus_error(uint32_t *addr, bool *write)
+{
+    if (addr) {
+        *addr = s_last_bus_error_addr;
+    }
+    if (write) {
+        *write = s_last_bus_error_write;
+    }
 }

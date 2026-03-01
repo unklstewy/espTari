@@ -56,6 +56,7 @@ static const uint32_t s_interface_versions[] = {
     VIDEO_INTERFACE_V1, /* Video */
     AUDIO_INTERFACE_V1, /* Audio */
     IO_INTERFACE_V1,    /* I/O */
+    SYSTEM_INTERFACE_V1,/* System */
 };
 
 esp_err_t loader_init(void)
@@ -350,6 +351,9 @@ esp_err_t loader_get_info(void *interface, component_info_t *info)
         case EBIN_TYPE_IO:
             info->name = ((io_interface_t*)interface)->name;
             break;
+        case EBIN_TYPE_SYSTEM:
+            info->name = ((system_interface_t*)interface)->name;
+            break;
         default:
             info->name = "Unknown";
     }
@@ -395,6 +399,7 @@ esp_err_t loader_scan_components(component_type_t type,
         case COMPONENT_TYPE_VIDEO: subdir = "video"; break;
         case COMPONENT_TYPE_AUDIO: subdir = "audio"; break;
         case COMPONENT_TYPE_IO:    subdir = "io"; break;
+        case COMPONENT_TYPE_SYSTEM:subdir = "system"; break;
         default:                   subdir = ""; break;
     }
     

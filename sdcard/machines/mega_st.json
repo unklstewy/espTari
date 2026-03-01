@@ -1,25 +1,48 @@
 {
-    "name": "Atari Mega ST",
-    "model": "mega_st",
-    "cpu": {
-        "core": "m68000",
-        "clock_hz": 8000000
+    "machine": "mega_st",
+    "display_name": "Atari Mega ST",
+    "description": "Atari Mega ST business-class ST",
+    "year": 1987,
+    "components": {
+        "cpu": {
+            "file": "m68000.ebin",
+            "clock_hz": 8000000,
+            "role": "cpu"
+        },
+        "mmu": {
+            "file": "st_mmu.ebin",
+            "role": "mmu",
+            "optional": true
+        },
+        "video": {
+            "file": "shifter.ebin",
+            "role": "video"
+        },
+        "audio": [
+            {
+                "file": "ym2149.ebin",
+                "role": "psg"
+            }
+        ],
+        "io": [
+            {
+                "file": "mfp68901.ebin",
+                "role": "mfp"
+            },
+            {
+                "file": "fdc_wd1772.ebin",
+                "role": "fdc"
+            },
+            {
+                "file": "blitter.ebin",
+                "role": "blitter",
+                "optional": true
+            }
+        ]
     },
-    "mmu": "st_mmu",
     "memory": {
         "ram_kb": 4096,
-        "rom": "tos/tos206.img"
-    },
-    "video": {
-        "chip": "shifter",
-        "default_resolution": "low"
-    },
-    "audio": {
-        "chip": "ym2149"
-    },
-    "peripherals": [
-        "mfp68901",
-        "fdc_wd1772",
-        "blitter"
-    ]
+        "tos_file": "tos206.img",
+        "tos_required": true
+    }
 }
