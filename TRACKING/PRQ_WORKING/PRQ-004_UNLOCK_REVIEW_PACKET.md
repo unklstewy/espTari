@@ -23,19 +23,24 @@ Provide a single decision-ready package for unlock review, mapping Section 6 pre
 |---|---|---|---|---|---|
 | None | n/a | No open PRQ prerequisite blockers remain in this packet scope | n/a | Closed | n/a |
 
-## Decision Template
+## Decision Record
 
-- Decision Date:
-- Decision Authority:
-- Decision: `unlock` / `unlock_with_conditions` / `hold`
-- Conditions (if any):
+- Decision Date: 2026-03-02
+- Decision Authority: Product Owner / Acceptance
+- Decision: `unlock_with_conditions`
+- Conditions:
+	- Enforce deployment rollback procedure documented in PRQ-003 for each rollout step.
+	- Keep readiness-gated startup verification before runtime API validation batches.
+	- Preserve deterministic fixture execution evidence capture for regression reruns.
 - Required follow-up tasks:
-- Re-review date:
+	- Continue API V2 implementation slices under normal acceptance cadence.
+	- Attach future regression evidence artifacts to the same PRQ tracking package.
+- Re-review date: 2026-03-09 (or earlier if new blocker appears)
 
-## Recommended Decision (Current State)
+## Decision Rationale
 
-- Recommended decision: `unlock_with_conditions`
-- Rationale: PRQ-001/002/003 prerequisites are closed with evidence-linked runtime/preflight outputs; retain standard rollback and checkpoint enforcement during unlock execution.
+- PRQ-001/002/003 prerequisites are closed with evidence-linked runtime/preflight outputs.
+- No open PRQ prerequisite blockers remain in packet scope.
 
 ## Notes
 
