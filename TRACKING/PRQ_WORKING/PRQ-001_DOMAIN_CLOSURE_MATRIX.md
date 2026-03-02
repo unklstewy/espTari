@@ -8,7 +8,7 @@ Scope: Implementation-readiness artifact creation only (no runtime evidence)
 
 | Domain | Current implementation-readiness state | Open gaps | Owner | Planned closure action | Planned evidence link | Target date |
 |---|---|---|---|---|---|---|
-| lifecycle | Ready for Review | PRQ1-GAP-001 (residual review item) | Engineering | Validate lifecycle guard coverage map and edge-case decision log during PRQ-001 review gate. | TRACKING/PRQ_WORKING/PRQ-001_GAP_REGISTER.md#L11 | 2026-03-05 |
+| lifecycle | Implemented + Smoke Validated | PRQ1-GAP-001 (semantic residuals) | Engineering | Resolve `resume`/`reset` contract deltas, rerun lifecycle negative-case matrix, and attach closure evidence for signoff. | TRACKING/PRQ_WORKING/PRQ-001_GAP_REGISTER.md#L11 | 2026-03-05 |
 | input mapping | Implemented + Smoke Validated | PRQ1-GAP-002 (negative-case residuals) | Engineering | Close remaining conflict/not-found negative-case checks and attach evidence links for final PRQ-001 signoff. | TRACKING/PRQ_WORKING/PRQ-001_GAP_REGISTER.md#L12 | 2026-03-05 |
 | save/restore | Ready for Review | PRQ1-GAP-003 (residual review item) | Engineering | Review compatibility closure map and sequencing mitigation list for implementation-ready signoff. | TRACKING/PRQ_WORKING/PRQ-001_GAP_REGISTER.md#L13 | 2026-03-06 |
 | observability | Ready for Review | PRQ1-GAP-004 (residual review item) | Engineering + QA | Validate observability readiness matrix ownership split and traceability coverage in review. | TRACKING/PRQ_WORKING/PRQ-001_GAP_REGISTER.md#L14 | 2026-03-06 |

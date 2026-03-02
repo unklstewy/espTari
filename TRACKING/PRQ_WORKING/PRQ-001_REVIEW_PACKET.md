@@ -15,7 +15,7 @@ PRQ-001 packages implementation-readiness evidence for the core lifecycle, input
 
 ## 3) Unresolved blockers
 
-- PRQ1-GAP-001 (lifecycle): reviewer confirmation pending for edge-path transition/guard coverage mapping.
+- PRQ1-GAP-001 (lifecycle): runtime transition evidence captured; residual blocker narrowed to contract-alignment deltas for `resume` from stopped and `reset` guard/target-state semantics.
 - PRQ1-GAP-002 (input mapping): runtime CRUD/apply implementation and smoke evidence captured; residual blocker limited to negative-case matrix (`CONFLICT`, `INPUT_MAPPING_NOT_FOUND`) for full closure.
 - PRQ1-GAP-003 (save/restore): reviewer approval pending for compatibility closure map and sequencing mitigation plan.
 - PRQ1-GAP-004 (observability): reviewer signoff pending for ownership split and traceability coverage.
