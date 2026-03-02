@@ -16,7 +16,7 @@ This board is the operational view for daily execution.
 - Decomposed child backlog: (empty for T-054 through T-121)
 - Save-state decomposition backlog: T-039 through T-044
 - CRT readiness wave backlog: (empty)
-- S5 unlock prerequisites backlog: PRQ-002, PRQ-003, PRQ-004
+- S5 unlock prerequisites backlog: (empty)
 
 ### Ready
 
@@ -32,15 +32,16 @@ This board is the operational view for daily execution.
 - CRT-003 (implementation-readiness planning)
 - CRT-004 (implementation-readiness planning)
 - CRT-005 (implementation-readiness planning)
-- PRQ-001 (core runtime code-path closure)
 
 ### In Review
 
-- (empty)
+- PRQ-001 (core runtime code-path closure)
+- PRQ-002 (deterministic fixture/scenario package)
+- PRQ-003 (deployment workflow documentation)
 
 ### Acceptance
 
-- (empty)
+- PRQ-004 (unlock review packet; PO decision pending)
 
 ### Done
 
@@ -49,6 +50,7 @@ This board is the operational view for daily execution.
 ### Blocked
 
 - Runtime/API validation wave is blocked until CRT phase gate is unlocked (core API/runtime implementation required).
+- PRQ-001 closure remains blocked by missing runtime code-path implementation evidence.
 
 ## Daily standup fields
 

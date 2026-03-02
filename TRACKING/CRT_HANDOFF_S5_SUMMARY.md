@@ -63,9 +63,9 @@ Current assessment: **Not Unlocked**.
 | Prerequisite | Owner | Status | Unblock Condition |
 |---|---|---|---|
 | Core lifecycle/input/save-restore/observability runtime code paths | Engineering | In Progress | API/runtime implementation merged and review-approved |
-| Deterministic fixture/scenario inputs for CRT vectors | Engineering + QA | Open | Fixture package available and validated for repeatability |
-| Firmware/app deployment workflow for CRT runtime checks | Engineering | Open | Documented, reproducible deployment path verified |
-| Runtime validation authorization | Product Owner / Acceptance Master | Open | Explicit phase-gate unlock decision recorded |
+| Deterministic fixture/scenario inputs for CRT vectors | Engineering + QA | In Review | Fixture package available and validated for repeatability |
+| Firmware/app deployment workflow for CRT runtime checks | Engineering | In Review | Documented, reproducible deployment path verified |
+| Runtime validation authorization | Product Owner / Acceptance Master | Acceptance | Explicit phase-gate unlock decision recorded |
 
 ## 7) PO Decision Record (Approved)
 
@@ -87,14 +87,14 @@ Current assessment: **Not Unlocked**.
 
 | Task | Objective (condensed) | Current Status | Dependency |
 |---|---|---|---|
-| PRQ-001 | Close prerequisite for core lifecycle/input/save-restore/observability runtime code paths | In Progress | CRT-005 |
-| PRQ-002 | Deliver deterministic fixture/scenario package for CRT vectors | Backlog | PRQ-001 |
-| PRQ-003 | Produce reproducible firmware/app deployment workflow documentation | Backlog | PRQ-002 |
-| PRQ-004 | Assemble unlock review packet and decision-ready PO package | Backlog | PRQ-003 |
+| PRQ-001 | Close prerequisite for core lifecycle/input/save-restore/observability runtime code paths | In Review | CRT-005 |
+| PRQ-002 | Deliver deterministic fixture/scenario package for CRT vectors | In Review | PRQ-001 |
+| PRQ-003 | Produce reproducible firmware/app deployment workflow documentation | In Review | PRQ-002 |
+| PRQ-004 | Assemble unlock review packet and decision-ready PO package | Acceptance | PRQ-003 |
 
 Sequencing note:
 - PRQ tasks are chained for unlock readiness: PRQ-001 → PRQ-002 → PRQ-003 → PRQ-004.
-- PRQ-001 planning artifacts now active: domain closure matrix and gap register are in progress.
+- PRQ working artifacts are fully packaged; PRQ-004 is queued for PO unlock decision.
 
 ## 9) Recommendation (Planning Phase)
 

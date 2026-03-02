@@ -156,10 +156,10 @@ Phase Gate note:
 
 | ID | Epic | Task | Priority | Size | Sprint Target | Status | Dependencies |
 |---|---|---|---|---|---|---|---|
-| PRQ-001 | EPIC-06 | Close prerequisite for core lifecycle/input/save-restore/observability runtime code paths | P0 | S | S5 | In Progress | CRT-005 |
-| PRQ-002 | EPIC-06 | Deliver deterministic fixture/scenario package for CRT vectors | P0 | S | S5 | Backlog | PRQ-001 |
-| PRQ-003 | EPIC-06 | Produce reproducible firmware/app deployment workflow documentation | P0 | S | S5 | Backlog | PRQ-002 |
-| PRQ-004 | EPIC-06 | Assemble unlock review packet and decision-ready PO package | P0 | XS | S5 | Backlog | PRQ-003 |
+| PRQ-001 | EPIC-06 | Close prerequisite for core lifecycle/input/save-restore/observability runtime code paths | P0 | S | S5 | In Review | CRT-005 |
+| PRQ-002 | EPIC-06 | Deliver deterministic fixture/scenario package for CRT vectors | P0 | S | S5 | In Review | PRQ-001 |
+| PRQ-003 | EPIC-06 | Produce reproducible firmware/app deployment workflow documentation | P0 | S | S5 | In Review | PRQ-002 |
+| PRQ-004 | EPIC-06 | Assemble unlock review packet and decision-ready PO package | P0 | XS | S5 | Acceptance | PRQ-003 |
 
 PRQ phase note:
 - PRQ tasks are prerequisite-closure documentation/design/code-ready tasks only.

@@ -26,10 +26,10 @@ Out of scope for this plan:
 
 | Section 6 Prerequisite | PRQ ID | Owner | Closure Criteria | Status |
 |---|---|---|---|---|
-| Core lifecycle/input/save-restore/observability runtime code paths | PRQ-001 | Engineering | Code paths are implemented and review-ready for all four domains, with traceable scope coverage and no unresolved critical design gaps | Open |
-| Deterministic fixture/scenario inputs for CRT vectors | PRQ-002 | Engineering + QA | Fixture/scenario package is documented, versioned, and repeatability-reviewed for all CRT check families | Open |
-| Firmware/app build and deployment workflow is available | PRQ-003 | Engineering | Reproducible deployment workflow documentation exists with deterministic preconditions, step order, and rollback notes | Open |
-| Product Owner / Acceptance Master explicit unlock authorization | PRQ-004 | Product Owner / Acceptance Master | Unlock review packet is complete and decision record updated with explicit `unlock` / `unlock_with_conditions` / `hold` outcome | Open |
+| Core lifecycle/input/save-restore/observability runtime code paths | PRQ-001 | Engineering | Code paths are implemented and review-ready for all four domains, with traceable scope coverage and no unresolved critical design gaps | In Review (blocked on implementation) |
+| Deterministic fixture/scenario inputs for CRT vectors | PRQ-002 | Engineering + QA | Fixture/scenario package is documented, versioned, and repeatability-reviewed for all CRT check families | In Review |
+| Firmware/app build and deployment workflow is available | PRQ-003 | Engineering | Reproducible deployment workflow documentation exists with deterministic preconditions, step order, and rollback notes | In Review |
+| Product Owner / Acceptance Master explicit unlock authorization | PRQ-004 | Product Owner / Acceptance Master | Unlock review packet is complete and decision record updated with explicit `unlock` / `unlock_with_conditions` / `hold` outcome | Acceptance |
 
 ## 4) Entry Criteria for Unlock Review
 
