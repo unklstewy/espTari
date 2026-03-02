@@ -45,8 +45,17 @@ Observed endpoint outcomes on `esptari.local`:
 - Route-availability blocker cleared (previous `404 URI not found` no longer reproduced for CRT-004 endpoints)
 
 Residuals:
-- No continuous stream framing evidence yet (single-payload probe only)
-- Backpressure and SLO checks are currently probe-driven and need sustained-load validation for production confidence
+- Sustained stream soak evidence captured (`90` samples) with zero non-200 responses and zero monotonicity regressions.
+- Long-duration multi-minute/soak-hardening remains optional for production confidence beyond CRT closure baseline.
+
+Sustained-load addendum (2026-03-02, compact run):
+- Artifact summary: `captures/stream_soak_20260302_181711_summary.txt`
+- Raw series: `captures/stream_soak_20260302_181711.csv`
+- Observed metrics:
+	- `samples=90`, `ok_true=90`, `non200=0`
+	- `seq_regressions=0`, `ts_regressions=0`, `seq_na=0`, `ts_na=0`
+	- `degraded_true_samples=2` (backpressure injection observed)
+	- `seen_slo_breach=yes`, `seen_slo_recovered=yes`
 
 Hardware capture addendum (2026-03-02):
 - Logic-analyzer UART+strobe evidence summary is documented in `TRACKING/CRT_READINESS/LA_CAPTURE_SUMMARY_2026-03-02.md`.
@@ -119,4 +128,4 @@ Runtime/API validation is blocked until:
 
 ## Notes
 - Runtime commands executed and baseline stream evidence captured.
-- This artifact now tracks implemented endpoint availability plus remaining telemetry-depth gaps.
+- This artifact now tracks implemented endpoint availability plus sustained-load baseline evidence for telemetry invariants.

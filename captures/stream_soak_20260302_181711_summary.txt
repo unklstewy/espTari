@@ -1,0 +1,15 @@
+]633;E;{   echo "preflight_health=$(curl -sS --max-time 5 \\"$BASE/api/v2/engine/health\\")"\x3b   echo "preflight_status=$(curl -sS --max-time 5 \\"$BASE/api/v2/engine/status\\")"\x3b   echo "session_start=$(curl -sS --max-time 5 -X POST \\"$BASE/api/v2/engine/session\\")"\x3b } > "$SUM";8d64cd4e-ecb6-4449-8dcd-f0a90893ea2b]633;Cpreflight_health=
+preflight_status=
+session_start=
+samples=90
+ok_true=90
+non200=0
+seq_regressions=0
+ts_regressions=0
+seq_na=0
+ts_na=0
+degraded_true_samples=2
+seen_slo_breach=yes
+seen_slo_recovered=yes
+raw_csv=captures/stream_soak_20260302_181711.csv
+summary_txt=captures/stream_soak_20260302_181711_summary.txt
