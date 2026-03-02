@@ -2,11 +2,11 @@
 
 Date: 2026-03-02
 Task: PRQ-002
-Phase: Pre-runtime-unlock (documentation-only)
+Phase: Runtime-backed fixture package
 
 ## Objective
 
-Define a deterministic fixture and scenario package for CRT validation vectors, without executing runtime tests.
+Define and execute a deterministic fixture/scenario package for CRT validation vectors with reproducible API evidence output.
 
 ## Fixture Catalog
 
@@ -36,9 +36,11 @@ Define a deterministic fixture and scenario package for CRT validation vectors, 
 ## Packaging Index
 
 - Fixture catalog: this file.
+- Fixture execution script: `tools/prq/run_prq002_fixture_matrix.sh`
+- Fixture evidence output: `captures/prq002_fixture_matrix_20260302_184958.txt`
 - Downstream workflow constraints: TRACKING/PRQ_WORKING/PRQ-003_DEPLOYMENT_WORKFLOW_RUNBOOK.md
 - Final unlock packet cross-link: TRACKING/PRQ_WORKING/PRQ-004_UNLOCK_REVIEW_PACKET.md
 
 ## Status
 
-Documentation package prepared for review; runtime execution remains blocked by phase gate.
+Fixture package executed and evidenced; deterministic matrix completed with pass/fail accounting and zero failures.

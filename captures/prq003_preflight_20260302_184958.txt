@@ -1,0 +1,16 @@
+root=/home/sannis/electronics/esp32p4/projects/espTari
+started_at=2026-03-02T23:49:58Z
+git_commit=5f17d7a
+git_branch=feature/emulation_engine
+PASS cmd python3: /home/sannis/anaconda3/bin/python3
+PASS cmd cmake: /usr/bin/cmake
+PASS cmd ninja: /usr/bin/ninja
+PASS file sdkconfig: /home/sannis/electronics/esp32p4/projects/espTari/sdkconfig
+PASS file partitions_csv: /home/sannis/electronics/esp32p4/projects/espTari/partitions.csv
+PASS file build_ninja: /home/sannis/electronics/esp32p4/projects/espTari/build/build.ninja
+PASS file firmware_bin: /home/sannis/electronics/esp32p4/projects/espTari/build/espTari.bin
+PASS file firmware_elf: /home/sannis/electronics/esp32p4/projects/espTari/build/espTari.elf
+PASS file partition_table_bin: /home/sannis/electronics/esp32p4/projects/espTari/build/partition_table/partition-table.bin
+pass_count=9
+fail_count=0
+completed_at=2026-03-02T23:49:58Z

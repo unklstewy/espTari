@@ -1,12 +1,12 @@
-# PRQ-003 Deployment Workflow Runbook (Pre-Unlock)
+# PRQ-003 Deployment Workflow Runbook
 
 Date: 2026-03-02
 Task: PRQ-003
-Phase: Pre-runtime-unlock (documentation-only)
+Phase: Runtime-backed preflight validation
 
 ## Objective
 
-Document a reproducible firmware/app deployment workflow and rollback procedure for future runtime validation, without executing deployment.
+Document and execute reproducible deployment preflight validation and rollback-readiness checks for firmware workflow control.
 
 ## Environment Prerequisites Matrix
 
@@ -48,6 +48,12 @@ Document a reproducible firmware/app deployment workflow and rollback procedure 
 - Checkpoint B: sequencing-plan traceability review.
 - Checkpoint C: rollback-plan completeness review.
 
+## Automation and Evidence
+
+- Preflight script: `tools/prq/run_prq003_preflight.sh`
+- Evidence output: `captures/prq003_preflight_20260302_184958.txt`
+- Result summary: all required command/file checks passed with zero failures.
+
 ## Status
 
-Runbook documentation prepared for review; no deployment or runtime execution performed.
+Runbook preflight is executed and evidenced; deployment sequencing remains governed by unlock decision flow.
