@@ -21,6 +21,8 @@ This document does not claim runtime execution. It summarizes planning completen
 - `TRACKING/TASK_CARDS_CRT_001_CRT_005.md`
 - `TRACKING/S5_RUNTIME_UNLOCK_EXECUTION_PLAN.md`
 - `TRACKING/TASK_CARDS_S5_UNLOCK_PREREQS.md`
+- `TRACKING/PRQ_WORKING/PRQ-001_DOMAIN_CLOSURE_MATRIX.md`
+- `TRACKING/PRQ_WORKING/PRQ-001_GAP_REGISTER.md`
 - `TRACKING/BACKLOG.md`
 - `TRACKING/KANBAN_BOARD.md`
 - `TRACKING/ACCEPTANCE_LOG.md`
@@ -60,7 +62,7 @@ Current assessment: **Not Unlocked**.
 
 | Prerequisite | Owner | Status | Unblock Condition |
 |---|---|---|---|
-| Core lifecycle/input/save-restore/observability runtime code paths | Engineering | Open | API/runtime implementation merged and review-approved |
+| Core lifecycle/input/save-restore/observability runtime code paths | Engineering | In Progress | API/runtime implementation merged and review-approved |
 | Deterministic fixture/scenario inputs for CRT vectors | Engineering + QA | Open | Fixture package available and validated for repeatability |
 | Firmware/app deployment workflow for CRT runtime checks | Engineering | Open | Documented, reproducible deployment path verified |
 | Runtime validation authorization | Product Owner / Acceptance Master | Open | Explicit phase-gate unlock decision recorded |
@@ -85,13 +87,14 @@ Current assessment: **Not Unlocked**.
 
 | Task | Objective (condensed) | Current Status | Dependency |
 |---|---|---|---|
-| PRQ-001 | Close prerequisite for core lifecycle/input/save-restore/observability runtime code paths | Ready | CRT-005 |
+| PRQ-001 | Close prerequisite for core lifecycle/input/save-restore/observability runtime code paths | In Progress | CRT-005 |
 | PRQ-002 | Deliver deterministic fixture/scenario package for CRT vectors | Backlog | PRQ-001 |
 | PRQ-003 | Produce reproducible firmware/app deployment workflow documentation | Backlog | PRQ-002 |
 | PRQ-004 | Assemble unlock review packet and decision-ready PO package | Backlog | PRQ-003 |
 
 Sequencing note:
 - PRQ tasks are chained for unlock readiness: PRQ-001 → PRQ-002 → PRQ-003 → PRQ-004.
+- PRQ-001 planning artifacts now active: domain closure matrix and gap register are in progress.
 
 ## 9) Recommendation (Planning Phase)
 

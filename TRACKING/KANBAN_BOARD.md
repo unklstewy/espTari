@@ -4,7 +4,7 @@ This board is the operational view for daily execution.
 
 ## WIP Limits
 
-- In Progress: 5
+- In Progress: 6
 - In Review: 3
 - Acceptance: 2
 
@@ -24,7 +24,6 @@ This board is the operational view for daily execution.
 - T-048, T-049, T-050 (decomposition of T-003)
 - T-051, T-052, T-053 (decomposition of T-009)
 - (no remaining T-054 through T-121 items)
-- PRQ-001 (core runtime code-path closure)
 
 ### In Progress
 
@@ -33,6 +32,7 @@ This board is the operational view for daily execution.
 - CRT-003 (implementation-readiness planning)
 - CRT-004 (implementation-readiness planning)
 - CRT-005 (implementation-readiness planning)
+- PRQ-001 (core runtime code-path closure)
 
 ### In Review
 

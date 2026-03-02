@@ -43,6 +43,7 @@ Use this log for Product Owner / Acceptance Master decisions.
 | 2026-03-02 | S5 | CRT-003 | Pending | Implementation-readiness planning in progress. Runtime execution blocked by phase gate. Evidence bundle links: TRACKING/CRT_READINESS/CRT-003_READINESS.md, TBD. PO decision timestamp: TBD. | TRACKING/CRT_READINESS/CRT-003_READINESS.md |
 | 2026-03-02 | S5 | CRT-004 | Pending | Implementation-readiness planning in progress. Runtime execution blocked by phase gate. Evidence bundle links: TRACKING/CRT_READINESS/CRT-004_READINESS.md, TBD. PO decision timestamp: TBD. | TRACKING/CRT_READINESS/CRT-004_READINESS.md |
 | 2026-03-02 | S5 | CRT-005 | Pending | Implementation-readiness planning in progress. Runtime execution blocked by phase gate. Evidence bundle links: TRACKING/CRT_READINESS/CRT-005_READINESS.md, TBD. PO decision timestamp: TBD. | TRACKING/CRT_READINESS/CRT-005_READINESS.md |
+| 2026-03-02 | S5 | PRQ-001 | Pending | Planning artifact creation in progress; runtime evidence blocked by phase gate. Evidence bundle links: TRACKING/PRQ_WORKING/PRQ-001_DOMAIN_CLOSURE_MATRIX.md, TRACKING/PRQ_WORKING/PRQ-001_GAP_REGISTER.md. PO decision timestamp: TBD. | TRACKING/PRQ_WORKING/PRQ-001_DOMAIN_CLOSURE_MATRIX.md |
 | 2026-03-02 | S5 | CRT-001..CRT-005 | Deferred | PO decision record is approved (`hold`) in Section 7 of CRT handoff. Runtime/API validation remains blocked until all prerequisites in Section 6 are closed; re-review scheduled for 2026-03-09. | TRACKING/CRT_HANDOFF_S5_SUMMARY.md |
 
 ## Decision policy
