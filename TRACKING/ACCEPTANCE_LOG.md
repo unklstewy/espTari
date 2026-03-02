@@ -38,6 +38,12 @@ Use this log for Product Owner / Acceptance Master decisions.
 | 2026-03-02 | S4 | T-119 | Accepted | Deterministic mode transition flow and idempotency semantics documented and validated. | docs/EMU_ENGINE_V2_API_SPEC.md#L1182-L1250 |
 | 2026-03-02 | S4 | T-120 | Accepted | Single-step control + scheduler-hook contract and guard mapping documented and validated. | docs/EMU_ENGINE_V2_API_SPEC.md#L1262-L1333 |
 | 2026-03-02 | S4 | T-121 | Accepted | Opcode/bus-error capture payload schemas and deterministic capture checks documented and validated. | docs/EMU_ENGINE_V2_API_SPEC.md#L1336-L1422 |
+| 2026-03-02 | S5 | CRT-001 | Pending | Implementation-readiness planning in progress. Runtime execution blocked by phase gate. Evidence bundle links: TRACKING/CRT_READINESS/CRT-001_READINESS.md, TBD. PO decision timestamp: TBD. | TRACKING/CRT_READINESS/CRT-001_READINESS.md |
+| 2026-03-02 | S5 | CRT-002 | Pending | Implementation-readiness planning in progress. Runtime execution blocked by phase gate. Evidence bundle links: TRACKING/CRT_READINESS/CRT-002_READINESS.md, TBD. PO decision timestamp: TBD. | TRACKING/CRT_READINESS/CRT-002_READINESS.md |
+| 2026-03-02 | S5 | CRT-003 | Pending | Implementation-readiness planning in progress. Runtime execution blocked by phase gate. Evidence bundle links: TRACKING/CRT_READINESS/CRT-003_READINESS.md, TBD. PO decision timestamp: TBD. | TRACKING/CRT_READINESS/CRT-003_READINESS.md |
+| 2026-03-02 | S5 | CRT-004 | Pending | Implementation-readiness planning in progress. Runtime execution blocked by phase gate. Evidence bundle links: TRACKING/CRT_READINESS/CRT-004_READINESS.md, TBD. PO decision timestamp: TBD. | TRACKING/CRT_READINESS/CRT-004_READINESS.md |
+| 2026-03-02 | S5 | CRT-005 | Pending | Implementation-readiness planning in progress. Runtime execution blocked by phase gate. Evidence bundle links: TRACKING/CRT_READINESS/CRT-005_READINESS.md, TBD. PO decision timestamp: TBD. | TRACKING/CRT_READINESS/CRT-005_READINESS.md |
+| 2026-03-02 | S5 | CRT-001..CRT-005 | Deferred | PO decision record is approved (`hold`) in Section 7 of CRT handoff. Runtime/API validation remains blocked until all prerequisites in Section 6 are closed; re-review scheduled for 2026-03-09. | TRACKING/CRT_HANDOFF_S5_SUMMARY.md |
 
 ## Decision policy
 

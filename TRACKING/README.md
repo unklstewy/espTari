@@ -39,6 +39,9 @@ This folder is the execution system for an Agentic AI delivery team.
 13. [Agent Runbook](AGENT_RUNBOOK.md)
 14. [Release Notes](RELEASE_NOTES.md)
 15. [Contract-to-Runtime Verification Tasks](CONTRACT_TO_RUNTIME_VERIFICATION_TASKS.md)
+16. [CRT Task Cards (CRT-001 through CRT-005)](TASK_CARDS_CRT_001_CRT_005.md)
+17. [S5 Runtime Unlock Execution Plan](S5_RUNTIME_UNLOCK_EXECUTION_PLAN.md)
+18. [S5 Unlock Prerequisite Task Cards (PRQ-001 through PRQ-004)](TASK_CARDS_S5_UNLOCK_PREREQS.md)
 
 ## Cadence
 

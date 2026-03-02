@@ -15,6 +15,8 @@ This board is the operational view for daily execution.
 - Umbrella trackers: T-001 through T-038
 - Decomposed child backlog: (empty for T-054 through T-121)
 - Save-state decomposition backlog: T-039 through T-044
+- CRT readiness wave backlog: (empty)
+- S5 unlock prerequisites backlog: PRQ-002, PRQ-003, PRQ-004
 
 ### Ready
 
@@ -22,10 +24,15 @@ This board is the operational view for daily execution.
 - T-048, T-049, T-050 (decomposition of T-003)
 - T-051, T-052, T-053 (decomposition of T-009)
 - (no remaining T-054 through T-121 items)
+- PRQ-001 (core runtime code-path closure)
 
 ### In Progress
 
-- (empty)
+- CRT-001 (implementation-readiness planning)
+- CRT-002 (implementation-readiness planning)
+- CRT-003 (implementation-readiness planning)
+- CRT-004 (implementation-readiness planning)
+- CRT-005 (implementation-readiness planning)
 
 ### In Review
 
@@ -41,7 +48,7 @@ This board is the operational view for daily execution.
 
 ### Blocked
 
-- (empty)
+- Runtime/API validation wave is blocked until CRT phase gate is unlocked (core API/runtime implementation required).
 
 ## Daily standup fields
 
