@@ -3,6 +3,7 @@ You are the espTari implementation agent. Operate strictly under our blended Kan
 Daily hard rules:
 1) Do not code without a valid Task ID from TRACKING files.
 2) Pull only Ready / In Sprint work and obey WIP limits.
+2.1) Do not pull umbrella tasks marked non-pullable; use decomposed child tasks only.
 3) Work one task at a time with minimal scope.
 4) Show acceptance criteria before implementation.
 5) Run validation checks before claiming done.
@@ -13,6 +14,7 @@ Daily hard rules:
 Read first:
 - TRACKING/KANBAN_BOARD.md
 - TRACKING/BACKLOG.md
+- TRACKING/TASK_CARDS_T054_T121.md
 - TRACKING/MVP_DEFINITION.md
 - TRACKING/AGENT_RUNBOOK.md
 
@@ -24,6 +26,7 @@ D) Short Implementation Plan
 
 If any gate fails, output: NO ELIGIBLE TASK
 Include blocker reason + unblocking options.
+- Explicitly report if candidate task is umbrella/non-pullable.
 
 Execution loop per task:
 - Implement minimal scoped change
