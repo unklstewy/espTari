@@ -2,7 +2,7 @@
 
 Task: CRT-003
 Phase: Runtime implementation + smoke evidence capture
-Status: Implemented (Guard matrix validated; compatibility validator depth pending)
+Status: Implemented (Compatibility validator baseline validated)
 
 ## Objective
 Validate suspend-save and restore-resume runtime paths and capture initial compatibility/guard evidence.
@@ -40,12 +40,19 @@ Observed endpoint outcomes on `esptari.local`:
 - `POST /api/v2/engine/session/restore-resume` when session is not suspended -> `409` with `ENGINE_NOT_SUSPENDED`
 - `POST /api/v2/engine/session/restore-resume` with invalid `resume_mode` -> `400` with `BAD_REQUEST`
 - `POST /api/v2/engine/session/restore-resume` with unknown `snapshot_id` from suspended -> `404` with `SNAPSHOT_NOT_FOUND`
-- `POST /api/v2/engine/session/restore-resume` with synthetic incompatible snapshot id (`incompat_*`) -> `409` with `SNAPSHOT_INCOMPATIBLE`
+- `POST /api/v2/engine/session/restore-resume` with compatibility mismatches now returns deterministic rule-id mapping:
+	- schema mismatch (`RCOMP-01`) -> `409 SNAPSHOT_INCOMPATIBLE`
+	- profile mismatch (`RCOMP-02`) -> `409 SNAPSHOT_INCOMPATIBLE`
+	- engine ABI mismatch (`RCOMP-03`) -> `409 SNAPSHOT_INCOMPATIBLE`
+	- module ABI mismatch (`RCOMP-04`) -> `409 SNAPSHOT_INCOMPATIBLE`
+- `POST /api/v2/engine/state/restore/validate` added and validated:
+	- compatible snapshot + `strict=true` -> `ok=true`, `compatible=true`
+	- incompatible snapshot + `strict=false` -> `ok=true`, `compatible=false`, `failed_rule_id`, `error_code=SNAPSHOT_INCOMPATIBLE`
+	- incompatible snapshot + `strict=true` -> `409 SNAPSHOT_INCOMPATIBLE`
 - Route-availability blocker cleared (previous `404 URI not found` no longer reproduced for CRT-003 endpoints)
 
 Residuals:
-- Compatibility validator (`RCOMP-*`, `RCOMP-VAL-*`) depth remains pending
-- Incompatible-snapshot mapping currently uses deterministic synthetic trigger (`snapshot_id` prefix `incompat_`) pending real schema/ABI/profile validator wiring
+- Snapshot compatibility metadata source is currently encoded in `snapshot_id` metadata tokens (baseline validator wiring), pending dedicated persisted snapshot metadata records
 
 ## Guard mapping checklist (planned)
 - [ ] Validate suspend-save transition guard mapping (`SUSP-REQ-*`)

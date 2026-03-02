@@ -559,7 +559,13 @@ static esp_err_t restore_resume_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"SNAPSHOT_NOT_FOUND\"}}", 404);
     }
     if (err == ESP_ERR_INVALID_RESPONSE) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"SNAPSHOT_INCOMPATIBLE\"}}", 409);
+        const char *rule_id = esptari_core_get_last_failed_compat_rule();
+        char incompatible_resp[256];
+        snprintf(incompatible_resp,
+                 sizeof(incompatible_resp),
+                 "{\"ok\":false,\"error\":{\"code\":\"SNAPSHOT_INCOMPATIBLE\",\"details\":{\"rule_id\":\"%s\",\"guard_id\":\"REST-RES-03\"}}}",
+                 (rule_id != NULL && rule_id[0] != '\0') ? rule_id : "RCOMP-UNKNOWN");
+        return send_json(req, incompatible_resp, 409);
     }
     if (err == ESP_ERR_INVALID_ARG) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
@@ -573,6 +579,83 @@ static esp_err_t restore_resume_handler(httpd_req_t *req)
              "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"session_state\":\"%s\"}}",
              snapshot_id,
              resume_running ? "running" : "paused");
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t restore_validate_handler(httpd_req_t *req)
+{
+    char body[512];
+    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *root = cJSON_Parse(body);
+    if (root == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    const char *snapshot_id = NULL;
+    if (!json_get_string(root, "snapshot_id", &snapshot_id)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    bool strict = true;
+    cJSON *strict_item = cJSON_GetObjectItemCaseSensitive(root, "strict");
+    if (cJSON_IsBool(strict_item)) {
+        strict = cJSON_IsTrue(strict_item);
+    }
+    cJSON_Delete(root);
+
+    bool compatible = false;
+    esp_err_t err = esptari_core_validate_restore_compatibility(snapshot_id, strict, &compatible);
+    if (err == ESP_ERR_INVALID_ARG) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    if (err == ESP_ERR_NOT_FOUND) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"SNAPSHOT_NOT_FOUND\"}}", 404);
+    }
+    if (err == ESP_ERR_INVALID_STATE) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
+    }
+    if (err == ESP_ERR_INVALID_RESPONSE) {
+        const char *rule_id = esptari_core_get_last_failed_compat_rule();
+        char incompatible_resp[256];
+        snprintf(incompatible_resp,
+                 sizeof(incompatible_resp),
+                 "{\"ok\":false,\"error\":{\"code\":\"SNAPSHOT_INCOMPATIBLE\",\"details\":{\"rule_id\":\"%s\"}}}",
+                 (rule_id != NULL && rule_id[0] != '\0') ? rule_id : "RCOMP-UNKNOWN");
+        return send_json(req, incompatible_resp, 409);
+    }
+    if (err != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    const char *failed_rule_id = esptari_core_get_last_failed_compat_rule();
+    uint64_t validated_at_us = (uint64_t)esp_timer_get_time();
+    char resp[640];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"compatible\":%s,\"evaluated_rules\":[\"RCOMP-01\",\"RCOMP-02\",\"RCOMP-03\",\"RCOMP-04\"],\"failed_rule_id\":%s,\"error_code\":%s,\"validated_at_us\":%llu}}",
+             snapshot_id,
+             compatible ? "true" : "false",
+             (failed_rule_id != NULL && failed_rule_id[0] != '\0') ? "\"" : "null",
+             compatible ? "null" : "\"SNAPSHOT_INCOMPATIBLE\"",
+             (unsigned long long)validated_at_us);
+
+    if (failed_rule_id != NULL && failed_rule_id[0] != '\0') {
+        char fixed_resp[640];
+        snprintf(fixed_resp,
+                 sizeof(fixed_resp),
+                 "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"compatible\":%s,\"evaluated_rules\":[\"RCOMP-01\",\"RCOMP-02\",\"RCOMP-03\",\"RCOMP-04\"],\"failed_rule_id\":\"%s\",\"error_code\":%s,\"validated_at_us\":%llu}}",
+                 snapshot_id,
+                 compatible ? "true" : "false",
+                 failed_rule_id,
+                 compatible ? "null" : "\"SNAPSHOT_INCOMPATIBLE\"",
+                 (unsigned long long)validated_at_us);
+        return send_json(req, fixed_resp, 200);
+    }
+
     return send_json(req, resp, 200);
 }
 
@@ -787,6 +870,7 @@ void esptari_web_init(uint16_t port)
     httpd_uri_t reset = {.uri = "/api/v2/engine/session/reset", .method = HTTP_POST, .handler = reset_handler, .user_ctx = NULL};
     httpd_uri_t suspend_save = {.uri = "/api/v2/engine/session/suspend-save", .method = HTTP_POST, .handler = suspend_save_handler, .user_ctx = NULL};
     httpd_uri_t restore_resume = {.uri = "/api/v2/engine/session/restore-resume", .method = HTTP_POST, .handler = restore_resume_handler, .user_ctx = NULL};
+    httpd_uri_t restore_validate = {.uri = "/api/v2/engine/state/restore/validate", .method = HTTP_POST, .handler = restore_validate_handler, .user_ctx = NULL};
     httpd_uri_t mappings_create = {.uri = "/api/v2/input/mappings", .method = HTTP_POST, .handler = mappings_create_handler, .user_ctx = NULL};
     httpd_uri_t mappings_list = {.uri = "/api/v2/input/mappings", .method = HTTP_GET, .handler = mappings_list_handler, .user_ctx = NULL};
     httpd_uri_t mappings_item_get = {.uri = "/api/v2/input/mappings/*", .method = HTTP_GET, .handler = mappings_get_handler, .user_ctx = NULL};
@@ -809,6 +893,7 @@ void esptari_web_init(uint16_t port)
     httpd_register_uri_handler(server_handle, &reset);
     httpd_register_uri_handler(server_handle, &suspend_save);
     httpd_register_uri_handler(server_handle, &restore_resume);
+    httpd_register_uri_handler(server_handle, &restore_validate);
     httpd_register_uri_handler(server_handle, &mappings_create);
     httpd_register_uri_handler(server_handle, &mappings_list);
     httpd_register_uri_handler(server_handle, &mappings_active);

@@ -17,7 +17,7 @@ PRQ-001 packages implementation-readiness evidence for the core lifecycle, input
 
 - PRQ1-GAP-001 (lifecycle): runtime transition evidence captured; residual blocker narrowed to contract-alignment deltas for `resume` from stopped and `reset` guard/target-state semantics.
 - PRQ1-GAP-002 (input mapping): runtime CRUD/apply implementation and smoke evidence captured; residual blocker limited to negative-case matrix (`CONFLICT`, `INPUT_MAPPING_NOT_FOUND`) for full closure.
-- PRQ1-GAP-003 (save/restore): suspend/restore runtime path and negative-case guard matrix are validated; residual blocker is full schema/ABI/profile compatibility-validator depth.
+- PRQ1-GAP-003 (save/restore): suspend/restore runtime path, negative-case guard matrix, and baseline compatibility validator (`RCOMP-01..04`) are validated; residual blocker is durable snapshot-metadata persistence wiring.
 - PRQ1-GAP-004 (observability): stream/inspect routes, filter-invalid mapping, backpressure counters, and SLO breach/recover chronology are validated; residual blocker is sustained-load long-run invariant evidence.
 
 ## 4) Ready for review checklist
