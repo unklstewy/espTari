@@ -32,3 +32,8 @@ dependencies.lock
 # Frontend build artifacts
 frontend/node_modules/
 frontend/dist/
+
+# Local MCP development environments/artifacts
+.venv-mcp/
+tools/mcp_tracking_docs_server_node/node_modules/
+tools/mcp_tracking_docs_server_node/tools/
