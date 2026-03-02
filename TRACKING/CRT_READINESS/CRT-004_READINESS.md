@@ -2,7 +2,7 @@
 
 Task: CRT-004
 Phase: Runtime implementation + smoke evidence capture
-Status: Implemented (Baseline stream probes validated)
+Status: Implemented (Guard + telemetry depth validated; long-run stream invariants pending)
 
 ## Objective
 Validate observability stream endpoint availability and baseline guard behavior, then stage deeper telemetry/alarm evidence work.
@@ -34,16 +34,19 @@ Validate observability stream endpoint availability and baseline guard behavior,
 
 Observed endpoint outcomes on `esptari.local`:
 - `GET /api/v2/stream/video` while session running -> `200 OK` with `stream`, `event_seq`, `event_timestamp_us`
+- `GET /api/v2/stream/video?backpressure=1` while session running -> `200 OK` with `delivery.degraded=true`, `reason=queue_overflow`, and incremented backpressure counters
+- Recovery probe (`GET /api/v2/stream/video` after backpressure) -> `200 OK` with `delivery.degraded=false` and preserved monotonic stream ordering fields
+- SLO chronology probe: `?slo=breach` then `?slo=recover` -> `200 OK`, `slo_alarm.seq` monotonic and `state` transitions `normal -> breach -> recovered`
 - `GET /api/v2/stream/audio` route exists; while stopped -> `409` with `ENGINE_NOT_RUNNING`
 - `GET /api/v2/inspect/registers/stream` route exists; while stopped -> `409` with `ENGINE_NOT_RUNNING`
 - `GET /api/v2/inspect/bus/stream` route exists; while stopped -> `409` with `ENGINE_NOT_RUNNING`
 - `GET /api/v2/inspect/memory/stream` route exists; while stopped -> `409` with `ENGINE_NOT_RUNNING`
+- Invalid selector probes (`component/source/region=unknown_*`) on register/bus/memory inspect streams -> `400` with `INSPECT_FILTER_INVALID`
 - Route-availability blocker cleared (previous `404 URI not found` no longer reproduced for CRT-004 endpoints)
 
 Residuals:
-- No continuous stream framing evidence yet (baseline probe payload only)
-- Filter validation path (`INSPECT_FILTER_INVALID`) pending
-- Backpressure counters and SLO alarm chronology checks pending
+- No continuous stream framing evidence yet (single-payload probe only)
+- Backpressure and SLO checks are currently probe-driven and need sustained-load validation for production confidence
 
 ## Guard mapping checklist (planned)
 - [ ] Validate stream payload/order assertions (video/audio/register/bus/memory)

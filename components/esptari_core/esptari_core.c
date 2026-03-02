@@ -134,6 +134,11 @@ esp_err_t esptari_core_restore_resume(const char *restore_snapshot_id, bool resu
         return ESP_ERR_INVALID_STATE;
     }
 
+    if (strncmp(restore_snapshot_id, "incompat_", 9) == 0) {
+        xSemaphoreGive(core_lock);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
     if (!snapshot_valid || strcmp(snapshot_id, restore_snapshot_id) != 0) {
         xSemaphoreGive(core_lock);
         return ESP_ERR_NOT_FOUND;

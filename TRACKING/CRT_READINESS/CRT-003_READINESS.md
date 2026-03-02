@@ -2,7 +2,7 @@
 
 Task: CRT-003
 Phase: Runtime implementation + smoke evidence capture
-Status: Implemented (Smoke Validated; compatibility depth pending)
+Status: Implemented (Guard matrix validated; compatibility validator depth pending)
 
 ## Objective
 Validate suspend-save and restore-resume runtime paths and capture initial compatibility/guard evidence.
@@ -36,13 +36,16 @@ Validate suspend-save and restore-resume runtime paths and capture initial compa
 Observed endpoint outcomes on `esptari.local`:
 - `POST /api/v2/engine/session/suspend-save` with running session -> `200 OK`, state `suspended`
 - `POST /api/v2/engine/session/restore-resume` (`resume_mode=running`) from suspended -> `200 OK`, state `running`
+- `POST /api/v2/engine/session/restore-resume` (`resume_mode=paused`) from suspended -> `200 OK`, state `paused`
+- `POST /api/v2/engine/session/restore-resume` when session is not suspended -> `409` with `ENGINE_NOT_SUSPENDED`
+- `POST /api/v2/engine/session/restore-resume` with invalid `resume_mode` -> `400` with `BAD_REQUEST`
 - `POST /api/v2/engine/session/restore-resume` with unknown `snapshot_id` from suspended -> `404` with `SNAPSHOT_NOT_FOUND`
+- `POST /api/v2/engine/session/restore-resume` with synthetic incompatible snapshot id (`incompat_*`) -> `409` with `SNAPSHOT_INCOMPATIBLE`
 - Route-availability blocker cleared (previous `404 URI not found` no longer reproduced for CRT-003 endpoints)
 
 Residuals:
-- `resume_mode=paused` path not yet evidenced
-- `ENGINE_NOT_SUSPENDED`, `BAD_REQUEST`, and `SNAPSHOT_INCOMPATIBLE` negative matrix rows still pending
 - Compatibility validator (`RCOMP-*`, `RCOMP-VAL-*`) depth remains pending
+- Incompatible-snapshot mapping currently uses deterministic synthetic trigger (`snapshot_id` prefix `incompat_`) pending real schema/ABI/profile validator wiring
 
 ## Guard mapping checklist (planned)
 - [ ] Validate suspend-save transition guard mapping (`SUSP-REQ-*`)
