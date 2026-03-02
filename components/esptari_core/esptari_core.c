@@ -1,5 +1,8 @@
 #include "esptari_core.h"
 
+#include <errno.h>
+#include <inttypes.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "esp_timer.h"
@@ -27,6 +30,155 @@ typedef struct {
 } snapshot_compat_t;
 
 static snapshot_compat_t snapshot_compat;
+
+#define SNAPSHOT_META_PREFIX "/spiffs/snapshot_meta_"
+
+static uint32_t fnv1a_hash(const char *text)
+{
+    uint32_t hash = 2166136261u;
+    for (const unsigned char *cursor = (const unsigned char *)text; *cursor != '\0'; cursor++) {
+        hash ^= *cursor;
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+static bool snapshot_id_has_embedded_metadata(const char *snapshot_name)
+{
+    return snapshot_name != NULL && strchr(snapshot_name, '|') != NULL;
+}
+
+static void snapshot_meta_path(const char *snapshot_name, char *out_path, size_t out_path_size)
+{
+    uint32_t hash = fnv1a_hash(snapshot_name);
+    snprintf(out_path, out_path_size, SNAPSHOT_META_PREFIX "%08" PRIx32 ".meta", hash);
+}
+
+static void trim_newline(char *line)
+{
+    if (line == NULL) {
+        return;
+    }
+    size_t length = strlen(line);
+    while (length > 0 && (line[length - 1] == '\n' || line[length - 1] == '\r')) {
+        line[length - 1] = '\0';
+        length--;
+    }
+}
+
+static esp_err_t save_snapshot_compat_record(const char *snapshot_name, const snapshot_compat_t *compat)
+{
+    if (snapshot_name == NULL || compat == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    char path[96];
+    snapshot_meta_path(snapshot_name, path, sizeof(path));
+
+    FILE *file = fopen(path, "w");
+    if (file == NULL) {
+        return ESP_FAIL;
+    }
+
+    fprintf(file, "snapshot_id=%s\n", snapshot_name);
+    fprintf(file, "schema=%" PRIu32 "\n", compat->schema_version);
+    fprintf(file, "profile=%s\n", compat->profile);
+    fprintf(file, "engine_abi=%s\n", compat->engine_abi);
+    fprintf(file, "module_count=%u\n", (unsigned)compat->module_count);
+    for (size_t index = 0; index < compat->module_count; index++) {
+        fprintf(file,
+                "module=%s:%s\n",
+                compat->modules[index].module_id,
+                compat->modules[index].version);
+    }
+
+    fclose(file);
+    return ESP_OK;
+}
+
+static esp_err_t load_snapshot_compat_record(const char *snapshot_name, snapshot_compat_t *out_compat)
+{
+    if (snapshot_name == NULL || out_compat == NULL || snapshot_name[0] == '\0') {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    char path[96];
+    snapshot_meta_path(snapshot_name, path, sizeof(path));
+
+    FILE *file = fopen(path, "r");
+    if (file == NULL) {
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    snapshot_compat_t loaded;
+    memset(&loaded, 0, sizeof(loaded));
+
+    bool id_match = false;
+    bool have_schema = false;
+    bool have_profile = false;
+    bool have_engine_abi = false;
+
+    char line[192];
+    while (fgets(line, sizeof(line), file) != NULL) {
+        trim_newline(line);
+
+        if (strncmp(line, "snapshot_id=", 12) == 0) {
+            id_match = strcmp(line + 12, snapshot_name) == 0;
+            continue;
+        }
+        if (strncmp(line, "schema=", 7) == 0) {
+            loaded.schema_version = (uint32_t)strtoul(line + 7, NULL, 10);
+            have_schema = loaded.schema_version > 0;
+            continue;
+        }
+        if (strncmp(line, "profile=", 8) == 0) {
+            strlcpy(loaded.profile, line + 8, sizeof(loaded.profile));
+            have_profile = loaded.profile[0] != '\0';
+            continue;
+        }
+        if (strncmp(line, "engine_abi=", 11) == 0) {
+            strlcpy(loaded.engine_abi, line + 11, sizeof(loaded.engine_abi));
+            have_engine_abi = loaded.engine_abi[0] != '\0';
+            continue;
+        }
+        if (strncmp(line, "module=", 7) == 0) {
+            if (loaded.module_count >= 8) {
+                fclose(file);
+                return ESP_FAIL;
+            }
+            char module_line[96];
+            strlcpy(module_line, line + 7, sizeof(module_line));
+            char *separator = strchr(module_line, ':');
+            if (separator == NULL) {
+                fclose(file);
+                return ESP_FAIL;
+            }
+            *separator = '\0';
+            const char *module_id = module_line;
+            const char *version = separator + 1;
+            if (module_id[0] == '\0' || version[0] == '\0') {
+                fclose(file);
+                return ESP_FAIL;
+            }
+            strlcpy(loaded.modules[loaded.module_count].module_id,
+                    module_id,
+                    sizeof(loaded.modules[loaded.module_count].module_id));
+            strlcpy(loaded.modules[loaded.module_count].version,
+                    version,
+                    sizeof(loaded.modules[loaded.module_count].version));
+            loaded.module_count++;
+        }
+    }
+
+    fclose(file);
+
+    if (!id_match || !have_schema || !have_profile || !have_engine_abi || loaded.module_count == 0) {
+        return ESP_FAIL;
+    }
+
+    *out_compat = loaded;
+    return ESP_OK;
+}
 
 static void compat_reset_expected(snapshot_compat_t *compat)
 {
@@ -288,9 +440,20 @@ esp_err_t esptari_core_suspend_save(const char *new_snapshot_id)
     }
 
     snapshot_compat_t parsed;
-    if (!parse_snapshot_compat(new_snapshot_id, &parsed)) {
+    bool has_metadata_tokens = snapshot_id_has_embedded_metadata(new_snapshot_id);
+    if (has_metadata_tokens) {
+        if (!parse_snapshot_compat(new_snapshot_id, &parsed)) {
+            xSemaphoreGive(core_lock);
+            return ESP_ERR_INVALID_ARG;
+        }
+    } else {
+        compat_reset_expected(&parsed);
+    }
+
+    esp_err_t persist_err = save_snapshot_compat_record(new_snapshot_id, &parsed);
+    if (persist_err != ESP_OK) {
         xSemaphoreGive(core_lock);
-        return ESP_ERR_INVALID_ARG;
+        return ESP_FAIL;
     }
 
     strlcpy(snapshot_id, new_snapshot_id, sizeof(snapshot_id));
@@ -319,6 +482,19 @@ esp_err_t esptari_core_restore_resume(const char *restore_snapshot_id, bool resu
         return ESP_ERR_NOT_FOUND;
     }
 
+    snapshot_compat_t persisted;
+    esp_err_t load_err = load_snapshot_compat_record(restore_snapshot_id, &persisted);
+    if (load_err == ESP_ERR_NOT_FOUND) {
+        xSemaphoreGive(core_lock);
+        return ESP_ERR_NOT_FOUND;
+    }
+    if (load_err != ESP_OK) {
+        xSemaphoreGive(core_lock);
+        return ESP_FAIL;
+    }
+
+    snapshot_compat = persisted;
+
     if (!evaluate_restore_compatibility_locked(&snapshot_compat)) {
         xSemaphoreGive(core_lock);
         return ESP_ERR_INVALID_RESPONSE;
@@ -338,12 +514,18 @@ esp_err_t esptari_core_validate_restore_compatibility(const char *restore_snapsh
     }
 
     xSemaphoreTake(core_lock, portMAX_DELAY);
-    if (!snapshot_valid || strcmp(snapshot_id, restore_snapshot_id) != 0) {
+    snapshot_compat_t persisted;
+    esp_err_t load_err = load_snapshot_compat_record(restore_snapshot_id, &persisted);
+    if (load_err == ESP_ERR_NOT_FOUND) {
         xSemaphoreGive(core_lock);
         return ESP_ERR_NOT_FOUND;
     }
+    if (load_err != ESP_OK) {
+        xSemaphoreGive(core_lock);
+        return ESP_FAIL;
+    }
 
-    bool compatible = evaluate_restore_compatibility_locked(&snapshot_compat);
+    bool compatible = evaluate_restore_compatibility_locked(&persisted);
     *out_compatible = compatible;
     xSemaphoreGive(core_lock);
 

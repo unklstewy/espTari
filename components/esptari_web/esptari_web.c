@@ -496,13 +496,15 @@ static esp_err_t suspend_save_handler(httpd_req_t *req)
     }
 
     const char *snapshot_id = NULL;
+    char snapshot_id_copy[128];
     if (!json_get_string(root, "snapshot_id", &snapshot_id)) {
         cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
+    strlcpy(snapshot_id_copy, snapshot_id, sizeof(snapshot_id_copy));
     cJSON_Delete(root);
 
-    esp_err_t err = esptari_core_suspend_save(snapshot_id);
+    esp_err_t err = esptari_core_suspend_save(snapshot_id_copy);
     if (err == ESP_ERR_INVALID_STATE) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
     }
@@ -516,7 +518,7 @@ static esp_err_t suspend_save_handler(httpd_req_t *req)
     char resp[256];
     snprintf(resp, sizeof(resp),
              "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"session_state\":\"suspended\"}}",
-             snapshot_id);
+             snapshot_id_copy);
     return send_json(req, resp, 200);
 }
 
@@ -534,16 +536,20 @@ static esp_err_t restore_resume_handler(httpd_req_t *req)
 
     const char *snapshot_id = NULL;
     const char *resume_mode = NULL;
+    char snapshot_id_copy[128];
+    char resume_mode_copy[16];
     if (!json_get_string(root, "snapshot_id", &snapshot_id) ||
         !json_get_string(root, "resume_mode", &resume_mode)) {
         cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
+    strlcpy(snapshot_id_copy, snapshot_id, sizeof(snapshot_id_copy));
+    strlcpy(resume_mode_copy, resume_mode, sizeof(resume_mode_copy));
 
     bool resume_running = false;
-    if (strcmp(resume_mode, "running") == 0) {
+    if (strcmp(resume_mode_copy, "running") == 0) {
         resume_running = true;
-    } else if (strcmp(resume_mode, "paused") == 0) {
+    } else if (strcmp(resume_mode_copy, "paused") == 0) {
         resume_running = false;
     } else {
         cJSON_Delete(root);
@@ -551,7 +557,7 @@ static esp_err_t restore_resume_handler(httpd_req_t *req)
     }
     cJSON_Delete(root);
 
-    esp_err_t err = esptari_core_restore_resume(snapshot_id, resume_running);
+    esp_err_t err = esptari_core_restore_resume(snapshot_id_copy, resume_running);
     if (err == ESP_ERR_INVALID_STATE) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_SUSPENDED\"}}", 409);
     }
@@ -577,7 +583,7 @@ static esp_err_t restore_resume_handler(httpd_req_t *req)
     char resp[320];
     snprintf(resp, sizeof(resp),
              "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"session_state\":\"%s\"}}",
-             snapshot_id,
+             snapshot_id_copy,
              resume_running ? "running" : "paused");
     return send_json(req, resp, 200);
 }
@@ -595,10 +601,12 @@ static esp_err_t restore_validate_handler(httpd_req_t *req)
     }
 
     const char *snapshot_id = NULL;
+    char snapshot_id_copy[128];
     if (!json_get_string(root, "snapshot_id", &snapshot_id)) {
         cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
+    strlcpy(snapshot_id_copy, snapshot_id, sizeof(snapshot_id_copy));
 
     bool strict = true;
     cJSON *strict_item = cJSON_GetObjectItemCaseSensitive(root, "strict");
@@ -608,7 +616,7 @@ static esp_err_t restore_validate_handler(httpd_req_t *req)
     cJSON_Delete(root);
 
     bool compatible = false;
-    esp_err_t err = esptari_core_validate_restore_compatibility(snapshot_id, strict, &compatible);
+    esp_err_t err = esptari_core_validate_restore_compatibility(snapshot_id_copy, strict, &compatible);
     if (err == ESP_ERR_INVALID_ARG) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
@@ -637,7 +645,7 @@ static esp_err_t restore_validate_handler(httpd_req_t *req)
     snprintf(resp,
              sizeof(resp),
              "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"compatible\":%s,\"evaluated_rules\":[\"RCOMP-01\",\"RCOMP-02\",\"RCOMP-03\",\"RCOMP-04\"],\"failed_rule_id\":%s,\"error_code\":%s,\"validated_at_us\":%llu}}",
-             snapshot_id,
+             snapshot_id_copy,
              compatible ? "true" : "false",
              (failed_rule_id != NULL && failed_rule_id[0] != '\0') ? "\"" : "null",
              compatible ? "null" : "\"SNAPSHOT_INCOMPATIBLE\"",
@@ -648,7 +656,7 @@ static esp_err_t restore_validate_handler(httpd_req_t *req)
         snprintf(fixed_resp,
                  sizeof(fixed_resp),
                  "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"compatible\":%s,\"evaluated_rules\":[\"RCOMP-01\",\"RCOMP-02\",\"RCOMP-03\",\"RCOMP-04\"],\"failed_rule_id\":\"%s\",\"error_code\":%s,\"validated_at_us\":%llu}}",
-                 snapshot_id,
+                 snapshot_id_copy,
                  compatible ? "true" : "false",
                  failed_rule_id,
                  compatible ? "null" : "\"SNAPSHOT_INCOMPATIBLE\"",
