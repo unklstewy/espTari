@@ -829,10 +829,55 @@ static esp_err_t pause_handler(httpd_req_t *req)
 
 static esp_err_t resume_handler(httpd_req_t *req)
 {
-    return handle_state_change(req,
-                               esptari_core_resume,
-                               "G-LIFECYCLE-RESUME",
-                               "/api/v2/engine/session/resume");
+    bool resume_running = true;
+
+    if (req->content_len > 0) {
+        char body[256];
+        if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+
+        cJSON *root = cJSON_Parse(body);
+        if (root == NULL) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+
+        cJSON *resume_mode_item = cJSON_GetObjectItemCaseSensitive(root, "resume_mode");
+        if (resume_mode_item != NULL) {
+            if (!cJSON_IsString(resume_mode_item) || resume_mode_item->valuestring == NULL) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+
+            if (strcmp(resume_mode_item->valuestring, "running") == 0) {
+                resume_running = true;
+            } else if (strcmp(resume_mode_item->valuestring, "paused") == 0) {
+                resume_running = false;
+            } else {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+        }
+
+        cJSON_Delete(root);
+    }
+
+    esp_err_t err = esptari_core_resume_with_mode(resume_running);
+    if (err == ESP_OK) {
+        return send_json(req, "{\"ok\":true}", 200);
+    }
+
+    if (err == ESP_ERR_INVALID_STATE) {
+        char buf[256];
+        snprintf(buf, sizeof(buf),
+                 "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"%s\",\"endpoint\":\"%s\",\"esp_err\":\"%s\"}}}",
+                 "G-LIFECYCLE-RESUME",
+                 "/api/v2/engine/session/resume",
+                 esp_err_to_name(err));
+        return send_json(req, buf, 409);
+    }
+
+    return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
 }
 
 static esp_err_t stop_handler(httpd_req_t *req)

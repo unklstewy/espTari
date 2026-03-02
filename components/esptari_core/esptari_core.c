@@ -396,6 +396,11 @@ esp_err_t esptari_core_pause(void)
 
 esp_err_t esptari_core_resume(void)
 {
+    return esptari_core_resume_with_mode(true);
+}
+
+esp_err_t esptari_core_resume_with_mode(bool resume_running)
+{
     if (core_lock == NULL) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -405,7 +410,12 @@ esp_err_t esptari_core_resume(void)
         xSemaphoreGive(core_lock);
         return ESP_ERR_INVALID_STATE;
     }
-    update_state(ESPTARI_SESSION_RUNNING);
+
+    esptari_session_state_t next_state = resume_running ? ESPTARI_SESSION_RUNNING : ESPTARI_SESSION_PAUSED;
+    if (session_status.state != next_state) {
+        update_state(next_state);
+    }
+
     xSemaphoreGive(core_lock);
     return ESP_OK;
 }

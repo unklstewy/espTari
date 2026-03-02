@@ -1,0 +1,31 @@
+base=http://esptari.local
+--- status pre
+{"ok":true,"data":{"session_state":"stopped","transition_count":0,"last_transition_us":15258012}}
+HTTP_STATUS:200
+--- stop to baseline
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-STOP","endpoint":"/api/v2/engine/session/stop","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- resume paused from stopped (expect 409)
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-RESUME","endpoint":"/api/v2/engine/session/resume","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- start from stopped
+{"ok":true}
+HTTP_STATUS:200
+--- pause from running
+{"ok":true}
+HTTP_STATUS:200
+--- resume paused mode from paused (expect 200, state paused)
+{"ok":true}
+HTTP_STATUS:200
+--- status after resume paused mode
+{"ok":true,"data":{"session_state":"paused","transition_count":2,"last_transition_us":20009364}}
+HTTP_STATUS:200
+--- resume running mode from paused (expect 200, state running)
+{"ok":true}
+HTTP_STATUS:200
+--- status final
+{"ok":true,"data":{"session_state":"running","transition_count":3,"last_transition_us":20086797}}
+HTTP_STATUS:200
+--- resume invalid mode (expect 400)
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+HTTP_STATUS:400

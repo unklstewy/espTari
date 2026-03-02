@@ -22,6 +22,7 @@ void esptari_core_init(void);
 esp_err_t esptari_core_start(void);
 esp_err_t esptari_core_pause(void);
 esp_err_t esptari_core_resume(void);
+esp_err_t esptari_core_resume_with_mode(bool resume_running);
 esp_err_t esptari_core_stop(void);
 esp_err_t esptari_core_reset(void);
 esp_err_t esptari_core_suspend_save(const char *snapshot_id);
