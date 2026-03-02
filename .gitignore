@@ -37,3 +37,7 @@ frontend/dist/
 .venv-mcp/
 tools/mcp_tracking_docs_server_node/node_modules/
 tools/mcp_tracking_docs_server_node/tools/
+
+# Local VS Code workspace settings
+.vscode/c_cpp_properties.json
+.vscode/launch.json
