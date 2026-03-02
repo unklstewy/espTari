@@ -197,12 +197,14 @@ void app_main(void)
     }
     
     // Initialize network manager (WiFi + Ethernet + mDNS)
+    bool network_ready = false;
     ret = esptari_net_init();
     if (ret == ESP_OK) {
         esptari_net_start();
         ESP_LOGI(TAG, "Waiting for network connectivity...");
         ret = esptari_net_wait_connected(15000);  // 15s timeout
         if (ret == ESP_OK) {
+            network_ready = true;
             ESP_LOGI(TAG, "Network connected");
         } else {
             ESP_LOGW(TAG, "Network not available — web interface disabled");
@@ -218,7 +220,7 @@ void app_main(void)
     esptari_input_init();
 
     // Initialize web server (if network is up)
-    if (esptari_net_is_connected()) {
+    if (network_ready) {
         esptari_web_init(CONFIG_ESPTARI_WEB_PORT);
     }
 

@@ -113,4 +113,36 @@ menu "espTari Configuration"
             machine profile after initialization. Otherwise, start via
             the web interface.
 
+    menu "Network"
+
+        config ESPTARI_WIFI_ENABLE
+            bool "Enable Wi-Fi station"
+            default y
+            help
+                Enable Wi-Fi station initialization and connection during startup.
+
+        config ESPTARI_WIFI_SSID
+            string "Wi-Fi SSID"
+            default ""
+            depends on ESPTARI_WIFI_ENABLE
+            help
+                Target Wi-Fi SSID for station mode connection.
+
+        config ESPTARI_WIFI_PASSWORD
+            string "Wi-Fi Password"
+            default ""
+            depends on ESPTARI_WIFI_ENABLE
+            help
+                Wi-Fi passphrase for station mode connection.
+
+        config ESPTARI_WIFI_MAX_RETRY
+            int "Wi-Fi max reconnect retries"
+            range 1 50
+            default 10
+            depends on ESPTARI_WIFI_ENABLE
+            help
+                Number of reconnect attempts before reporting timeout.
+
+    endmenu
+
 endmenu
