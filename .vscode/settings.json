@@ -2,6 +2,7 @@
     "chat.tools.terminal.autoApprove": {
         "mkdir": true
     },
+    "chat.mcp.config": "${workspaceFolder}/.vscode/mcp.json",
     "idf.currentSetup": "/home/sannis/.espressif/v5.5.2/esp-idf",
     "idf.port": "/dev/ttyACM0"
 }

@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "esptari-tracking-docs": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${workspaceFolder}/tools/mcp_tracking_docs_server_node/server.mjs"
+      ],
+      "env": {
+        "ESPTARI_MCP_ROOT": "${workspaceFolder}"
+      }
+    }
+  }
+}
