@@ -396,7 +396,18 @@ esp_err_t esptari_core_pause(void)
 
 esp_err_t esptari_core_resume(void)
 {
-    return esptari_core_start();
+    if (core_lock == NULL) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    xSemaphoreTake(core_lock, portMAX_DELAY);
+    if (session_status.state != ESPTARI_SESSION_PAUSED && session_status.state != ESPTARI_SESSION_SUSPENDED) {
+        xSemaphoreGive(core_lock);
+        return ESP_ERR_INVALID_STATE;
+    }
+    update_state(ESPTARI_SESSION_RUNNING);
+    xSemaphoreGive(core_lock);
+    return ESP_OK;
 }
 
 esp_err_t esptari_core_stop(void)
@@ -422,7 +433,12 @@ esp_err_t esptari_core_reset(void)
     }
 
     xSemaphoreTake(core_lock, portMAX_DELAY);
-    update_state(ESPTARI_SESSION_STOPPED);
+    if (session_status.state != ESPTARI_SESSION_RUNNING && session_status.state != ESPTARI_SESSION_PAUSED) {
+        xSemaphoreGive(core_lock);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    update_state(ESPTARI_SESSION_RUNNING);
     xSemaphoreGive(core_lock);
     return ESP_OK;
 }

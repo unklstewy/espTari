@@ -1,0 +1,43 @@
+base=http://esptari.local
+--- status (pre)
+{"ok":true,"data":{"session_state":"stopped","transition_count":0,"last_transition_us":8374020}}
+HTTP_STATUS:200
+--- stop (force stopped)
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-STOP","endpoint":"/api/v2/engine/session/stop","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- status (after stop)
+{"ok":true,"data":{"session_state":"stopped","transition_count":0,"last_transition_us":8374020}}
+HTTP_STATUS:200
+--- resume from stopped (expect 409 INVALID_SESSION_STATE)
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-RESUME","endpoint":"/api/v2/engine/session/resume","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- reset from stopped (expect 409 INVALID_SESSION_STATE)
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- start from stopped (expect 200)
+{"ok":true}
+HTTP_STATUS:200
+--- reset from running (expect 200)
+{"ok":true}
+HTTP_STATUS:200
+--- status after reset-from-running (expect running)
+{"ok":true,"data":{"session_state":"running","transition_count":2,"last_transition_us":16469282}}
+HTTP_STATUS:200
+--- pause from running (expect 200)
+{"ok":true}
+HTTP_STATUS:200
+--- reset from paused (expect 200)
+{"ok":true}
+HTTP_STATUS:200
+--- status after reset-from-paused (expect running)
+{"ok":true,"data":{"session_state":"running","transition_count":4,"last_transition_us":16551976}}
+HTTP_STATUS:200
+--- pause again (expect 200)
+{"ok":true}
+HTTP_STATUS:200
+--- resume from paused (expect 200)
+{"ok":true}
+HTTP_STATUS:200
+--- status final (expect running)
+{"ok":true,"data":{"session_state":"running","transition_count":6,"last_transition_us":16646974}}
+HTTP_STATUS:200
