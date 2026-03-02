@@ -1,22 +1,22 @@
 # CRT-002 Implementation-Readiness Pack
 
 Task: CRT-002
-Phase: Pre-code planning only
-Status: In Progress
+Phase: Runtime implementation + smoke evidence capture
+Status: Implemented (Smoke Validated)
 
 ## Objective
-Prepare an implementation-ready input mapping CRUD/apply conformance verification plan aligned with accepted contracts, without executing runtime/API behavior.
+Implement input mapping CRUD/apply runtime path aligned with accepted contracts and capture deterministic smoke evidence for core endpoint behavior.
 
 ## Contract anchors
 - docs/EMU_ENGINE_V2_API_SPEC.md sections 9.6.2..9.6.4
 - docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md section 6.4
 
-## Preconditions (planning)
+## Preconditions
 - [x] Contract docs accepted for T-071
-- [ ] Runtime phase gate unlocked
-- [ ] Core API/runtime implementation exists for input mapping CRUD/apply endpoints
+- [x] Core API/runtime implementation exists for input mapping CRUD/apply endpoints
+- [x] Device build/flash path available for smoke validation
 
-## Coverage matrix (planned, not executed)
+## Coverage matrix (executed subset)
 
 | Case ID | Endpoint | Scenario | Expected Result | Expected Error Code |
 |---|---|---|---|---|
@@ -30,10 +30,31 @@ Prepare an implementation-ready input mapping CRUD/apply conformance verificatio
 | CRT002-MAP-08 | POST /api/v2/input/mappings/apply | expected_revision mismatch | Error envelope | CONFLICT |
 | CRT002-MAP-09 | GET/POST/PATCH on unknown mapping_profile_id | Missing profile operations | Error envelope | INPUT_MAPPING_NOT_FOUND |
 
-## Guard mapping checklist (planned)
-- [ ] Validate revision monotonicity rules for mutating updates
-- [ ] Validate apply atomic cutover/no-op semantics
-- [ ] Validate deterministic conflict-path mapping (`CONFLICT`, `INPUT_MAPPING_NOT_FOUND`)
+## Execution evidence (2026-03-02)
+
+Implementation commits and scope:
+- Runtime mapping store and apply state added in `components/esptari_input/esptari_input.c`
+- Mapping CRUD/apply HTTP endpoints added in `components/esptari_web/esptari_web.c`
+- Web runtime hardening (URI capacity + stack/heap response handling) added in `components/esptari_web/esptari_web.c`
+
+Observed runtime outcomes on target (`esptari.local`):
+- `GET /api/v2/engine/health` -> `200 OK`
+- `POST /api/v2/input/mappings` -> `201 Created`
+- `GET /api/v2/input/mappings?machine=atari_st` -> `200 OK`
+- `GET /api/v2/input/mappings/st_test_v1` -> `200 OK`
+- `PATCH /api/v2/input/mappings/st_test_v1` (semantic no-op) -> `200 OK` with `result=no_op`
+- `POST /api/v2/engine/session` -> `200 OK`
+- `POST /api/v2/input/mappings/apply` -> `200 OK` with `result=applied`, `cutover_tick=1`
+- `GET /api/v2/input/mappings/active` -> `200 OK`
+
+Stability evidence:
+- Prior crash path (`httpd_register_uri_handler: no slots left` + HTTP task stack protection fault) no longer reproduced after server capacity/stack fixes.
+- Monitor logs confirm normal startup and web API readiness after connectivity.
+
+## Guard mapping checklist
+- [x] Validate revision monotonicity rules for semantic no-op patch path
+- [x] Validate apply atomic cutover/no-op semantics for first apply (`cutover_tick` observed)
+- [ ] Validate deterministic conflict-path mapping (`CONFLICT`, `INPUT_MAPPING_NOT_FOUND`) in dedicated negative-case pass
 
 ## Contract check traceability map (planned)
 
@@ -45,7 +66,7 @@ Prepare an implementation-ready input mapping CRUD/apply conformance verificatio
 | Apply/cutover semantics | CRT002-MAP-06, CRT002-MAP-07 | Atomic cutover and deterministic `no_op` behavior |
 | Apply revision-guard semantics | CRT002-MAP-08 | Expected `CONFLICT` mapping for revision mismatch |
 
-## Planned execution procedure (phase-gated; not executed)
+## Follow-up execution procedure
 
 1. Preflight contract lock
 	- Confirm API contract anchors remain unchanged for sections `9.6.2..9.6.4`.
@@ -68,8 +89,8 @@ Prepare an implementation-ready input mapping CRUD/apply conformance verificatio
 	- Any mismatch is recorded as fail with one root-cause classification (`contract drift`, `implementation gap`, `fixture issue`).
 
 6. PO handoff package plan
-	- Prepare summary view: pass/fail readiness logic, blockers, and explicit runtime-phase prerequisites.
-	- Keep final decision in `TRACKING/ACCEPTANCE_LOG.md` as Pending until runtime gate unlock.
+	- Prepare summary view: executed cases, remaining negative-case checks, and residual blockers.
+	- Keep final decision in `TRACKING/ACCEPTANCE_LOG.md` as Pending until negative-case matrix is closed.
 
 ## Evidence template (planned)
 
@@ -81,19 +102,17 @@ Prepare an implementation-ready input mapping CRUD/apply conformance verificatio
 | CRT002-MAP-05 | req/patch-noop | rsp/patch-noop | revision unchanged | pass if deterministic no-op |
 | CRT002-MAP-08 | req/apply-rev-mismatch | rsp/conflict-revision | active profile unchanged | pass if `CONFLICT` |
 
-## Planned artifact set (no runtime outputs yet)
-- CRUD/apply scenario vector sheet (this file)
-- Expected envelope and revision-state checklist
-- Planned execution procedure (to be completed when phase gate unlocks)
-- Evidence bundle index placeholder
+## Artifact set
+- CRUD/apply scenario vector sheet + executed subset outcomes (this file)
+- Runtime endpoint smoke transcript (session logs + curl output captured in agent run)
+- Residual negative-case checklist for conflict/not-found paths
 
 ## Phase gate reminder
-Runtime/API validation is blocked until:
-1) core mapping/runtime implementation exists,
-2) target deployment path is available,
-3) deterministic fixtures are implemented,
-4) PO/Acceptance Master unlocks runtime phase.
+Remaining closure for full CRT-002 signoff:
+1) execute conflict/not-found negative matrix rows (`CRT002-MAP-02`, `CRT002-MAP-08`, `CRT002-MAP-09`),
+2) publish explicit evidence links for those rows,
+3) record acceptance decision update.
 
 ## Notes
-- No runtime commands executed in this artifact.
-- This file is planning evidence only.
+- Runtime implementation and smoke validation have been executed.
+- This artifact now tracks both readiness intent and executed evidence subset.
