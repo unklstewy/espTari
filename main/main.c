@@ -18,6 +18,7 @@
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
+#include "driver/gpio.h"
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
 
 #include "esptari_loader.h"
@@ -32,6 +33,9 @@
 #include "machine.h"
 
 static const char *TAG = "espTari";
+
+#define SD_TRACE_GPIO_WINDOW GPIO_NUM_2
+#define SD_TRACE_GPIO_EDGE GPIO_NUM_3
 
 // Version information
 #define ESPTARI_VERSION_MAJOR 0
@@ -134,8 +138,16 @@ static esp_err_t init_sdcard(void)
     slot_config.d3  = 42;
     slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
     
-    ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, 
-                                             &mount_config, &card);
+    gpio_set_level(SD_TRACE_GPIO_WINDOW, 1);
+    gpio_set_level(SD_TRACE_GPIO_EDGE, 1);
+    gpio_set_level(SD_TRACE_GPIO_EDGE, 0);
+
+    ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config,
+                                  &mount_config, &card);
+
+    gpio_set_level(SD_TRACE_GPIO_EDGE, 1);
+    gpio_set_level(SD_TRACE_GPIO_EDGE, 0);
+    gpio_set_level(SD_TRACE_GPIO_WINDOW, 0);
     if (ret != ESP_OK) {
         if (ret == ESP_FAIL) {
             ESP_LOGE(TAG, "Failed to mount filesystem on SD card");
@@ -149,6 +161,17 @@ static esp_err_t init_sdcard(void)
     sdmmc_card_print_info(stdout, card);
     
     return ESP_OK;
+}
+
+static void init_logic_analyzer_strobes(void)
+{
+    gpio_reset_pin(SD_TRACE_GPIO_WINDOW);
+    gpio_set_direction(SD_TRACE_GPIO_WINDOW, GPIO_MODE_OUTPUT);
+    gpio_set_level(SD_TRACE_GPIO_WINDOW, 0);
+
+    gpio_reset_pin(SD_TRACE_GPIO_EDGE);
+    gpio_set_direction(SD_TRACE_GPIO_EDGE, GPIO_MODE_OUTPUT);
+    gpio_set_level(SD_TRACE_GPIO_EDGE, 0);
 }
 
 /**
@@ -183,6 +206,9 @@ void app_main(void)
     
     // Initialize SPIFFS for configuration
     ESP_ERROR_CHECK(init_spiffs());
+
+    // Initialize logic-analyzer strobes for SD operation timing
+    init_logic_analyzer_strobes();
     
     // Initialize SD card
     esp_err_t ret = init_sdcard();
