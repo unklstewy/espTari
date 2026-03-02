@@ -13,6 +13,7 @@
 static const char *TAG = "esptari_web";
 static httpd_handle_t server_handle;
 static const char *MAPPINGS_PREFIX = "/api/v2/input/mappings/";
+static uint64_t stream_event_seq;
 
 static char *alloc_json_buf(size_t size)
 {
@@ -418,6 +419,149 @@ static esp_err_t mappings_apply_handler(httpd_req_t *req)
     return send_json(req, resp, 200);
 }
 
+static esp_err_t suspend_save_handler(httpd_req_t *req)
+{
+    char body[512];
+    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *root = cJSON_Parse(body);
+    if (root == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    const char *snapshot_id = NULL;
+    if (!json_get_string(root, "snapshot_id", &snapshot_id)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    cJSON_Delete(root);
+
+    esp_err_t err = esptari_core_suspend_save(snapshot_id);
+    if (err == ESP_ERR_INVALID_STATE) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
+    }
+    if (err == ESP_ERR_INVALID_ARG) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    if (err != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char resp[256];
+    snprintf(resp, sizeof(resp),
+             "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"session_state\":\"suspended\"}}",
+             snapshot_id);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t restore_resume_handler(httpd_req_t *req)
+{
+    char body[512];
+    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *root = cJSON_Parse(body);
+    if (root == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    const char *snapshot_id = NULL;
+    const char *resume_mode = NULL;
+    if (!json_get_string(root, "snapshot_id", &snapshot_id) ||
+        !json_get_string(root, "resume_mode", &resume_mode)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    bool resume_running = false;
+    if (strcmp(resume_mode, "running") == 0) {
+        resume_running = true;
+    } else if (strcmp(resume_mode, "paused") == 0) {
+        resume_running = false;
+    } else {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    cJSON_Delete(root);
+
+    esp_err_t err = esptari_core_restore_resume(snapshot_id, resume_running);
+    if (err == ESP_ERR_INVALID_STATE) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_SUSPENDED\"}}", 409);
+    }
+    if (err == ESP_ERR_NOT_FOUND) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"SNAPSHOT_NOT_FOUND\"}}", 404);
+    }
+    if (err == ESP_ERR_INVALID_ARG) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    if (err != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char resp[320];
+    snprintf(resp, sizeof(resp),
+             "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"session_state\":\"%s\"}}",
+             snapshot_id,
+             resume_running ? "running" : "paused");
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t stream_guard_running(httpd_req_t *req)
+{
+    esptari_session_status_t status;
+    esptari_core_get_status(&status);
+    if (status.state != ESPTARI_SESSION_RUNNING) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
+    }
+    return ESP_OK;
+}
+
+static esp_err_t emit_stream_probe(httpd_req_t *req, const char *stream_name)
+{
+    esp_err_t guard = stream_guard_running(req);
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    stream_event_seq++;
+    uint64_t timestamp_us = (uint64_t)esp_timer_get_time();
+    char resp[384];
+    snprintf(resp, sizeof(resp),
+             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu}}",
+             stream_name,
+             (unsigned long long)stream_event_seq,
+             (unsigned long long)timestamp_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t stream_video_handler(httpd_req_t *req)
+{
+    return emit_stream_probe(req, "video");
+}
+
+static esp_err_t stream_audio_handler(httpd_req_t *req)
+{
+    return emit_stream_probe(req, "audio");
+}
+
+static esp_err_t inspect_registers_stream_handler(httpd_req_t *req)
+{
+    return emit_stream_probe(req, "registers");
+}
+
+static esp_err_t inspect_bus_stream_handler(httpd_req_t *req)
+{
+    return emit_stream_probe(req, "bus");
+}
+
+static esp_err_t inspect_memory_stream_handler(httpd_req_t *req)
+{
+    return emit_stream_probe(req, "memory");
+}
+
 static esp_err_t handle_state_change(httpd_req_t *req,
                                      esp_err_t (*op)(void),
                                      const char *guard_id,
@@ -513,6 +657,8 @@ void esptari_web_init(uint16_t port)
     httpd_uri_t resume = {.uri = "/api/v2/engine/session/resume", .method = HTTP_POST, .handler = resume_handler, .user_ctx = NULL};
     httpd_uri_t stop = {.uri = "/api/v2/engine/session/stop", .method = HTTP_POST, .handler = stop_handler, .user_ctx = NULL};
     httpd_uri_t reset = {.uri = "/api/v2/engine/session/reset", .method = HTTP_POST, .handler = reset_handler, .user_ctx = NULL};
+    httpd_uri_t suspend_save = {.uri = "/api/v2/engine/session/suspend-save", .method = HTTP_POST, .handler = suspend_save_handler, .user_ctx = NULL};
+    httpd_uri_t restore_resume = {.uri = "/api/v2/engine/session/restore-resume", .method = HTTP_POST, .handler = restore_resume_handler, .user_ctx = NULL};
     httpd_uri_t mappings_create = {.uri = "/api/v2/input/mappings", .method = HTTP_POST, .handler = mappings_create_handler, .user_ctx = NULL};
     httpd_uri_t mappings_list = {.uri = "/api/v2/input/mappings", .method = HTTP_GET, .handler = mappings_list_handler, .user_ctx = NULL};
     httpd_uri_t mappings_item_get = {.uri = "/api/v2/input/mappings/*", .method = HTTP_GET, .handler = mappings_get_handler, .user_ctx = NULL};
@@ -520,6 +666,11 @@ void esptari_web_init(uint16_t port)
     httpd_uri_t mappings_item_delete = {.uri = "/api/v2/input/mappings/*", .method = HTTP_DELETE, .handler = mappings_delete_handler, .user_ctx = NULL};
     httpd_uri_t mappings_active = {.uri = "/api/v2/input/mappings/active", .method = HTTP_GET, .handler = mappings_active_handler, .user_ctx = NULL};
     httpd_uri_t mappings_apply = {.uri = "/api/v2/input/mappings/apply", .method = HTTP_POST, .handler = mappings_apply_handler, .user_ctx = NULL};
+    httpd_uri_t stream_video = {.uri = "/api/v2/stream/video", .method = HTTP_GET, .handler = stream_video_handler, .user_ctx = NULL};
+    httpd_uri_t stream_audio = {.uri = "/api/v2/stream/audio", .method = HTTP_GET, .handler = stream_audio_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_registers = {.uri = "/api/v2/inspect/registers/stream", .method = HTTP_GET, .handler = inspect_registers_stream_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_bus = {.uri = "/api/v2/inspect/bus/stream", .method = HTTP_GET, .handler = inspect_bus_stream_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_memory = {.uri = "/api/v2/inspect/memory/stream", .method = HTTP_GET, .handler = inspect_memory_stream_handler, .user_ctx = NULL};
 
     httpd_register_uri_handler(server_handle, &health);
     httpd_register_uri_handler(server_handle, &status);
@@ -528,6 +679,8 @@ void esptari_web_init(uint16_t port)
     httpd_register_uri_handler(server_handle, &resume);
     httpd_register_uri_handler(server_handle, &stop);
     httpd_register_uri_handler(server_handle, &reset);
+    httpd_register_uri_handler(server_handle, &suspend_save);
+    httpd_register_uri_handler(server_handle, &restore_resume);
     httpd_register_uri_handler(server_handle, &mappings_create);
     httpd_register_uri_handler(server_handle, &mappings_list);
     httpd_register_uri_handler(server_handle, &mappings_active);
@@ -535,6 +688,11 @@ void esptari_web_init(uint16_t port)
     httpd_register_uri_handler(server_handle, &mappings_item_get);
     httpd_register_uri_handler(server_handle, &mappings_item_patch);
     httpd_register_uri_handler(server_handle, &mappings_item_delete);
+    httpd_register_uri_handler(server_handle, &stream_video);
+    httpd_register_uri_handler(server_handle, &stream_audio);
+    httpd_register_uri_handler(server_handle, &inspect_registers);
+    httpd_register_uri_handler(server_handle, &inspect_bus);
+    httpd_register_uri_handler(server_handle, &inspect_memory);
 
     ESP_LOGI(TAG, "Web API ready on port %u", (unsigned)port);
 }

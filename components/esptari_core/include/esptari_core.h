@@ -24,5 +24,7 @@ esp_err_t esptari_core_pause(void);
 esp_err_t esptari_core_resume(void);
 esp_err_t esptari_core_stop(void);
 esp_err_t esptari_core_reset(void);
+esp_err_t esptari_core_suspend_save(const char *snapshot_id);
+esp_err_t esptari_core_restore_resume(const char *snapshot_id, bool resume_running);
 void esptari_core_get_status(esptari_session_status_t *out_status);
 const char *esptari_core_state_to_string(esptari_session_state_t state);

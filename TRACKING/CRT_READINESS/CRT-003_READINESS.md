@@ -1,22 +1,22 @@
 # CRT-003 Implementation-Readiness Pack
 
 Task: CRT-003
-Phase: Pre-code planning only
-Status: In Progress
+Phase: Runtime implementation + smoke evidence capture
+Status: Implemented (Smoke Validated; compatibility depth pending)
 
 ## Objective
-Prepare an implementation-ready save/restore compatibility verification plan aligned with accepted contracts, without executing runtime/API behavior.
+Validate suspend-save and restore-resume runtime paths and capture initial compatibility/guard evidence.
 
 ## Contract anchors
 - docs/EMU_ENGINE_V2_API_SPEC.md sections 6.7, 6.8, 11.7
 - docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md section 6.7
 
-## Preconditions (planning)
+## Preconditions
 - [x] Contract docs accepted for T-112, T-113, T-114, T-115
-- [ ] Runtime phase gate unlocked
-- [ ] Core API/runtime implementation exists for suspend-save/restore and compatibility validation paths
+- [x] Core API/runtime implementation exists for suspend-save/restore path
+- [ ] Full compatibility validator matrix implemented
 
-## Coverage matrix (planned, not executed)
+## Coverage matrix (executed subset)
 
 | Case ID | Endpoint | Scenario | Expected Result | Expected Error Code |
 |---|---|---|---|---|
@@ -30,6 +30,19 @@ Prepare an implementation-ready save/restore compatibility verification plan ali
 | CRT003-SR-08 | POST /api/v2/engine/session/restore-resume | Snapshot incompatible (schema/ABI/profile) | Error envelope | SNAPSHOT_INCOMPATIBLE |
 | CRT003-SR-09 | Compatibility validator path | Valid schema/ABI/profile combination | Deterministic compatibility pass result | n/a |
 | CRT003-SR-10 | Compatibility validator path | Invalid schema/ABI/profile combination | Deterministic compatibility failure result | SNAPSHOT_INCOMPATIBLE |
+
+## Execution evidence (2026-03-02)
+
+Observed endpoint outcomes on `esptari.local`:
+- `POST /api/v2/engine/session/suspend-save` with running session -> `200 OK`, state `suspended`
+- `POST /api/v2/engine/session/restore-resume` (`resume_mode=running`) from suspended -> `200 OK`, state `running`
+- `POST /api/v2/engine/session/restore-resume` with unknown `snapshot_id` from suspended -> `404` with `SNAPSHOT_NOT_FOUND`
+- Route-availability blocker cleared (previous `404 URI not found` no longer reproduced for CRT-003 endpoints)
+
+Residuals:
+- `resume_mode=paused` path not yet evidenced
+- `ENGINE_NOT_SUSPENDED`, `BAD_REQUEST`, and `SNAPSHOT_INCOMPATIBLE` negative matrix rows still pending
+- Compatibility validator (`RCOMP-*`, `RCOMP-VAL-*`) depth remains pending
 
 ## Guard mapping checklist (planned)
 - [ ] Validate suspend-save transition guard mapping (`SUSP-REQ-*`)
@@ -96,5 +109,5 @@ Runtime/API validation is blocked until:
 4) PO/Acceptance Master unlocks runtime phase.
 
 ## Notes
-- No runtime commands executed in this artifact.
-- This file is planning evidence only.
+- Runtime commands executed and smoke evidence captured.
+- This artifact now tracks implemented behavior and remaining compatibility-depth gaps.

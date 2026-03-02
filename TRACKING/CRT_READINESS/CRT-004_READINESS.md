@@ -1,22 +1,22 @@
 # CRT-004 Implementation-Readiness Pack
 
 Task: CRT-004
-Phase: Pre-code planning only
-Status: In Progress
+Phase: Runtime implementation + smoke evidence capture
+Status: Implemented (Baseline stream probes validated)
 
 ## Objective
-Prepare an implementation-ready observability stream/telemetry verification plan aligned with accepted contracts, without executing runtime/API behavior.
+Validate observability stream endpoint availability and baseline guard behavior, then stage deeper telemetry/alarm evidence work.
 
 ## Contract anchors
 - docs/EMU_ENGINE_V2_API_SPEC.md sections 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8
 - docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md sections 6.5, 7
 
-## Preconditions (planning)
+## Preconditions
 - [x] Contract docs accepted for T-083, T-084, T-085, T-086, T-087, T-088, T-089, T-090, T-091
-- [ ] Runtime phase gate unlocked
-- [ ] Core API/runtime implementation exists for stream publisher, filter, telemetry, and alarm paths
+- [x] Core API/runtime stream endpoint wiring exists
+- [ ] Full telemetry/backpressure/alarm implementation depth exists
 
-## Coverage matrix (planned, not executed)
+## Coverage matrix (executed subset)
 
 | Case ID | Endpoint/Path | Scenario | Expected Result | Expected Error Code |
 |---|---|---|---|---|
@@ -29,6 +29,21 @@ Prepare an implementation-ready observability stream/telemetry verification plan
 | CRT004-OBS-07 | Stream/telemetry path | Unknown/inactive session | Error envelope | ENGINE_NOT_RUNNING |
 | CRT004-OBS-08 | Backpressure telemetry path | High-load/degraded-delivery scenario | Deterministic counter and delivery-disclosure behavior | n/a |
 | CRT004-OBS-09 | SLO alarm path | Threshold breach/recovery sequence | Deterministic alarm ordering and severity mapping | n/a |
+
+## Execution evidence (2026-03-02)
+
+Observed endpoint outcomes on `esptari.local`:
+- `GET /api/v2/stream/video` while session running -> `200 OK` with `stream`, `event_seq`, `event_timestamp_us`
+- `GET /api/v2/stream/audio` route exists; while stopped -> `409` with `ENGINE_NOT_RUNNING`
+- `GET /api/v2/inspect/registers/stream` route exists; while stopped -> `409` with `ENGINE_NOT_RUNNING`
+- `GET /api/v2/inspect/bus/stream` route exists; while stopped -> `409` with `ENGINE_NOT_RUNNING`
+- `GET /api/v2/inspect/memory/stream` route exists; while stopped -> `409` with `ENGINE_NOT_RUNNING`
+- Route-availability blocker cleared (previous `404 URI not found` no longer reproduced for CRT-004 endpoints)
+
+Residuals:
+- No continuous stream framing evidence yet (baseline probe payload only)
+- Filter validation path (`INSPECT_FILTER_INVALID`) pending
+- Backpressure counters and SLO alarm chronology checks pending
 
 ## Guard mapping checklist (planned)
 - [ ] Validate stream payload/order assertions (video/audio/register/bus/memory)
@@ -96,5 +111,5 @@ Runtime/API validation is blocked until:
 4) PO/Acceptance Master unlocks runtime phase.
 
 ## Notes
-- No runtime commands executed in this artifact.
-- This file is planning evidence only.
+- Runtime commands executed and baseline stream evidence captured.
+- This artifact now tracks implemented endpoint availability plus remaining telemetry-depth gaps.
