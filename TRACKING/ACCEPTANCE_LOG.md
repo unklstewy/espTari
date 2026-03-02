@@ -48,6 +48,7 @@ Use this log for Product Owner / Acceptance Master decisions.
 | 2026-03-02 | S5 | PRQ-003 | Pending | Deployment workflow runbook prepared and in review. Runtime execution remains blocked by phase gate. Evidence bundle links: TRACKING/PRQ_WORKING/PRQ-003_DEPLOYMENT_WORKFLOW_RUNBOOK.md. PO decision timestamp: TBD. | TRACKING/PRQ_WORKING/PRQ-003_DEPLOYMENT_WORKFLOW_RUNBOOK.md |
 | 2026-03-02 | S5 | PRQ-004 | Pending | Unlock review packet assembled and queued for PO decision. Runtime execution remains blocked by phase gate. Evidence bundle links: TRACKING/PRQ_WORKING/PRQ-004_UNLOCK_REVIEW_PACKET.md. PO decision timestamp: TBD. | TRACKING/PRQ_WORKING/PRQ-004_UNLOCK_REVIEW_PACKET.md |
 | 2026-03-02 | S5 | CRT-001..CRT-005 | Deferred | PO decision record is approved (`hold`) in Section 7 of CRT handoff. Runtime/API validation remains blocked until all prerequisites in Section 6 are closed; re-review scheduled for 2026-03-09. | TRACKING/CRT_HANDOFF_S5_SUMMARY.md |
+| 2026-03-02 | S1 | NET-WIFI-BOOTSTRAP | Accepted | Stabilized network startup sequencing and Wi-Fi STA config/connect flow; validated `esptari.local` with `/api/v2/engine/health`, `/api/v2/engine/status`, and `/api/v2/engine/session` returning 200 in smoke checks. | main/main.c, components/esptari_network/esptari_network.c, main/Kconfig.projbuild |
 
 ## Decision policy
 
