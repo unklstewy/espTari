@@ -3,6 +3,7 @@
 Date: 2026-03-02  
 Task: PRQ-001  
 Scope: Planning assumptions and implementation-readiness gaps only (no runtime evidence)
+Scope: Runtime-backed closure evidence for PRQ-001 residual gaps
 
 | Gap ID | Domain | Description | Severity | Owner | Mitigation action | Dependency | Target close date | Status |
 |---|---|---|---|---|---|---|---|---|
@@ -13,6 +14,5 @@ Scope: Planning assumptions and implementation-readiness gaps only (no runtime e
 
 ## Notes
 
-- Gap entries are initial planning assumptions and are subject to refinement during PRQ-001 execution.
-- Runtime/API/build/flash/test execution is out of scope until phase-gate unlock.
-- Gap statuses track review-stage closure and do not imply runtime validation.
+- Gap entries and statuses reflect runtime-backed closure state for PRQ-001 residuals.
+- Evidence links in each row point to closure artifacts and API verification outputs.

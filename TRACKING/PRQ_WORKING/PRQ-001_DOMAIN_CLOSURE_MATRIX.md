@@ -3,6 +3,7 @@
 Date: 2026-03-02  
 Task: PRQ-001  
 Scope: Implementation-readiness artifact creation only (no runtime evidence)
+Scope: Runtime-backed closure matrix for PRQ-001 domains
 
 ## Domain matrix
 
@@ -15,6 +16,5 @@ Scope: Implementation-readiness artifact creation only (no runtime evidence)
 
 ## Notes
 
-- This artifact tracks planning assumptions and implementation-readiness only.
-- Runtime/API/build/flash/test evidence remains blocked until explicit phase-gate unlock.
-- PRQ-001 evidence is packaged for review; this is not a runtime-unlock claim.
+- This artifact tracks closure state for PRQ-001 domains with linked runtime evidence.
+- Optional extended-duration hardening remains outside the baseline PRQ-001 closure bar.

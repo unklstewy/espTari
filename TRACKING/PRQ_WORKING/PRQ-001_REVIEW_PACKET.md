@@ -2,11 +2,11 @@
 
 Date: 2026-03-02  
 Task: PRQ-001  
-Review intent: implementation-readiness review (documentation-only)
+Review intent: closure package review with runtime-backed evidence
 
 ## 1) Scope summary
 
-PRQ-001 packages implementation-readiness evidence for the core lifecycle, input mapping, save/restore, and observability runtime code-path prerequisite. This packet is for review pass/fail on planning completeness only and does not request runtime unlock.
+PRQ-001 packages closure evidence for lifecycle, input mapping, save/restore, and observability domains, including runtime API validation artifacts for residual gap signoff.
 
 ## 2) Evidence inventory
 
@@ -30,12 +30,11 @@ PRQ-001 packages implementation-readiness evidence for the core lifecycle, input
 
 ## 5) Reviewer guidance and expected outcomes
 
-Reviewers should evaluate whether PRQ-001 evidence is sufficient for implementation-readiness gate progression.
+Reviewers should evaluate whether PRQ-001 evidence is sufficient for residual closure signoff.
 
 Expected decision outcomes for this review:
-- Pass: PRQ-001 evidence package is accepted as implementation-ready and can progress to the next prerequisite stage.
-- Fail: PRQ-001 evidence package is incomplete; required corrections must be listed and tracked before re-review.
+- Pass: PRQ-001 residuals are accepted as closed with evidence-linked verification.
+- Fail: PRQ-001 residual closure evidence is incomplete; required corrections must be listed and tracked before re-review.
 
 Decision boundary note:
-- This review is not a runtime unlock decision.
-- Runtime unlock remains governed by PRQ-004 and explicit PO/Acceptance decision recording.
+- This review records PRQ-001 residual closure status and does not supersede PRQ-004 unlock governance.
