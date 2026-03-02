@@ -890,10 +890,73 @@ static esp_err_t stop_handler(httpd_req_t *req)
 
 static esp_err_t reset_handler(httpd_req_t *req)
 {
-    return handle_state_change(req,
-                               esptari_core_reset,
-                               "G-LIFECYCLE-RESET",
-                               "/api/v2/engine/session/reset");
+    char reset_mode[8] = "warm";
+    bool preserve_media = true;
+
+    if (req->content_len > 0) {
+        char body[256];
+        if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+
+        cJSON *root = cJSON_Parse(body);
+        if (root == NULL) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+
+        cJSON *mode_item = cJSON_GetObjectItemCaseSensitive(root, "mode");
+        if (mode_item != NULL) {
+            if (!cJSON_IsString(mode_item) || mode_item->valuestring == NULL) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+
+            if (strcmp(mode_item->valuestring, "warm") != 0 && strcmp(mode_item->valuestring, "cold") != 0) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+
+            strlcpy(reset_mode, mode_item->valuestring, sizeof(reset_mode));
+        }
+
+        cJSON *preserve_media_item = cJSON_GetObjectItemCaseSensitive(root, "preserve_media");
+        if (preserve_media_item != NULL) {
+            if (!cJSON_IsBool(preserve_media_item)) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+            preserve_media = cJSON_IsTrue(preserve_media_item);
+        }
+
+        cJSON_Delete(root);
+    }
+
+    esp_err_t err = esptari_core_reset();
+    if (err == ESP_ERR_INVALID_STATE) {
+        char buf[256];
+        snprintf(buf, sizeof(buf),
+                 "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"%s\",\"endpoint\":\"%s\",\"esp_err\":\"%s\"}}}",
+                 "G-LIFECYCLE-RESET",
+                 "/api/v2/engine/session/reset",
+                 esp_err_to_name(err));
+        return send_json(req, buf, 409);
+    }
+
+    if (err != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    esptari_session_status_t status;
+    esptari_core_get_status(&status);
+
+    char resp[320];
+    snprintf(resp, sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"state\":\"%s\",\"reset_mode\":\"%s\",\"preserve_media\":%s,\"reset_at_us\":%llu}}",
+             esptari_core_state_to_string(status.state),
+             reset_mode,
+             preserve_media ? "true" : "false",
+             (unsigned long long)status.last_transition_us);
+    return send_json(req, resp, 200);
 }
 
 void esptari_web_init(uint16_t port)
