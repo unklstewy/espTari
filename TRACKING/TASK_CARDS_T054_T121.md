@@ -16,7 +16,7 @@ Each card is pullable at XS/S granularity and follows the standard acceptance/ev
 - Priority: P0
 - Size: XS
 - Sprint target: S1
-- Status: Ready
+- Status: Done
 - Dependencies: T-047
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -35,11 +35,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-055
 
@@ -54,7 +54,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S1
-- Status: Backlog
+- Status: Done
 - Dependencies: T-054
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -73,11 +73,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-056
 
@@ -92,7 +92,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S1
-- Status: Ready
+- Status: Done
 - Dependencies: T-047
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -111,11 +111,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-057
 
@@ -130,7 +130,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S1
-- Status: Backlog
+- Status: Done
 - Dependencies: T-056
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -149,11 +149,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-058
 
@@ -168,7 +168,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S1
-- Status: Backlog
+- Status: Done
 - Dependencies: T-057
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -187,11 +187,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-059
 
@@ -206,7 +206,7 @@ Done checklist:
 - Priority: P0
 - Size: XS
 - Sprint target: S1
-- Status: Backlog
+- Status: Done
 - Dependencies: T-058
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -225,11 +225,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-060
 
@@ -244,7 +244,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S1
-- Status: Backlog
+- Status: Done
 - Dependencies: T-059
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -263,11 +263,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-061
 
@@ -282,7 +282,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S1
-- Status: Backlog
+- Status: Done
 - Dependencies: T-060
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -301,11 +301,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-062
 
@@ -320,7 +320,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-061
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -339,11 +339,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-063
 
@@ -358,7 +358,7 @@ Done checklist:
 - Priority: P1
 - Size: XS
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-062
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -377,11 +377,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-064
 
@@ -396,7 +396,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-063
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -415,11 +415,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-065
 
@@ -434,7 +434,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-064
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -453,11 +453,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-066
 
@@ -472,7 +472,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S3
-- Status: Ready
+- Status: Done
 - Dependencies: T-053
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -491,11 +491,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-067
 
@@ -510,7 +510,7 @@ Done checklist:
 - Priority: P0
 - Size: XS
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-066
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -529,11 +529,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-068
 
@@ -548,7 +548,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S3
-- Status: Ready
+- Status: Done
 - Dependencies: T-053
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -567,11 +567,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-069
 
@@ -586,7 +586,7 @@ Done checklist:
 - Priority: P0
 - Size: XS
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-068
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -605,11 +605,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-070
 
@@ -624,7 +624,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S3
-- Status: Ready
+- Status: Done
 - Dependencies: T-053
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -643,11 +643,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-071
 
@@ -662,7 +662,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-070
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -681,11 +681,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-072
 
@@ -700,7 +700,7 @@ Done checklist:
 - Priority: P1
 - Size: XS
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-071
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -719,11 +719,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-073
 
@@ -738,7 +738,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-072
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -757,11 +757,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-074
 
@@ -776,7 +776,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-055, T-057
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -795,11 +795,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-075
 
@@ -814,7 +814,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-074
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -833,11 +833,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-076
 
@@ -852,7 +852,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-075
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -871,11 +871,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-077
 
@@ -890,7 +890,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-076
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -909,11 +909,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-078
 
@@ -928,7 +928,7 @@ Done checklist:
 - Priority: P0
 - Size: XS
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-075
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -947,11 +947,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-079
 
@@ -966,7 +966,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-078
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -985,11 +985,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-080
 
@@ -1004,7 +1004,7 @@ Done checklist:
 - Priority: P0
 - Size: XS
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-075
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1023,11 +1023,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-081
 
@@ -1042,7 +1042,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-080
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1061,11 +1061,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-082
 
@@ -1080,7 +1080,7 @@ Done checklist:
 - Priority: P1
 - Size: XS
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-077
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1099,11 +1099,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-083
 
@@ -1118,7 +1118,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-082
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1137,11 +1137,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-084
 
@@ -1156,7 +1156,7 @@ Done checklist:
 - Priority: P1
 - Size: XS
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-077
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1175,11 +1175,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-085
 
@@ -1194,7 +1194,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-084
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1213,11 +1213,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-086
 
@@ -1232,7 +1232,7 @@ Done checklist:
 - Priority: P1
 - Size: XS
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-077
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1251,11 +1251,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-087
 
@@ -1270,7 +1270,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-086
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1289,11 +1289,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-088
 
@@ -1308,7 +1308,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-087
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1327,11 +1327,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-089
 
@@ -1346,7 +1346,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-088
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1365,11 +1365,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-090
 
@@ -1384,7 +1384,7 @@ Done checklist:
 - Priority: P1
 - Size: XS
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-083, T-085, T-089
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1403,11 +1403,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-091
 
@@ -1422,7 +1422,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-090
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1441,11 +1441,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-092
 
@@ -1460,7 +1460,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-075, T-083, T-085
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1479,11 +1479,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-093
 
@@ -1498,7 +1498,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-092
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1517,11 +1517,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-094
 
@@ -1536,7 +1536,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-093
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1555,11 +1555,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-095
 
@@ -1574,7 +1574,7 @@ Done checklist:
 - Priority: P0
 - Size: XS
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-094
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1593,11 +1593,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-096
 
@@ -1612,7 +1612,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-077
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1631,11 +1631,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-097
 
@@ -1650,7 +1650,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-096
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1669,11 +1669,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-098
 
@@ -1688,7 +1688,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-077
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1707,11 +1707,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-099
 
@@ -1726,7 +1726,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S2
-- Status: Backlog
+- Status: Done
 - Dependencies: T-098
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1745,11 +1745,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-100
 
@@ -1764,7 +1764,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-099
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1783,11 +1783,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-101
 
@@ -1802,7 +1802,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-100
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1821,11 +1821,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-102
 
@@ -1840,7 +1840,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-077, T-081
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1859,11 +1859,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-103
 
@@ -1878,7 +1878,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-102
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1897,11 +1897,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-104
 
@@ -1916,7 +1916,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-077
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1935,11 +1935,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-105
 
@@ -1954,7 +1954,7 @@ Done checklist:
 - Priority: P1
 - Size: XS
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-104
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -1973,11 +1973,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-106
 
@@ -1992,7 +1992,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-097, T-099, T-101, T-103
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2011,11 +2011,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-107
 
@@ -2030,7 +2030,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-106
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2049,11 +2049,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-108
 
@@ -2068,7 +2068,7 @@ Done checklist:
 - Priority: P0
 - Size: XS
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-107
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2087,11 +2087,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-109
 
@@ -2106,7 +2106,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S3
-- Status: Backlog
+- Status: Done
 - Dependencies: T-108
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2125,11 +2125,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-110
 
@@ -2144,7 +2144,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-109
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2163,11 +2163,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-111
 
@@ -2182,7 +2182,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-110
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2201,11 +2201,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-112
 
@@ -2220,7 +2220,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-055, T-093
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2239,11 +2239,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-113
 
@@ -2258,7 +2258,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-112
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2277,11 +2277,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-114
 
@@ -2296,7 +2296,7 @@ Done checklist:
 - Priority: P0
 - Size: XS
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-044
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2315,11 +2315,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-115
 
@@ -2334,7 +2334,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-114
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2353,11 +2353,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-116
 
@@ -2372,7 +2372,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-083, T-085, T-091
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2391,11 +2391,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-117
 
@@ -2410,7 +2410,7 @@ Done checklist:
 - Priority: P0
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-116
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2429,11 +2429,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-118
 
@@ -2448,7 +2448,7 @@ Done checklist:
 - Priority: P1
 - Size: XS
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-077
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2467,11 +2467,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-119
 
@@ -2486,7 +2486,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-118
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2505,11 +2505,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-120
 
@@ -2524,7 +2524,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-119, T-087, T-089
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2543,11 +2543,11 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
 
 ### TASK-ID: T-121
 
@@ -2562,7 +2562,7 @@ Done checklist:
 - Priority: P1
 - Size: S
 - Sprint target: S4
-- Status: Backlog
+- Status: Done
 - Dependencies: T-120
 - Risks:
   - Dependency sequencing drift may delay this slice.
@@ -2581,8 +2581,8 @@ Evidence required:
 
 Done checklist:
 
-- [ ] Implemented
-- [ ] Validated
-- [ ] Documented
-- [ ] Reviewed
-- [ ] Accepted by Product Owner
+- [x] Implemented
+- [x] Validated
+- [x] Documented
+- [x] Reviewed
+- [x] Accepted by Product Owner
