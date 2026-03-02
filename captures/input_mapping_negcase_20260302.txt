@@ -1,0 +1,28 @@
+base=http://esptari.local
+--- status
+{"ok":true,"data":{"session_state":"running","transition_count":3,"last_transition_us":75904504}}
+HTTP_STATUS:200
+--- session start
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-SESSION","endpoint":"/api/v2/engine/session","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- create mapping
+{"ok":true,"data":{"mapping_profile_id":"map_neg_case_20260302","machine":"st","profile":"default","revision":1,"updated_at_us":277065176}}
+HTTP_STATUS:201
+--- apply mapping (establish active)
+{"ok":true,"data":{"result":"applied","previous_mapping_profile_id":"","active_mapping_profile_id":"map_neg_case_20260302","active_mapping_revision":1,"cutover_tick":1}}
+HTTP_STATUS:200
+--- apply conflict (expected_revision mismatch)
+{"ok":false,"error":{"code":"CONFLICT"}}
+HTTP_STATUS:409
+--- delete conflict (active mapping)
+{"ok":false,"error":{"code":"CONFLICT"}}
+HTTP_STATUS:409
+--- get not found
+{"ok":false,"error":{"code":"INPUT_MAPPING_NOT_FOUND"}}
+HTTP_STATUS:404
+--- patch not found
+{"ok":false,"error":{"code":"INPUT_MAPPING_NOT_FOUND"}}
+HTTP_STATUS:404
+--- apply not found
+{"ok":false,"error":{"code":"INPUT_MAPPING_NOT_FOUND"}}
+HTTP_STATUS:404

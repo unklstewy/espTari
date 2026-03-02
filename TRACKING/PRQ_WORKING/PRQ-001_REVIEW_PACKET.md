@@ -16,7 +16,7 @@ PRQ-001 packages implementation-readiness evidence for the core lifecycle, input
 ## 3) Unresolved blockers
 
 - PRQ1-GAP-001 (lifecycle): runtime transition evidence captured; residual blocker narrowed to contract-alignment deltas for `resume` from stopped and `reset` guard/target-state semantics.
-- PRQ1-GAP-002 (input mapping): runtime CRUD/apply implementation and smoke evidence captured; residual blocker limited to negative-case matrix (`CONFLICT`, `INPUT_MAPPING_NOT_FOUND`) for full closure.
+- PRQ1-GAP-002 (input mapping): closed. Negative-case matrix confirmed deterministic `CONFLICT` (`409`) and `INPUT_MAPPING_NOT_FOUND` (`404`) behavior for apply/delete/get/patch flows; evidence: `captures/input_mapping_negcase_20260302.txt`.
 - PRQ1-GAP-003 (save/restore): closed. Compatibility input source now uses persisted snapshot metadata records with readiness-gated `esptari.local` validation (`status -> session -> suspend-save -> validate(strict=true) -> restore-resume`) and malformed metadata rejection (`400 BAD_REQUEST`).
 - PRQ1-GAP-004 (observability): stream/inspect routes, filter-invalid mapping, backpressure counters, SLO breach/recover chronology, and sustained-load invariants are validated (`captures/stream_soak_20260302_181711_{summary,csv}`); residual is optional extended-duration hardening only.
 
