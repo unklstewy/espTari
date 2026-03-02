@@ -21,6 +21,16 @@ An Atari homecomputer emulator for the Waveshare ESP32-P4-NANO development board
 - `tools/ebin_builder/` - Python tool to compile C sources to EBIN format
 - `test_apps/esptari_loader_integration/` - Integration test for the loader
 
+## MCP (AI Chat)
+
+This workspace uses a Node-based MCP server for AI chat tooling access.
+
+- Server implementation: `tools/mcp_tracking_docs_server_node/server.mjs`
+- VS Code MCP config: `.vscode/mcp.json`
+- Scope: restricted to `TRACKING/` and `docs/`
+
+The previous Python MCP server implementation has been retired.
+
 ## Building
 
 Requires ESP-IDF v5.4 or later.
