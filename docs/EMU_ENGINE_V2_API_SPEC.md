@@ -5,6 +5,8 @@ Date: 2026-03-01
 Status: Normative API contract for backend phase  
 Scope: REST + WebSocket APIs for engine control, SD-card file management, EBIN management, media control, input translation, streaming output, and runtime inspection
 
+Indexed navigation: `docs/indexed/EMU_ENGINE_V2_API_SPEC/INDEX.md`
+
 ---
 
 ## 1. Purpose

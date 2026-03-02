@@ -5,6 +5,8 @@ Date: 2026-03-01
 Target runtime: ESP32-P4-NANO (Waveshare), ESP-IDF v5.5.2  
 Scope: Backend engine architecture + APIs (no frontend work)
 
+Indexed navigation: `docs/indexed/EMU_ENGINE_V2_IMPLEMENTATION_PLAN/INDEX.md`
+
 Companion API contract: `EMU_ENGINE_V2_API_SPEC.md`
 
 ---

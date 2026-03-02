@@ -9,6 +9,7 @@ const allowedRoots = [
   path.resolve(workspaceRoot, "TRACKING"),
   path.resolve(workspaceRoot, "docs"),
 ];
+const indexedDocsRoot = path.resolve(workspaceRoot, "docs", "indexed");
 
 function isAllowed(candidatePath) {
   const resolved = path.resolve(candidatePath);
@@ -28,6 +29,17 @@ function resolveUserPath(userPath = "") {
     throw new Error("Path is outside allowed roots (TRACKING, docs)");
   }
   return resolved;
+}
+
+function listIndexedDocuments() {
+  if (!fs.existsSync(indexedDocsRoot)) {
+    return [];
+  }
+  return fs
+    .readdirSync(indexedDocsRoot)
+    .map((name) => path.join(indexedDocsRoot, name))
+    .filter((candidate) => fs.statSync(candidate).isDirectory())
+    .sort((a, b) => a.localeCompare(b));
 }
 
 const server = new McpServer({
@@ -122,6 +134,83 @@ server.registerTool(
     const slice = lines.slice(start - 1, end);
     const numbered = slice.map((line, index) => `${start + index}: ${line}`);
     return { content: [{ type: "text", text: numbered.join("\n") }] };
+  },
+);
+
+server.registerTool(
+  "list_doc_indexes",
+  {
+    description: "List available indexed docs and section files under docs/indexed",
+    inputSchema: {
+      doc: z.string().optional(),
+    },
+  },
+  async ({ doc }) => {
+    if (!fs.existsSync(indexedDocsRoot)) {
+      return { content: [{ type: "text", text: "docs/indexed not found" }] };
+    }
+
+    if (!doc) {
+      const docs = listIndexedDocuments().map((p) => toRelative(p));
+      return { content: [{ type: "text", text: docs.join("\n") }] };
+    }
+
+    const targetDir = resolveUserPath(path.join("docs", "indexed", doc));
+    if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
+      throw new Error("Indexed doc not found");
+    }
+
+    const entries = fs
+      .readdirSync(targetDir)
+      .map((name) => path.join(targetDir, name))
+      .filter((p) => fs.statSync(p).isFile())
+      .sort((a, b) => a.localeCompare(b))
+      .map((p) => toRelative(p));
+
+    return { content: [{ type: "text", text: entries.join("\n") }] };
+  },
+);
+
+server.registerTool(
+  "resolve_doc_section",
+  {
+    description: "Resolve indexed section files by query (filename or section title)",
+    inputSchema: {
+      doc: z.string(),
+      query: z.string().min(1),
+      limit: z.number().int().min(1).max(50).optional(),
+    },
+  },
+  async ({ doc, query, limit = 10 }) => {
+    const targetDir = resolveUserPath(path.join("docs", "indexed", doc));
+    if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
+      throw new Error("Indexed doc not found");
+    }
+
+    const needle = query.toLowerCase();
+    const results = [];
+
+    const files = fs
+      .readdirSync(targetDir)
+      .filter((name) => name.endsWith(".md"))
+      .sort((a, b) => a.localeCompare(b));
+
+    for (const name of files) {
+      if (results.length >= limit) {
+        break;
+      }
+
+      const filePath = path.join(targetDir, name);
+      const relative = toRelative(filePath);
+      const text = fs.readFileSync(filePath, "utf8");
+      const firstHeading = text.split(/\r?\n/).find((line) => line.startsWith("# ")) || "";
+      const haystack = `${name}\n${firstHeading}\n${text.slice(0, 300)}`.toLowerCase();
+      if (haystack.includes(needle)) {
+        results.push(`${relative} :: ${firstHeading.replace(/^#\s+/, "")}`);
+      }
+    }
+
+    return { content: [{ type: "text", text: results.join("\n") }] };
   },
 );
 
