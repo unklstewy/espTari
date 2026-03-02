@@ -48,6 +48,10 @@ Residuals:
 - No continuous stream framing evidence yet (single-payload probe only)
 - Backpressure and SLO checks are currently probe-driven and need sustained-load validation for production confidence
 
+Hardware capture addendum (2026-03-02):
+- Logic-analyzer UART+strobe evidence summary is documented in `TRACKING/CRT_READINESS/LA_CAPTURE_SUMMARY_2026-03-02.md`.
+- Captures validate strobe-trigger synchronization and UART decode path; triggered run currently lands in ROM download-mode banner window.
+
 ## Guard mapping checklist (planned)
 - [ ] Validate stream payload/order assertions (video/audio/register/bus/memory)
 - [ ] Validate selector/filter rejection mapping (`INSPECT_FILTER_INVALID`)
