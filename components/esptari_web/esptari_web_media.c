@@ -15,12 +15,17 @@
 #define send_json esptari_web_send_json
 
 static char attached_rom_id[64];
-static char attached_disk_id[64];
+static char attached_disk_ids[2][64];
 static char attached_cartridge_id[64];
+static char media_error_payload_buf[1024];
+static char media_resp_buf[2048];
+static char media_details_buf[768];
 static uint64_t media_attach_event_seq;
 static uint64_t media_runtime_generation;
 static esptari_web_media_attach_event_t last_rom_attach_events[4];
 static size_t last_rom_attach_event_count;
+static esptari_web_media_disk_state_event_t last_disk_state_events[4];
+static size_t last_disk_state_event_count;
 
 static void clear_last_rom_attach_events(void)
 {
@@ -55,6 +60,60 @@ static void push_rom_attach_event(const char *rom_id,
     }
 }
 
+static void clear_last_disk_state_events(void)
+{
+    memset(last_disk_state_events, 0, sizeof(last_disk_state_events));
+    last_disk_state_event_count = 0;
+}
+
+static void push_disk_state_event(const char *drive,
+                                  const char *state,
+                                  const char *disk_id,
+                                  bool has_disk_id,
+                                  const char *request_id)
+{
+    if (last_disk_state_event_count >= (sizeof(last_disk_state_events) / sizeof(last_disk_state_events[0]))) {
+        return;
+    }
+
+    esptari_web_media_disk_state_event_t *event = &last_disk_state_events[last_disk_state_event_count++];
+    media_attach_event_seq++;
+    event->event_seq = media_attach_event_seq;
+    event->event_timestamp_us = (uint64_t)esp_timer_get_time();
+    strlcpy(event->drive, drive != NULL ? drive : "A", sizeof(event->drive));
+    strlcpy(event->state, state != NULL ? state : "empty", sizeof(event->state));
+    event->has_disk_id = has_disk_id;
+    if (has_disk_id && disk_id != NULL) {
+        strlcpy(event->disk_id, disk_id, sizeof(event->disk_id));
+    }
+    strlcpy(event->request_id, request_id != NULL ? request_id : "", sizeof(event->request_id));
+}
+
+void esptari_web_media_get_last_disk_state_events(const esptari_web_media_disk_state_event_t **out_events,
+                                                  size_t *out_count)
+{
+    if (out_events != NULL) {
+        *out_events = last_disk_state_events;
+    }
+    if (out_count != NULL) {
+        *out_count = last_disk_state_event_count;
+    }
+}
+
+static bool parse_drive_field(cJSON *root, char *out_drive)
+{
+    const char *drive = NULL;
+    if (!esptari_web_json_get_string(root, "drive", &drive) || drive == NULL || drive[0] == '\0') {
+        return false;
+    }
+    if ((strcmp(drive, "A") != 0 && strcmp(drive, "B") != 0) || drive[1] != '\0') {
+        return false;
+    }
+    out_drive[0] = drive[0];
+    out_drive[1] = '\0';
+    return true;
+}
+
 void esptari_web_media_get_last_rom_attach_events(const esptari_web_media_attach_event_t **out_events,
                                                   size_t *out_count)
 {
@@ -73,24 +132,23 @@ static esp_err_t send_media_error(httpd_req_t *req,
                                   const char *message,
                                   const char *details_json)
 {
-    char payload[768];
     if (details_json != NULL && details_json[0] != '\0') {
-        snprintf(payload,
-                 sizeof(payload),
+        snprintf(media_error_payload_buf,
+                 sizeof(media_error_payload_buf),
                  "{\"ok\":false,\"error\":{\"code\":\"%s\",\"category\":\"%s\",\"message\":\"%s\",\"retryable\":false,\"details\":%s}}",
                  code,
                  category,
                  message,
                  details_json);
     } else {
-        snprintf(payload,
-                 sizeof(payload),
+        snprintf(media_error_payload_buf,
+                 sizeof(media_error_payload_buf),
                  "{\"ok\":false,\"error\":{\"code\":\"%s\",\"category\":\"%s\",\"message\":\"%s\",\"retryable\":false}}",
                  code,
                  category,
                  message);
     }
-    return send_json(req, payload, status_code);
+    return send_json(req, media_error_payload_buf, status_code);
 }
 
 static esp_err_t resolve_media_entry(httpd_req_t *req,
@@ -101,9 +159,8 @@ static esp_err_t resolve_media_entry(httpd_req_t *req,
 {
     const catalog_def_t *def = esptari_web_catalog_find(catalog_name);
     if (def == NULL) {
-        char details[256];
-        snprintf(details,
-                 sizeof(details),
+        snprintf(media_details_buf,
+             sizeof(media_details_buf),
                  "{\"catalog\":\"%s\",\"request_field\":\"%s\"}",
                  catalog_name,
                  request_field);
@@ -112,14 +169,13 @@ static esp_err_t resolve_media_entry(httpd_req_t *req,
                                 "CATALOG_NOT_FOUND",
                                 "catalog",
                                 "Requested catalog index is not available",
-                                details);
+                                media_details_buf);
     }
 
     int entry_index = esptari_web_catalog_find_entry_index(def, entry_id);
     if (entry_index < 0) {
-        char details[320];
-        snprintf(details,
-                 sizeof(details),
+        snprintf(media_details_buf,
+             sizeof(media_details_buf),
                  "{\"catalog\":\"%s\",\"entry_id\":\"%s\",\"request_field\":\"%s\"}",
                  catalog_name,
                  entry_id,
@@ -129,13 +185,12 @@ static esp_err_t resolve_media_entry(httpd_req_t *req,
                                 "CATALOG_ENTRY_NOT_FOUND",
                                 "catalog",
                                 "Requested catalog entry was not found",
-                                details);
+                                media_details_buf);
     }
 
     if (!esptari_web_catalog_entry_local_present(def, (size_t)entry_index)) {
-        char details[384];
-        snprintf(details,
-                 sizeof(details),
+        snprintf(media_details_buf,
+             sizeof(media_details_buf),
                  "{\"catalog\":\"%s\",\"entry_id\":\"%s\",\"request_field\":\"%s\",\"remediation\":\"POST /api/v2/catalogs/%s/download-entry\"}",
                  catalog_name,
                  entry_id,
@@ -146,7 +201,7 @@ static esp_err_t resolve_media_entry(httpd_req_t *req,
                                 "CONFLICT",
                                 "catalog",
                                 "Catalog entry exists but local asset is missing",
-                                details);
+                                media_details_buf);
     }
 
     if (out_local_path != NULL) {
@@ -241,9 +296,8 @@ static esp_err_t media_rom_attach_handler(httpd_req_t *req)
                               "ROM apply phase failed; previous ROM restored");
         cJSON_Delete(root);
 
-        char details[512];
-        snprintf(details,
-                 sizeof(details),
+        snprintf(media_details_buf,
+             sizeof(media_details_buf),
                  "{\"session_id\":\"ses_local\",\"rom_id\":\"%s\",\"failed_phase\":\"applied\",\"request_id\":\"%s\",\"validation_stage\":\"rom_attach_apply\"}",
                  rom_id,
                  request_id);
@@ -252,7 +306,7 @@ static esp_err_t media_rom_attach_handler(httpd_req_t *req)
                                 "MEDIA_ATTACH_FAILED",
                                 "engine",
                                 "ROM apply phase failed; previous ROM restored",
-                                details);
+                                media_details_buf);
     }
 
     strlcpy(attached_rom_id, rom_id, sizeof(attached_rom_id));
@@ -261,9 +315,8 @@ static esp_err_t media_rom_attach_handler(httpd_req_t *req)
     push_rom_attach_event(rom_id, "applied", "applied", request_id, NULL, NULL);
     cJSON_Delete(root);
 
-    char resp[1152];
-    snprintf(resp,
-             sizeof(resp),
+    snprintf(media_resp_buf,
+             sizeof(media_resp_buf),
              "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"rom\":{\"id\":\"%s\",\"catalog\":\"rom\",\"local_path\":\"%s\",\"binding\":{\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"binding_result\":\"matched\"}},\"rom_id\":\"%s\",\"result\":\"applied\",\"phase\":\"applied\",\"phase_history\":[\"validated\",\"mounted\",\"applied\"],\"request_id\":\"%s\",\"mount\":{\"slot\":\"rom.primary\",\"mounted_path\":\"%s\",\"mounted_at_us\":%llu},\"apply\":{\"applied_at_us\":%llu,\"runtime_generation\":%llu},\"attached_at_us\":%llu}}",
              rom_id,
              local_path,
@@ -274,7 +327,7 @@ static esp_err_t media_rom_attach_handler(httpd_req_t *req)
              (unsigned long long)applied_at_us,
              (unsigned long long)media_runtime_generation,
              (unsigned long long)applied_at_us);
-    return send_json(req, resp, 200);
+    return send_json(req, media_resp_buf, 200);
 }
 
 static esp_err_t media_disk_attach_handler(httpd_req_t *req)
@@ -291,6 +344,13 @@ static esp_err_t media_disk_attach_handler(httpd_req_t *req)
         return guard;
     }
 
+    char drive[2] = {0};
+    if (!parse_drive_field(root, drive)) {
+        cJSON_Delete(root);
+        return send_media_error(req, 400, "BAD_REQUEST", "request", "Drive must be one of A or B", NULL);
+    }
+    size_t drive_index = (drive[0] == 'B') ? 1u : 0u;
+
     const char *disk_id = NULL;
     if (!esptari_web_json_get_string(root, "disk_id", &disk_id) || disk_id == NULL || disk_id[0] == '\0') {
         cJSON_Delete(root);
@@ -304,18 +364,67 @@ static esp_err_t media_disk_attach_handler(httpd_req_t *req)
         return resolve_err;
     }
 
-    strlcpy(attached_disk_id, disk_id, sizeof(attached_disk_id));
-    uint64_t now_us = (uint64_t)esp_timer_get_time();
+    cJSON *force_active_fail_item = cJSON_GetObjectItemCaseSensitive(root, "force_active_fail");
+    bool force_active_fail = cJSON_IsTrue(force_active_fail_item);
+    bool write_protect = true;
+    cJSON *write_protect_item = cJSON_GetObjectItemCaseSensitive(root, "write_protect");
+    if (write_protect_item != NULL && cJSON_IsBool(write_protect_item)) {
+        write_protect = cJSON_IsTrue(write_protect_item);
+    }
+
+    char previous_disk_id[64] = {0};
+    strlcpy(previous_disk_id, attached_disk_ids[drive_index], sizeof(previous_disk_id));
+
+    char request_id[48];
+    snprintf(request_id,
+             sizeof(request_id),
+             "req_%llu",
+             (unsigned long long)esp_timer_get_time());
+
+    clear_last_disk_state_events();
+    uint64_t mounted_at_us = (uint64_t)esp_timer_get_time();
+    push_disk_state_event(drive, "mounted", disk_id, true, request_id);
+
+    if (force_active_fail) {
+        strlcpy(attached_disk_ids[drive_index], previous_disk_id, sizeof(attached_disk_ids[drive_index]));
+        push_disk_state_event(drive, "failed", disk_id, true, request_id);
+        cJSON_Delete(root);
+
+        snprintf(media_details_buf,
+             sizeof(media_details_buf),
+                 "{\"session_id\":\"ses_local\",\"drive\":\"%s\",\"disk_id\":\"%s\",\"failed_phase\":\"active\",\"request_id\":\"%s\"}",
+                 drive,
+                 disk_id,
+                 request_id);
+        return send_media_error(req,
+                                409,
+                                "MEDIA_ATTACH_FAILED",
+                                "engine",
+                                "Disk active phase failed; previous disk restored",
+                                media_details_buf);
+    }
+
+    strlcpy(attached_disk_ids[drive_index], disk_id, sizeof(attached_disk_ids[drive_index]));
+    media_runtime_generation++;
+    uint64_t active_at_us = (uint64_t)esp_timer_get_time();
+    push_disk_state_event(drive, "active", disk_id, true, request_id);
     cJSON_Delete(root);
 
-    char resp[384];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"disk_id\":\"%s\",\"catalog\":\"floppies\",\"local_path\":\"%s\",\"state\":\"attached\",\"attached_at_us\":%llu}}",
-             attached_disk_id,
+    snprintf(media_resp_buf,
+             sizeof(media_resp_buf),
+             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"drive\":\"%s\",\"disk\":{\"id\":\"%s\",\"catalog\":\"disk\",\"local_path\":\"%s\",\"format\":\"st\",\"write_protect\":%s,\"binding_result\":\"matched\"},\"disk_id\":\"%s\",\"result\":\"active\",\"phase_history\":[\"validated\",\"mounted\",\"active\"],\"request_id\":\"%s\",\"mount\":{\"mounted_at_us\":%llu,\"mounted_path\":\"%s\"},\"runtime\":{\"active_at_us\":%llu,\"generation\":%llu},\"attached_at_us\":%llu}}",
+             drive,
+             disk_id,
              local_path,
-             (unsigned long long)now_us);
-    return send_json(req, resp, 200);
+             write_protect ? "true" : "false",
+             attached_disk_ids[drive_index],
+             request_id,
+             (unsigned long long)mounted_at_us,
+             local_path,
+             (unsigned long long)active_at_us,
+             (unsigned long long)media_runtime_generation,
+             (unsigned long long)active_at_us);
+    return send_json(req, media_resp_buf, 200);
 }
 
 static esp_err_t media_disk_eject_handler(httpd_req_t *req)
@@ -332,18 +441,43 @@ static esp_err_t media_disk_eject_handler(httpd_req_t *req)
         return guard;
     }
 
-    bool had_disk = attached_disk_id[0] != '\0';
-    attached_disk_id[0] = '\0';
-    uint64_t now_us = (uint64_t)esp_timer_get_time();
+    char drive[2] = {0};
+    if (!parse_drive_field(root, drive)) {
+        cJSON_Delete(root);
+        return send_media_error(req, 400, "BAD_REQUEST", "request", "Drive must be one of A or B", NULL);
+    }
+    size_t drive_index = (drive[0] == 'B') ? 1u : 0u;
+
+    char request_id[48];
+    snprintf(request_id,
+             sizeof(request_id),
+             "req_%llu",
+             (unsigned long long)esp_timer_get_time());
+
+    bool had_disk = attached_disk_ids[drive_index][0] != '\0';
+    char ejected_disk_id[64] = {0};
+    strlcpy(ejected_disk_id, attached_disk_ids[drive_index], sizeof(ejected_disk_id));
+    attached_disk_ids[drive_index][0] = '\0';
+    uint64_t ejected_at_us = (uint64_t)esp_timer_get_time();
+
+    clear_last_disk_state_events();
+    push_disk_state_event(drive, "ejected", NULL, false, request_id);
+
     cJSON_Delete(root);
 
-    char resp[320];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"result\":\"%s\",\"ejected_at_us\":%llu}}",
+    char ejected_disk_json[96] = "null";
+    if (had_disk) {
+        snprintf(ejected_disk_json, sizeof(ejected_disk_json), "\"%s\"", ejected_disk_id);
+    }
+    snprintf(media_resp_buf,
+             sizeof(media_resp_buf),
+             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"drive\":\"%s\",\"result\":\"%s\",\"phase_history\":[\"detached\",\"ejected\"],\"request_id\":\"%s\",\"ejected_disk_id\":%s,\"ejected_at_us\":%llu}}",
+             drive,
              had_disk ? "ejected" : "no_op",
-             (unsigned long long)now_us);
-    return send_json(req, resp, 200);
+             request_id,
+             ejected_disk_json,
+             (unsigned long long)ejected_at_us);
+    return send_json(req, media_resp_buf, 200);
 }
 
 static esp_err_t media_cartridge_attach_handler(httpd_req_t *req)

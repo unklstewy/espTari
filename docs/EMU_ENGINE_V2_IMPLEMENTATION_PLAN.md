@@ -387,6 +387,7 @@ EBIN-specific endpoints:
 - Disk attach/eject request validation and binding-check contracts (`drive`/`disk_id` request validation, disk-catalog binding/format checks, deterministic no-op eject semantics, and deterministic blocker mapping) are defined in `docs/EMU_ENGINE_V2_API_SPEC.md` sections `9.2` and `9.3`.
 - `POST /api/v2/media/disk/attach` and `POST /api/v2/media/disk/eject` enforce deterministic request/session validation plus catalog-binding blockers with idempotent no-op eject behavior.
 - Disk mount/eject runtime flow and disk state event contract (attach phase progression, rollback-on-activation-failure behavior, deterministic eject phase semantics, and `media_disk_state` stream events with sequence/timestamp fields) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` sections `9.2` and `9.3`.
+- Disk attach/eject now projects deterministic runtime phase history (`validated,mounted,active` and `detached,ejected`) and surfaces latest `media_disk_state` events on `GET /api/v2/engine/stream`.
 
 ## 6.4 Input APIs
 

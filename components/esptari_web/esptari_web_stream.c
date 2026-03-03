@@ -41,6 +41,9 @@ typedef struct {
 static uint64_t stream_event_seq;
 static uint64_t slo_alarm_seq;
 static bool slo_alarm_breached;
+static char stream_media_attach_events_json_buf[1536];
+static char stream_media_disk_state_events_json_buf[1536];
+static char stream_response_buf[6144];
 static stream_backpressure_metrics_t stream_metrics[STREAM_KIND_COUNT] = {
     [STREAM_KIND_VIDEO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
     [STREAM_KIND_AUDIO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
@@ -266,26 +269,27 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
         slo_severity = "warning";
     }
 
-    char media_attach_events_json[1536] = "[]";
+    strlcpy(stream_media_attach_events_json_buf, "[]", sizeof(stream_media_attach_events_json_buf));
+    strlcpy(stream_media_disk_state_events_json_buf, "[]", sizeof(stream_media_disk_state_events_json_buf));
     if (stream == STREAM_KIND_ENGINE) {
         const esptari_web_media_attach_event_t *events = NULL;
         size_t event_count = 0;
         esptari_web_media_get_last_rom_attach_events(&events, &event_count);
 
         size_t cursor = 0;
-        cursor += snprintf(media_attach_events_json + cursor,
-                           sizeof(media_attach_events_json) - cursor,
+        cursor += snprintf(stream_media_attach_events_json_buf + cursor,
+                           sizeof(stream_media_attach_events_json_buf) - cursor,
                            "[");
         for (size_t index = 0; index < event_count; index++) {
             const esptari_web_media_attach_event_t *event = &events[index];
             if (index > 0) {
-                cursor += snprintf(media_attach_events_json + cursor,
-                                   sizeof(media_attach_events_json) - cursor,
+                cursor += snprintf(stream_media_attach_events_json_buf + cursor,
+                                   sizeof(stream_media_attach_events_json_buf) - cursor,
                                    ",");
             }
             if (event->has_error) {
-                cursor += snprintf(media_attach_events_json + cursor,
-                                   sizeof(media_attach_events_json) - cursor,
+                cursor += snprintf(stream_media_attach_events_json_buf + cursor,
+                                   sizeof(stream_media_attach_events_json_buf) - cursor,
                                    "{\"type\":\"media_attach_status\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"media_type\":\"rom\",\"media_id\":\"%s\",\"phase\":\"%s\",\"result\":\"%s\",\"request_id\":\"%s\",\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
                                    (unsigned long long)event->event_seq,
                                    (unsigned long long)event->event_timestamp_us,
@@ -296,8 +300,8 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
                                    event->error_code,
                                    event->error_message);
             } else {
-                cursor += snprintf(media_attach_events_json + cursor,
-                                   sizeof(media_attach_events_json) - cursor,
+                cursor += snprintf(stream_media_attach_events_json_buf + cursor,
+                                   sizeof(stream_media_attach_events_json_buf) - cursor,
                                    "{\"type\":\"media_attach_status\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"media_type\":\"rom\",\"media_id\":\"%s\",\"phase\":\"%s\",\"result\":\"%s\",\"request_id\":\"%s\"}",
                                    (unsigned long long)event->event_seq,
                                    (unsigned long long)event->event_timestamp_us,
@@ -307,14 +311,53 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
                                    event->request_id);
             }
         }
-        snprintf(media_attach_events_json + cursor,
-                 sizeof(media_attach_events_json) - cursor,
+        snprintf(stream_media_attach_events_json_buf + cursor,
+             sizeof(stream_media_attach_events_json_buf) - cursor,
+                 "]");
+
+        const esptari_web_media_disk_state_event_t *disk_events = NULL;
+        size_t disk_event_count = 0;
+        esptari_web_media_get_last_disk_state_events(&disk_events, &disk_event_count);
+
+        cursor = 0;
+        cursor += snprintf(stream_media_disk_state_events_json_buf + cursor,
+                           sizeof(stream_media_disk_state_events_json_buf) - cursor,
+                           "[");
+        for (size_t index = 0; index < disk_event_count; index++) {
+            const esptari_web_media_disk_state_event_t *event = &disk_events[index];
+            if (index > 0) {
+                cursor += snprintf(stream_media_disk_state_events_json_buf + cursor,
+                                   sizeof(stream_media_disk_state_events_json_buf) - cursor,
+                                   ",");
+            }
+            if (event->has_disk_id) {
+                cursor += snprintf(stream_media_disk_state_events_json_buf + cursor,
+                                   sizeof(stream_media_disk_state_events_json_buf) - cursor,
+                                   "{\"type\":\"media_disk_state\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"drive\":\"%s\",\"state\":\"%s\",\"disk_id\":\"%s\",\"request_id\":\"%s\"}",
+                                   (unsigned long long)event->event_seq,
+                                   (unsigned long long)event->event_timestamp_us,
+                                   event->drive,
+                                   event->state,
+                                   event->disk_id,
+                                   event->request_id);
+            } else {
+                cursor += snprintf(stream_media_disk_state_events_json_buf + cursor,
+                                   sizeof(stream_media_disk_state_events_json_buf) - cursor,
+                                   "{\"type\":\"media_disk_state\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"drive\":\"%s\",\"state\":\"%s\",\"disk_id\":null,\"request_id\":\"%s\"}",
+                                   (unsigned long long)event->event_seq,
+                                   (unsigned long long)event->event_timestamp_us,
+                                   event->drive,
+                                   event->state,
+                                   event->request_id);
+            }
+        }
+        snprintf(stream_media_disk_state_events_json_buf + cursor,
+                 sizeof(stream_media_disk_state_events_json_buf) - cursor,
                  "]");
     }
 
-    char resp[4096];
-    snprintf(resp, sizeof(resp),
-             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"media_attach_status_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
+    snprintf(stream_response_buf, sizeof(stream_response_buf),
+             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
              stream_name,
              (unsigned long long)stream_event_seq,
              (unsigned long long)timestamp_us,
@@ -346,11 +389,12 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
              (unsigned long long)metrics->overflow_events_total,
              (unsigned long long)metrics->throttle_transitions_total,
              (unsigned long long)metrics->sample_timestamp_us,
-             media_attach_events_json,
+             stream_media_attach_events_json_buf,
+             stream_media_disk_state_events_json_buf,
              (unsigned long long)slo_alarm_seq,
              slo_state,
              slo_severity);
-    return send_json(req, resp, 200);
+    return send_json(req, stream_response_buf, 200);
 }
 
 static esp_err_t stream_video_handler(httpd_req_t *req)

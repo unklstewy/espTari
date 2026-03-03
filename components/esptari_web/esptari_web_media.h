@@ -18,6 +18,18 @@ typedef struct {
 	char error_message[128];
 } esptari_web_media_attach_event_t;
 
+typedef struct {
+	bool has_disk_id;
+	uint64_t event_seq;
+	uint64_t event_timestamp_us;
+	char drive[2];
+	char state[16];
+	char disk_id[64];
+	char request_id[48];
+} esptari_web_media_disk_state_event_t;
+
 void esptari_web_media_register_routes(httpd_handle_t server_handle);
 void esptari_web_media_get_last_rom_attach_events(const esptari_web_media_attach_event_t **out_events,
+												  size_t *out_count);
+void esptari_web_media_get_last_disk_state_events(const esptari_web_media_disk_state_event_t **out_events,
 												  size_t *out_count);
