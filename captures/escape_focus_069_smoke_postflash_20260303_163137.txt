@@ -1,0 +1,18 @@
+== set click_to_capture mode ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"set_enabled","input_enabled":true,"capture_mode":"click_to_capture","capture_active":false,"policy":{"state":"enabled_idle","source":"user_request","reason":"set_enabled","changed_at_us":18341447,"event_seq":1},"transition_result":"applied"}}
+== acquire capture ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"click_acquire","input_enabled":true,"capture_mode":"click_to_capture","capture_active":true,"policy":{"state":"enabled_captured","source":"system_guard","reason":"click_to_capture_acquired","changed_at_us":18388191,"event_seq":2},"transition_result":"applied"}}
+== focus lost (release applied) ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"focus_lost","input_enabled":true,"capture_mode":"click_to_capture","capture_active":false,"policy":{"state":"enabled_idle","source":"system_guard","reason":"focus_lost_release","changed_at_us":18425992,"event_seq":3},"transition_result":"applied"}}
+== focus regained (no auto-acquire) ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"focus_regained","input_enabled":true,"capture_mode":"click_to_capture","capture_active":false,"policy":{"state":"enabled_idle","source":"system_guard","reason":"focus_regained_idle","changed_at_us":18462347,"event_seq":4},"transition_result":"no_op"}}
+== acquire again ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"click_acquire","input_enabled":true,"capture_mode":"click_to_capture","capture_active":true,"policy":{"state":"enabled_captured","source":"system_guard","reason":"click_to_capture_acquired","changed_at_us":18515680,"event_seq":5},"transition_result":"applied"}}
+== escape release valid sequence (released) ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"user_escape_sequence","result":"released","capture_active":false,"released_at_us":18550379,"policy":{"state":"enabled_idle","reason":"user_escape_sequence"}}}
+== acquire again ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"click_acquire","input_enabled":true,"capture_mode":"click_to_capture","capture_active":true,"policy":{"state":"enabled_captured","source":"system_guard","reason":"click_to_capture_acquired","changed_at_us":18586148,"event_seq":7},"transition_result":"applied"}}
+== escape release invalid sequence (no-op) ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"user_escape_sequence","result":"no_op","capture_active":true,"released_at_us":18611230,"policy":{"state":"enabled_captured","reason":"escape_sequence_no_op"}}}
+== final state snapshot ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","input_enabled":true,"capture_mode":"click_to_capture","capture_active":true,"policy":{"state":"enabled_captured","source":"system_guard","reason":"escape_sequence_no_op","changed_at_us":18611230,"event_seq":8},"escape_release":{"enabled":true,"sequence":["Escape","Escape"],"timeout_ms":600}}}

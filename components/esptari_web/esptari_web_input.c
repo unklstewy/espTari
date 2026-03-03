@@ -390,6 +390,26 @@ static esp_err_t input_capture_config_handler(httpd_req_t *req)
         browser_focus = true;
         recompute_policy_state("system_guard", "focus_regained_idle");
         transition_result = "no_op";
+    } else if (strcmp(action, "escape_sequence_partial") == 0 || strcmp(action, "escape_sequence_expired") == 0) {
+        if (!mode_is_click_to_capture()) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INPUT_POLICY_MODE_INVALID\"}}", 409);
+        }
+        recompute_policy_state("system_guard", "escape_sequence_no_op");
+        transition_result = "no_op";
+    } else if (strcmp(action, "escape_sequence_complete") == 0) {
+        if (!mode_is_click_to_capture()) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INPUT_POLICY_MODE_INVALID\"}}", 409);
+        }
+        if (capture_active && input_enabled && escape_release_enabled) {
+            capture_active = false;
+            recompute_policy_state("system_guard", "user_escape_sequence");
+            transition_result = "applied";
+        } else {
+            recompute_policy_state("system_guard", "escape_sequence_no_op");
+            transition_result = "no_op";
+        }
     } else {
         recompute_policy_state("user_request", action);
         transition_result = "applied";
@@ -443,6 +463,20 @@ static esp_err_t input_capture_release_handler(httpd_req_t *req)
     const char *release_reason = (cJSON_IsString(reason_item) && reason_item->valuestring != NULL && reason_item->valuestring[0] != '\0')
                                      ? reason_item->valuestring
                                      : "explicit_release";
+    bool escape_sequence_valid = false;
+    if (strcmp(release_reason, "user_escape_sequence") == 0) {
+        cJSON *sequence_item = cJSON_GetObjectItemCaseSensitive(root, "sequence");
+        cJSON *elapsed_item = cJSON_GetObjectItemCaseSensitive(root, "elapsed_ms");
+        if (cJSON_IsArray(sequence_item) && cJSON_GetArraySize(sequence_item) == 2 && cJSON_IsNumber(elapsed_item) && elapsed_item->valuedouble >= 0) {
+            cJSON *s0 = cJSON_GetArrayItem(sequence_item, 0);
+            cJSON *s1 = cJSON_GetArrayItem(sequence_item, 1);
+            if (cJSON_IsString(s0) && cJSON_IsString(s1) && s0->valuestring != NULL && s1->valuestring != NULL &&
+                strcmp(s0->valuestring, escape_release_sequence[0]) == 0 && strcmp(s1->valuestring, escape_release_sequence[1]) == 0 &&
+                (uint32_t)elapsed_item->valuedouble <= escape_release_timeout_ms) {
+                escape_sequence_valid = true;
+            }
+        }
+    }
 
     const char *result = "no_op";
     if (mode_is_mouse_over()) {
@@ -453,18 +487,26 @@ static esp_err_t input_capture_release_handler(httpd_req_t *req)
             cJSON_Delete(root);
             return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INPUT_POLICY_INVALID_STATE\"}}", 409);
         }
-        capture_active = false;
-        recompute_policy_state("system_guard", release_reason);
-        result = "released";
+        if (strcmp(release_reason, "user_escape_sequence") == 0 && !escape_sequence_valid) {
+            recompute_policy_state("system_guard", "escape_sequence_no_op");
+            result = "no_op";
+        } else {
+            capture_active = false;
+            recompute_policy_state("system_guard", release_reason);
+            result = "released";
+        }
     }
     cJSON_Delete(root);
+
+    const char *request_action = strcmp(release_reason, "user_escape_sequence") == 0 ? "user_escape_sequence" : "explicit_release";
 
     char resp[512];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"browser_session_id\":\"%s\",\"request_action\":\"explicit_release\",\"result\":\"%s\",\"capture_active\":%s,\"released_at_us\":%llu,\"policy\":{\"state\":\"%s\",\"reason\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"browser_session_id\":\"%s\",\"request_action\":\"%s\",\"result\":\"%s\",\"capture_active\":%s,\"released_at_us\":%llu,\"policy\":{\"state\":\"%s\",\"reason\":\"%s\"}}}",
              session_id,
              browser_session_id,
+             request_action,
              result,
              capture_active ? "true" : "false",
              (unsigned long long)policy_changed_at_us,
