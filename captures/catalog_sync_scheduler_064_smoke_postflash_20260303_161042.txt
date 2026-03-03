@@ -1,0 +1,12 @@
+== create schedule ==
+{"ok":true,"data":{"schedule_id":"sch_000001","job_type":"rom_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":true,"catch_up":false,"created_at_us":16384176,"updated_at_us":16384176,"last_run_at_us":null,"next_run_at_us":21600000000,"last_result":"none","last_error_code":null}}
+== list schedules ==
+{"ok":true,"data":{"scheduler_now_us":16451722,"schedules":[{"schedule_id":"sch_000001","job_type":"rom_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":true,"catch_up":false,"created_at_us":16384176,"updated_at_us":16384176,"last_run_at_us":null,"next_run_at_us":21600000000,"last_result":"none","last_error_code":null}]}}
+== get schedule ==
+{"ok":true,"data":{"scheduler_now_us":16492657,"schedule":{"schedule_id":"sch_000001","job_type":"rom_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":true,"catch_up":false,"created_at_us":16384176,"updated_at_us":16384176,"last_run_at_us":null,"next_run_at_us":21600000000,"last_result":"none","last_error_code":null}}}
+== run manual catalog-sync job ==
+{"ok":true,"data":{"job_id":"job_000001","trigger":"manual","status":"queued","created_at_us":16524846}}
+== get manual job ==
+{"ok":true,"data":{"job_id":"job_000001","trigger":"manual","schedule_id":"","job_type":"floppy_catalog_sync","mode":"catalog_and_probe_links","status":"completed","created_at_us":16524846,"started_at_us":16524846,"completed_at_us":16524846}}
+== list jobs ==
+{"ok":true,"data":{"jobs":[{"job_id":"job_000001","trigger":"manual","schedule_id":"","job_type":"floppy_catalog_sync","mode":"catalog_and_probe_links","status":"completed","created_at_us":16524846,"started_at_us":16524846,"completed_at_us":16524846}]}}
