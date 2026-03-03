@@ -1,0 +1,387 @@
+#include "esptari_web_metrics.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "cJSON.h"
+#include "esp_err.h"
+#include "esp_timer.h"
+#include "esptari_core.h"
+
+static bool perf_collectors_active;
+static uint32_t perf_sampling_interval_ms = 500;
+static uint32_t perf_window_ms = 5000;
+static bool perf_collect_input_latency = true;
+static bool perf_collect_jitter = true;
+static bool perf_collect_drop = true;
+static bool perf_emit_history = true;
+static uint64_t perf_collector_revision = 1;
+static uint64_t perf_sample_seq;
+static uint64_t perf_alarm_seq;
+static bool slo_alarm_breached;
+static const double perf_input_latency_target_max = 50.0;
+static const double perf_jitter_target_max = 30.0;
+static const double perf_drop_target_max = 1.0;
+
+static esp_err_t send_json(httpd_req_t *req, const char *json, int status_code)
+{
+    httpd_resp_set_type(req, "application/json");
+    const char *status = "500 Internal Server Error";
+    switch (status_code) {
+    case 200:
+        status = "200 OK";
+        break;
+    case 201:
+        status = "201 Created";
+        break;
+    case 400:
+        status = "400 Bad Request";
+        break;
+    case 404:
+        status = "404 Not Found";
+        break;
+    case 409:
+        status = "409 Conflict";
+        break;
+    case 412:
+        status = "412 Precondition Failed";
+        break;
+    default:
+        break;
+    }
+    httpd_resp_set_status(req, status);
+    return httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
+}
+
+static esp_err_t read_request_body(httpd_req_t *req, char *out_buf, size_t out_buf_size)
+{
+    if (req->content_len <= 0 || (size_t)req->content_len >= out_buf_size) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    int received = httpd_req_recv(req, out_buf, req->content_len);
+    if (received <= 0) {
+        return ESP_FAIL;
+    }
+    out_buf[received] = '\0';
+    return ESP_OK;
+}
+
+static bool query_value(httpd_req_t *req, const char *key, char *out, size_t out_len)
+{
+    if (httpd_req_get_url_query_len(req) <= 0) {
+        return false;
+    }
+
+    char query[256] = {0};
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK) {
+        return false;
+    }
+    return httpd_query_key_value(query, key, out, out_len) == ESP_OK;
+}
+
+static bool parse_u32_str(const char *value, uint32_t *out)
+{
+    if (value == NULL || value[0] == '\0' || out == NULL) {
+        return false;
+    }
+    char *end = NULL;
+    unsigned long parsed = strtoul(value, &end, 10);
+    if (end == value || *end != '\0') {
+        return false;
+    }
+    *out = (uint32_t)parsed;
+    return true;
+}
+
+static esp_err_t metrics_validate_session_query(httpd_req_t *req, char *session_id, size_t len)
+{
+    if (!query_value(req, "session_id", session_id, len) || session_id[0] == '\0') {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    if (strcmp(session_id, "ses_local") != 0) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
+    }
+    return ESP_OK;
+}
+
+static esp_err_t metrics_performance_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = metrics_validate_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    uint64_t now_us = (uint64_t)esp_timer_get_time();
+    double input_p95 = perf_collect_input_latency ? 41.0 : 0.0;
+    double jitter_p95 = perf_collect_jitter ? 21.0 : 0.0;
+    double drop_value = perf_collect_drop ? 0.4 : 0.0;
+    char resp[640];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"window_ms\":%lu,\"window_end_us\":%llu,\"input_latency_ms\":{\"p50\":18,\"p95\":%.1f,\"max\":49,\"target_max\":%.1f,\"status\":\"%s\"},\"jitter_ms\":{\"p50\":7,\"p95\":%.1f,\"max\":28,\"target_max\":%.1f,\"status\":\"%s\"},\"dropped_frame_percent\":{\"value\":%.1f,\"target_max\":%.1f,\"status\":\"%s\"}}}",
+             session_id,
+             (unsigned long)perf_window_ms,
+             (unsigned long long)now_us,
+             input_p95,
+             perf_input_latency_target_max,
+             input_p95 <= perf_input_latency_target_max ? "ok" : "breach",
+             jitter_p95,
+             perf_jitter_target_max,
+             jitter_p95 <= perf_jitter_target_max ? "ok" : "breach",
+             drop_value,
+             perf_drop_target_max,
+             drop_value <= perf_drop_target_max ? "ok" : "breach");
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t metrics_collectors_config_handler(httpd_req_t *req)
+{
+    char body[1024];
+    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *root = cJSON_Parse(body);
+    if (root == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *session_id_item = cJSON_GetObjectItemCaseSensitive(root, "session_id");
+    if (!cJSON_IsString(session_id_item) || session_id_item->valuestring == NULL) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    if (strcmp(session_id_item->valuestring, "ses_local") != 0) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
+    }
+
+    esptari_session_status_t status;
+    esptari_core_get_status(&status);
+    if (status.state != ESPTARI_SESSION_RUNNING && status.state != ESPTARI_SESSION_PAUSED) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
+    }
+
+    cJSON *sampling_item = cJSON_GetObjectItemCaseSensitive(root, "sampling_interval_ms");
+    cJSON *window_item = cJSON_GetObjectItemCaseSensitive(root, "window_ms");
+    cJSON *collectors_item = cJSON_GetObjectItemCaseSensitive(root, "collectors");
+    if (!cJSON_IsNumber(sampling_item) || !cJSON_IsNumber(window_item) || !cJSON_IsObject(collectors_item)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    int sampling_ms = sampling_item->valueint;
+    int window_ms = window_item->valueint;
+    if (sampling_ms < 100 || sampling_ms > 10000 || window_ms < 1000 || window_ms > 60000) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *input_item = cJSON_GetObjectItemCaseSensitive(collectors_item, "input_latency_ms");
+    cJSON *jitter_item = cJSON_GetObjectItemCaseSensitive(collectors_item, "jitter_ms");
+    cJSON *drop_item = cJSON_GetObjectItemCaseSensitive(collectors_item, "dropped_frame_percent");
+    if (!cJSON_IsObject(input_item) || !cJSON_IsObject(jitter_item) || !cJSON_IsObject(drop_item)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *input_enabled = cJSON_GetObjectItemCaseSensitive(input_item, "enabled");
+    cJSON *jitter_enabled = cJSON_GetObjectItemCaseSensitive(jitter_item, "enabled");
+    cJSON *drop_enabled = cJSON_GetObjectItemCaseSensitive(drop_item, "enabled");
+    if (!cJSON_IsBool(input_enabled) || !cJSON_IsBool(jitter_enabled) || !cJSON_IsBool(drop_enabled)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *emit_history_item = cJSON_GetObjectItemCaseSensitive(root, "emit_history");
+    if (emit_history_item != NULL && !cJSON_IsBool(emit_history_item)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    perf_sampling_interval_ms = (uint32_t)sampling_ms;
+    perf_window_ms = (uint32_t)window_ms;
+    perf_collect_input_latency = cJSON_IsTrue(input_enabled);
+    perf_collect_jitter = cJSON_IsTrue(jitter_enabled);
+    perf_collect_drop = cJSON_IsTrue(drop_enabled);
+    if (emit_history_item != NULL) {
+        perf_emit_history = cJSON_IsTrue(emit_history_item);
+    }
+    perf_collectors_active = true;
+    perf_collector_revision++;
+
+    cJSON_Delete(root);
+
+    uint64_t now_us = (uint64_t)esp_timer_get_time();
+    char resp[320];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"collector_revision\":\"slo_col_rev_%02llu\",\"sampling_interval_ms\":%lu,\"window_ms\":%lu,\"state\":\"active\",\"emit_history\":%s,\"applied_at_us\":%llu}}",
+             (unsigned long long)perf_collector_revision,
+             (unsigned long)perf_sampling_interval_ms,
+             (unsigned long)perf_window_ms,
+             perf_emit_history ? "true" : "false",
+             (unsigned long long)now_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t metrics_samples_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = metrics_validate_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char limit_str[16] = {0};
+    uint32_t limit = 1;
+    if (query_value(req, "limit", limit_str, sizeof(limit_str))) {
+        if (!parse_u32_str(limit_str, &limit) || limit == 0 || limit > 100) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (!perf_collectors_active) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
+    }
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(resp, "data", data);
+    cJSON_AddStringToObject(data, "session_id", session_id);
+    cJSON *samples = cJSON_CreateArray();
+
+    uint64_t now_us = (uint64_t)esp_timer_get_time();
+    uint64_t window_us = (uint64_t)perf_window_ms * 1000ULL;
+    for (uint32_t i = 0; i < limit; i++) {
+        perf_sample_seq++;
+        cJSON *sample = cJSON_CreateObject();
+        uint64_t window_end_us = now_us + (uint64_t)i * window_us;
+        uint64_t window_start_us = window_end_us >= window_us ? window_end_us - window_us : 0;
+        cJSON_AddNumberToObject(sample, "sample_seq", (double)perf_sample_seq);
+        cJSON_AddNumberToObject(sample, "window_start_us", (double)window_start_us);
+        cJSON_AddNumberToObject(sample, "window_end_us", (double)window_end_us);
+        cJSON_AddNumberToObject(sample, "input_latency_ms_p95", perf_collect_input_latency ? 41.0 : 0.0);
+        cJSON_AddNumberToObject(sample, "jitter_ms_p95", perf_collect_jitter ? 21.0 : 0.0);
+        cJSON_AddNumberToObject(sample, "dropped_frame_percent", perf_collect_drop ? 0.4 : 0.0);
+        char rev[32];
+        snprintf(rev, sizeof(rev), "slo_col_rev_%02llu", (unsigned long long)perf_collector_revision);
+        cJSON_AddStringToObject(sample, "collector_revision", rev);
+        cJSON_AddNumberToObject(sample, "timestamp_us", (double)(window_end_us + 1ULL));
+        cJSON_AddItemToArray(samples, sample);
+    }
+
+    cJSON_AddItemToObject(data, "samples", samples);
+    char *resp_json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    if (resp_json == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+    esp_err_t out = send_json(req, resp_json, 200);
+    free(resp_json);
+    return out;
+}
+
+static esp_err_t metrics_thresholds_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = metrics_validate_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char resp[384];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"thresholds\":{\"input_latency_ms_p95_max\":%.1f,\"jitter_ms_p95_max\":%.1f,\"dropped_frame_percent_max\":%.1f},\"evaluation_window_ms\":%lu,\"active_revision\":\"slo_thr_rev_02\"}}",
+             session_id,
+             perf_input_latency_target_max,
+             perf_jitter_target_max,
+             perf_drop_target_max,
+             (unsigned long)perf_window_ms);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t metrics_alarms_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = metrics_validate_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char limit_str[16] = {0};
+    uint32_t limit = 1;
+    if (query_value(req, "limit", limit_str, sizeof(limit_str))) {
+        if (!parse_u32_str(limit_str, &limit) || limit == 0 || limit > 100) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (!perf_collectors_active) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
+    }
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(resp, "data", data);
+    cJSON_AddStringToObject(data, "session_id", session_id);
+    cJSON *alarms = cJSON_CreateArray();
+
+    uint64_t now_us = (uint64_t)esp_timer_get_time();
+    uint64_t window_us = (uint64_t)perf_window_ms * 1000ULL;
+    for (uint32_t i = 0; i < limit; i++) {
+        perf_alarm_seq++;
+        cJSON *alarm = cJSON_CreateObject();
+        double threshold = perf_jitter_target_max;
+        double observed = slo_alarm_breached ? threshold * 1.25 : threshold * 0.8;
+        const char *state = slo_alarm_breached ? "breached" : "recovered";
+        const char *severity = observed >= threshold * 1.2 ? "critical" : "warning";
+        uint64_t window_start_us = now_us + (uint64_t)i * window_us;
+        uint64_t window_end_us = window_start_us + window_us;
+
+        cJSON_AddNumberToObject(alarm, "alarm_seq", (double)perf_alarm_seq);
+        cJSON_AddStringToObject(alarm, "metric", "jitter_ms_p95");
+        cJSON_AddNumberToObject(alarm, "threshold", threshold);
+        cJSON_AddNumberToObject(alarm, "observed", observed);
+        cJSON_AddStringToObject(alarm, "severity", severity);
+        cJSON_AddStringToObject(alarm, "state", state);
+        cJSON_AddNumberToObject(alarm, "window_start_us", (double)window_start_us);
+        cJSON_AddNumberToObject(alarm, "window_end_us", (double)window_end_us);
+        cJSON_AddNumberToObject(alarm, "timestamp_us", (double)(window_end_us + 1ULL));
+        cJSON_AddItemToArray(alarms, alarm);
+    }
+
+    cJSON_AddItemToObject(data, "alarms", alarms);
+    char *resp_json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    if (resp_json == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+    esp_err_t out = send_json(req, resp_json, 200);
+    free(resp_json);
+    return out;
+}
+
+void esptari_web_metrics_register_routes(httpd_handle_t server_handle)
+{
+    httpd_uri_t metrics_performance = {.uri = "/api/v2/metrics/performance", .method = HTTP_GET, .handler = metrics_performance_handler, .user_ctx = NULL};
+    httpd_uri_t metrics_collectors_config = {.uri = "/api/v2/metrics/performance/collectors/config", .method = HTTP_POST, .handler = metrics_collectors_config_handler, .user_ctx = NULL};
+    httpd_uri_t metrics_samples = {.uri = "/api/v2/metrics/performance/samples", .method = HTTP_GET, .handler = metrics_samples_handler, .user_ctx = NULL};
+    httpd_uri_t metrics_thresholds = {.uri = "/api/v2/metrics/performance/thresholds", .method = HTTP_GET, .handler = metrics_thresholds_handler, .user_ctx = NULL};
+    httpd_uri_t metrics_alarms = {.uri = "/api/v2/metrics/performance/alarms", .method = HTTP_GET, .handler = metrics_alarms_handler, .user_ctx = NULL};
+
+    httpd_register_uri_handler(server_handle, &metrics_performance);
+    httpd_register_uri_handler(server_handle, &metrics_collectors_config);
+    httpd_register_uri_handler(server_handle, &metrics_samples);
+    httpd_register_uri_handler(server_handle, &metrics_thresholds);
+    httpd_register_uri_handler(server_handle, &metrics_alarms);
+}

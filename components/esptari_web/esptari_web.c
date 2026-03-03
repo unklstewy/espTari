@@ -6,6 +6,7 @@
 #include "esptari_web_debug.h"
 #include "esptari_web_lifecycle.h"
 #include "esptari_web_mappings.h"
+#include "esptari_web_metrics.h"
 #include "esptari_web_stream.h"
 
 static const char *TAG = "esptari_web";
@@ -34,6 +35,7 @@ void esptari_web_init(uint16_t port)
     esptari_web_mappings_register_routes(server_handle);
     esptari_web_stream_register_routes(server_handle);
     esptari_web_debug_register_routes(server_handle);
+    esptari_web_metrics_register_routes(server_handle);
     esptari_web_catalog_register_routes(server_handle);
 
     ESP_LOGI(TAG, "Web API ready on port %u", (unsigned)port);
