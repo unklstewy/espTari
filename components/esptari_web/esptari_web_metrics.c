@@ -22,10 +22,44 @@ static bool perf_emit_history = true;
 static uint64_t perf_collector_revision = 1;
 static uint64_t perf_sample_seq;
 static uint64_t perf_alarm_seq;
-static bool slo_alarm_breached;
+static uint64_t perf_last_sample_timestamp_us;
+static uint64_t perf_last_sample_window_end_us;
+static uint64_t perf_last_alarm_timestamp_us;
+static uint64_t perf_last_alarm_window_start_us;
+static bool perf_alarm_state_breached;
 static const double perf_input_latency_target_max = 50.0;
 static const double perf_jitter_target_max = 30.0;
 static const double perf_drop_target_max = 1.0;
+
+static double metric_input_p95_value(uint64_t sample_seq)
+{
+    if (!perf_collect_input_latency) {
+        return 0.0;
+    }
+    return 39.0 + (double)(sample_seq % 5);
+}
+
+static double metric_jitter_p95_value(uint64_t sample_seq)
+{
+    if (!perf_collect_jitter) {
+        return 0.0;
+    }
+    if ((sample_seq % 4) == 0) {
+        return 36.0;
+    }
+    return 22.0;
+}
+
+static double metric_drop_percent_value(uint64_t sample_seq)
+{
+    if (!perf_collect_drop) {
+        return 0.0;
+    }
+    if ((sample_seq % 6) == 0) {
+        return 1.3;
+    }
+    return 0.4;
+}
 
 static esp_err_t metrics_validate_session_query(httpd_req_t *req, char *session_id, size_t len)
 {
@@ -47,9 +81,10 @@ static esp_err_t metrics_performance_handler(httpd_req_t *req)
     }
 
     uint64_t now_us = (uint64_t)esp_timer_get_time();
-    double input_p95 = perf_collect_input_latency ? 41.0 : 0.0;
-    double jitter_p95 = perf_collect_jitter ? 21.0 : 0.0;
-    double drop_value = perf_collect_drop ? 0.4 : 0.0;
+    uint64_t preview_seq = perf_sample_seq + 1;
+    double input_p95 = metric_input_p95_value(preview_seq);
+    double jitter_p95 = metric_jitter_p95_value(preview_seq);
+    double drop_value = metric_drop_percent_value(preview_seq);
     char resp[640];
     snprintf(resp,
              sizeof(resp),
@@ -190,22 +225,42 @@ static esp_err_t metrics_samples_handler(httpd_req_t *req)
 
     uint64_t now_us = (uint64_t)esp_timer_get_time();
     uint64_t window_us = (uint64_t)perf_window_ms * 1000ULL;
+    uint64_t sample_interval_us = (uint64_t)perf_sampling_interval_ms * 1000ULL;
+    uint64_t next_timestamp_us = perf_last_sample_timestamp_us > 0
+                                     ? perf_last_sample_timestamp_us + sample_interval_us
+                                     : now_us;
+    if (next_timestamp_us < now_us) {
+        next_timestamp_us = now_us;
+    }
+
     for (uint32_t i = 0; i < limit; i++) {
         perf_sample_seq++;
         cJSON *sample = cJSON_CreateObject();
-        uint64_t window_end_us = now_us + (uint64_t)i * window_us;
+        uint64_t timestamp_us = next_timestamp_us + ((uint64_t)i * sample_interval_us);
+        uint64_t window_end_us = timestamp_us > 0 ? timestamp_us - 1ULL : timestamp_us;
+        if (window_end_us < perf_last_sample_window_end_us) {
+            window_end_us = perf_last_sample_window_end_us;
+            timestamp_us = window_end_us + 1ULL;
+        }
         uint64_t window_start_us = window_end_us >= window_us ? window_end_us - window_us : 0;
+        double input_p95 = metric_input_p95_value(perf_sample_seq);
+        double jitter_p95 = metric_jitter_p95_value(perf_sample_seq);
+        double drop_value = metric_drop_percent_value(perf_sample_seq);
+
         cJSON_AddNumberToObject(sample, "sample_seq", (double)perf_sample_seq);
         cJSON_AddNumberToObject(sample, "window_start_us", (double)window_start_us);
         cJSON_AddNumberToObject(sample, "window_end_us", (double)window_end_us);
-        cJSON_AddNumberToObject(sample, "input_latency_ms_p95", perf_collect_input_latency ? 41.0 : 0.0);
-        cJSON_AddNumberToObject(sample, "jitter_ms_p95", perf_collect_jitter ? 21.0 : 0.0);
-        cJSON_AddNumberToObject(sample, "dropped_frame_percent", perf_collect_drop ? 0.4 : 0.0);
+        cJSON_AddNumberToObject(sample, "input_latency_ms_p95", input_p95);
+        cJSON_AddNumberToObject(sample, "jitter_ms_p95", jitter_p95);
+        cJSON_AddNumberToObject(sample, "dropped_frame_percent", drop_value);
         char rev[32];
         snprintf(rev, sizeof(rev), "slo_col_rev_%02llu", (unsigned long long)perf_collector_revision);
         cJSON_AddStringToObject(sample, "collector_revision", rev);
-        cJSON_AddNumberToObject(sample, "timestamp_us", (double)(window_end_us + 1ULL));
+        cJSON_AddNumberToObject(sample, "timestamp_us", (double)timestamp_us);
         cJSON_AddItemToArray(samples, sample);
+
+        perf_last_sample_window_end_us = window_end_us;
+        perf_last_sample_timestamp_us = timestamp_us;
     }
 
     cJSON_AddItemToObject(data, "samples", samples);
@@ -253,11 +308,14 @@ static esp_err_t metrics_history_handler(httpd_req_t *req)
         cJSON *sample = cJSON_CreateObject();
         uint64_t window_end_us = now_us - ((uint64_t)i * window_us);
         uint64_t window_start_us = window_end_us >= window_us ? window_end_us - window_us : 0;
+        double input_p95 = metric_input_p95_value(perf_sample_seq + i + 1ULL);
+        double jitter_p95 = metric_jitter_p95_value(perf_sample_seq + i + 1ULL);
+        double drop_value = metric_drop_percent_value(perf_sample_seq + i + 1ULL);
         cJSON_AddNumberToObject(sample, "window_start_us", (double)window_start_us);
         cJSON_AddNumberToObject(sample, "window_end_us", (double)window_end_us);
-        cJSON_AddNumberToObject(sample, "input_latency_ms_p95", perf_collect_input_latency ? 41.0 : 0.0);
-        cJSON_AddNumberToObject(sample, "jitter_ms_p95", perf_collect_jitter ? 21.0 : 0.0);
-        cJSON_AddNumberToObject(sample, "dropped_frame_percent", perf_collect_drop ? 0.4 : 0.0);
+        cJSON_AddNumberToObject(sample, "input_latency_ms_p95", input_p95);
+        cJSON_AddNumberToObject(sample, "jitter_ms_p95", jitter_p95);
+        cJSON_AddNumberToObject(sample, "dropped_frame_percent", drop_value);
         cJSON_AddNumberToObject(sample, "timestamp_us", (double)(window_end_us + 1ULL));
         cJSON_AddItemToArray(history, sample);
     }
@@ -322,15 +380,31 @@ static esp_err_t metrics_alarms_handler(httpd_req_t *req)
 
     uint64_t now_us = (uint64_t)esp_timer_get_time();
     uint64_t window_us = (uint64_t)perf_window_ms * 1000ULL;
+    uint64_t sample_interval_us = (uint64_t)perf_sampling_interval_ms * 1000ULL;
+    uint64_t next_window_start_us = perf_last_alarm_window_start_us > 0
+                                        ? perf_last_alarm_window_start_us + window_us
+                                        : now_us;
+    uint64_t next_timestamp_us = perf_last_alarm_timestamp_us > 0
+                                     ? perf_last_alarm_timestamp_us + sample_interval_us
+                                     : now_us + 1ULL;
+    if (next_timestamp_us <= now_us) {
+        next_timestamp_us = now_us + 1ULL;
+    }
+
     for (uint32_t i = 0; i < limit; i++) {
         perf_alarm_seq++;
         cJSON *alarm = cJSON_CreateObject();
         double threshold = perf_jitter_target_max;
-        double observed = slo_alarm_breached ? threshold * 1.25 : threshold * 0.8;
-        const char *state = slo_alarm_breached ? "breached" : "recovered";
+        bool breached_state = !perf_alarm_state_breached;
+        double observed = breached_state ? threshold * 1.25 : threshold * 0.8;
+        const char *state = breached_state ? "breached" : "recovered";
         const char *severity = observed >= threshold * 1.2 ? "critical" : "warning";
-        uint64_t window_start_us = now_us + (uint64_t)i * window_us;
+        uint64_t window_start_us = next_window_start_us + ((uint64_t)i * window_us);
         uint64_t window_end_us = window_start_us + window_us;
+        uint64_t timestamp_us = next_timestamp_us + ((uint64_t)i * sample_interval_us);
+        if (timestamp_us <= window_end_us) {
+            timestamp_us = window_end_us + 1ULL;
+        }
 
         cJSON_AddNumberToObject(alarm, "alarm_seq", (double)perf_alarm_seq);
         cJSON_AddStringToObject(alarm, "metric", "jitter_ms_p95");
@@ -340,8 +414,12 @@ static esp_err_t metrics_alarms_handler(httpd_req_t *req)
         cJSON_AddStringToObject(alarm, "state", state);
         cJSON_AddNumberToObject(alarm, "window_start_us", (double)window_start_us);
         cJSON_AddNumberToObject(alarm, "window_end_us", (double)window_end_us);
-        cJSON_AddNumberToObject(alarm, "timestamp_us", (double)(window_end_us + 1ULL));
+        cJSON_AddNumberToObject(alarm, "timestamp_us", (double)timestamp_us);
         cJSON_AddItemToArray(alarms, alarm);
+
+        perf_alarm_state_breached = breached_state;
+        perf_last_alarm_window_start_us = window_start_us;
+        perf_last_alarm_timestamp_us = timestamp_us;
     }
 
     cJSON_AddItemToObject(data, "alarms", alarms);

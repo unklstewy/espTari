@@ -1,0 +1,21 @@
+# metrics 6.11 smoke run post-flash 20260303_132236
+
+## POST /api/v2/engine/session/start
+{"ok":true}
+HTTP_STATUS:200
+
+## POST /api/v2/metrics/performance/collectors/config
+{"ok":true,"data":{"session_id":"ses_local","collector_revision":"slo_col_rev_02","sampling_interval_ms":500,"window_ms":5000,"state":"active","emit_history":true,"applied_at_us":15869468}}
+HTTP_STATUS:200
+
+## GET /api/v2/metrics/performance/samples?limit=3
+{"ok":true,"data":{"session_id":"ses_local","samples":[{"sample_seq":1,"window_start_us":10911367,"window_end_us":15911367,"input_latency_ms_p95":40,"jitter_ms_p95":22,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_02","timestamp_us":15911368},{"sample_seq":2,"window_start_us":11411367,"window_end_us":16411367,"input_latency_ms_p95":41,"jitter_ms_p95":22,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_02","timestamp_us":16411368},{"sample_seq":3,"window_start_us":11911367,"window_end_us":16911367,"input_latency_ms_p95":42,"jitter_ms_p95":22,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_02","timestamp_us":16911368}]}}
+HTTP_STATUS:200
+
+## GET /api/v2/metrics/performance/alarms?limit=3
+{"ok":true,"data":{"session_id":"ses_local","alarms":[{"alarm_seq":1,"metric":"jitter_ms_p95","threshold":30,"observed":37.5,"severity":"critical","state":"breached","window_start_us":15941857,"window_end_us":20941857,"timestamp_us":20941858},{"alarm_seq":2,"metric":"jitter_ms_p95","threshold":30,"observed":24,"severity":"warning","state":"recovered","window_start_us":20941857,"window_end_us":25941857,"timestamp_us":25941858},{"alarm_seq":3,"metric":"jitter_ms_p95","threshold":30,"observed":37.5,"severity":"critical","state":"breached","window_start_us":25941857,"window_end_us":30941857,"timestamp_us":30941858}]}}
+HTTP_STATUS:200
+
+## GET /api/v2/metrics/performance/history?limit=2
+{"ok":true,"data":{"session_id":"ses_local","window_ms":5000,"history":[{"window_start_us":10977860,"window_end_us":15977860,"input_latency_ms_p95":43,"jitter_ms_p95":36,"dropped_frame_percent":0.4,"timestamp_us":15977861},{"window_start_us":5977860,"window_end_us":10977860,"input_latency_ms_p95":39,"jitter_ms_p95":22,"dropped_frame_percent":0.4,"timestamp_us":10977861}]}}
+HTTP_STATUS:200
