@@ -1,0 +1,22 @@
+# T-071 smoke 20260303_164530
+\n## ensure engine running
+{"ok":true}\n## create mapping
+{"ok":true,"data":{"mapping_profile_id":"custom_t071_v1","machine":"atari_st","profile":"st_520_pal","revision":1,"updated_at_us":126173434}}
+\n## list mappings
+{"ok":true,"data":{"items":[{"mapping_profile_id":"custom_t071_v1","machine":"atari_st","profile":"st_520_pal","revision":1,"updated_at_us":126173434}]}}\n## get mapping
+{"ok":true,"data":{"mapping_profile_id":"custom_t071_v1","mapping_profile":{"mapping_profile_id":"custom_t071_v1","machine":"atari_st","profile":"st_520_pal","entries":[{"source":"keyboard.key.a","target":"ikbd.key.A"}],"revision":1,"updated_at_us":126173434}}}\n## patch mapping
+{"ok":true,"data":{"mapping_profile_id":"custom_t071_v1","result":"updated","revision":2,"updated_at_us":126257292}}\n## apply mapping
+{"ok":true,"data":{"result":"applied","previous_mapping_profile_id":"","active_mapping_profile_id":"custom_t071_v1","active_mapping_revision":2,"cutover_tick":1}}\n## active mapping
+{"ok":true,"data":{"mapping_profile_id":"custom_t071_v1","mapping_profile":{"mapping_profile_id":"custom_t071_v1","machine":"atari_st","profile":"st_1040_ntsc","entries":[{"source":"keyboard.key.a","target":"ikbd.key.A"}],"revision":2,"updated_at_us":126257292}}}\n## delete mapping
+{"ok":false,"error":{"code":"CONFLICT"}}\n## apply default for delete
+{"ok":false,"error":{"code":"INPUT_MAPPING_NOT_FOUND"}}\n## delete mapping after unapply
+{"ok":false,"error":{"code":"CONFLICT"}}\n## verify deleted not found
+{"ok":true,"data":{"mapping_profile_id":"custom_t071_v1","mapping_profile":{"mapping_profile_id":"custom_t071_v1","machine":"atari_st","profile":"st_1040_ntsc","entries":[{"source":"keyboard.key.a","target":"ikbd.key.A"}],"revision":2,"updated_at_us":126257292}}}\n## create secondary mapping
+{"ok":true,"data":{"mapping_profile_id":"custom_t071_v2","machine":"atari_st","profile":"st_520_pal","revision":1,"updated_at_us":159005640}}\n## apply secondary mapping
+{"ok":true,"data":{"result":"applied","previous_mapping_profile_id":"custom_t071_v1","active_mapping_profile_id":"custom_t071_v2","active_mapping_revision":1,"cutover_tick":2}}\n## delete primary mapping
+{"ok":true,"data":{"deleted":"custom_t071_v1"}}\n## get deleted primary mapping
+{"ok":false,"error":{"code":"INPUT_MAPPING_NOT_FOUND"}}\n## cleanup secondary mapping
+{"ok":false,"error":{"code":"CONFLICT"}}\n## create default mapping placeholder
+{"ok":true,"data":{"mapping_profile_id":"atari_st_default_v1","machine":"atari_st","profile":"st_520_pal","revision":1,"updated_at_us":169504668}}\n## apply default mapping placeholder
+{"ok":true,"data":{"result":"applied","previous_mapping_profile_id":"custom_t071_v2","active_mapping_profile_id":"atari_st_default_v1","active_mapping_revision":1,"cutover_tick":3}}\n## delete secondary mapping
+{"ok":true,"data":{"deleted":"custom_t071_v2"}}
