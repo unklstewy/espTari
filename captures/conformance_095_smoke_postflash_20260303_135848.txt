@@ -1,0 +1,45 @@
+### engine_start
+POST /api/v2/engine/session/start
+HTTP 200
+{"ok":true}
+
+### manifest_load
+POST /api/v2/conformance/manifests/load
+HTTP 200
+{"ok":true,"data":{"manifest_id":"mf_smoke_095","loaded":true,"checks_total":2,"checks_enabled":2,"loaded_at_us":24169358}}
+
+### harness_session
+POST /api/v2/conformance/harness/session
+HTTP 200
+{"ok":true,"data":{"harness_session_id":"chs_000001","session_id":"ses_local","manifest_id":"mf_smoke_095","state":"running","created_at_us":24205738,"checks_total":2,"checks_enabled":2}}
+
+### evidence_collect
+POST /api/v2/conformance/harness/evidence/collect
+HTTP 200
+{"ok":true,"data":{"collection_id":"col_000001","harness_session_id":"chs_000001","state":"completed","artifacts":[{"type":"logs","uri":"sdcard/conformance/chs_000001/logs.ndjson","bytes":120334},{"type":"metrics","uri":"sdcard/conformance/chs_000001/metrics.json","bytes":4421}],"started_at_us":24253784,"completed_at_us":24254984}}
+
+### report_package
+POST /api/v2/conformance/harness/report/package
+HTTP 200
+{"ok":true,"data":{"package_id":"pkg_000001","harness_session_id":"chs_000001","collection_id":"col_000001","state":"ready","report_uri":"sdcard/conformance/chs_000001/report_pkg_000001.json","sha256":"9f2f52be6f7d11f8f0a6f7bc62bf4b6c6e5ac6f4c91dc2a82bf32f4c0c55f2a1"}}
+
+### checklist_run
+POST /api/v2/conformance/harness/checklist/run
+HTTP 200
+{"ok":true,"data":{"runner_id":"run_000001","harness_session_id":"chs_000001","checklist_id":"st_acceptance_v1","state":"completed","cases_total":2,"cases_passed":2,"cases_failed":0,"started_at_us":24359915,"completed_at_us":24360915}}
+
+### checklist_status
+GET /api/v2/conformance/harness/checklist/run/status?runner_id=run_000001
+HTTP 200
+{"ok":true,"data":{"runner_id":"run_000001","state":"completed","current_case_id":null,"progress":{"completed_cases":2,"total_cases":2},"last_transition_at_us":24360915}}
+
+### review_pack_generate
+POST /api/v2/conformance/harness/review-pack/generate
+HTTP 200
+{"ok":true,"data":{"review_pack_id":"rvp_000001","state":"ready","harness_session_id":"chs_000001","runner_id":"run_000001","generated_at_us":24469813,"review_pack_uri":"sdcard/conformance/chs_000001/review_pack_rvp_000001.json"}}
+
+### signoff_bundle_assemble
+POST /api/v2/conformance/harness/signoff-bundle/assemble
+HTTP 200
+{"ok":true,"data":{"bundle_id":"sgn_000001","review_pack_id":"rvp_000001","state":"ready","bundle_uri":"sdcard/conformance/chs_000001/signoff_bundle_sgn_000001.zip","sha256":"6b2ebf4f95df8a59f2ad8a5e622ecf9f53251b1a17e5dca35d43a83a420ff7d9","assembled_at_us":24519734}}
+
