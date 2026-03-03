@@ -1,0 +1,6 @@
+#pragma once
+
+#include "esp_http_server.h"
+
+esp_err_t esptari_web_mappings_active_handler(httpd_req_t *req);
+esp_err_t esptari_web_mappings_apply_handler(httpd_req_t *req);
