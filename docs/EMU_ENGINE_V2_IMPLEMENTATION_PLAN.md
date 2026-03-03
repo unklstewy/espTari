@@ -124,6 +124,18 @@ Responsible for browser-consumable outputs:
 - Audio PCM stream
 - Metadata/event channels (state changes, dropped frame counters, sync status)
 
+## 3.2 Current web API routing implementation (code-aligned)
+
+Current v2 HTTP routing is implemented in `components/esptari_web` with thin registrars and concern-split handlers:
+
+- Root registrar: `esptari_web.c` wires module route registrars (`core_status`, `lifecycle`, `mappings`, `stream`, `debug`, `metrics`, `catalog`).
+- Lifecycle routes: `esptari_web_lifecycle.c` (registration) with session/state handlers split into `esptari_web_lifecycle_session.c` and `esptari_web_lifecycle_state.c`.
+- Mapping routes: `esptari_web_mappings.c` (create/list + registration), `esptari_web_mappings_runtime.c` (active/apply), `esptari_web_mappings_item.c` (item GET/PATCH/DELETE).
+- Catalog routes: `esptari_web_catalog.c` (registration), `esptari_web_catalog_read.c` (GET routing), `esptari_web_catalog_write.c` (POST routing), with write concerns split into `esptari_web_catalog_write_download.c` and `esptari_web_catalog_write_maintenance.c`; shared catalog state/helpers live in `esptari_web_catalog_state.c` and `esptari_web_catalog_utils.c`.
+- Debug routes: `esptari_web_debug.c` now exposes `POST /api/v2/debug/clock/mode`, `POST /api/v2/debug/clock/step`, and `GET /api/v2/debug/clock/state`.
+
+This decomposition is the baseline structure for future atomic refactors in the web API component.
+
 ---
 
 ## 4. Runtime component model (EBIN)
@@ -290,6 +302,11 @@ Canonical REST contract:
 - Restore-resume transition guards + error semantics contract (`restore_resume_request_v1`, `restore_resume_response_v1`, checks `REST-RES-01..04`, and deterministic restore/snapshot guard failures) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `6.8` and is the canonical source.
 - Restore compatibility rule matrix contract (`restore_compatibility_matrix_v1`, rules `RCOMP-01..04`, deterministic evaluation order, and compatibility failure mapping to `SNAPSHOT_NOT_FOUND`/`SNAPSHOT_INCOMPATIBLE`) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `11.7` and is the canonical source.
 - Restore compatibility validator + error-mapping contract (`restore_compatibility_validate_request_v1`, `restore_compatibility_validate_result_v1`, checks `RCOMP-VAL-01..04`, and deterministic error mapping across request/engine/snapshot domains) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `11.7` and is the canonical source.
+
+Routing verification gate (atomic-change process):
+
+- Single-script route verification is required before build/commit for API routing changes: `python3 tools/verify_api_v2_routes.py`.
+- The verifier checks route registration integrity, wildcard router dispatch coverage, ordering constraints for wildcard/exact routes, and expected implemented `/api/v2` endpoint presence.
 
 ## 6.1 Control APIs
 
