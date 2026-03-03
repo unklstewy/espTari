@@ -1,0 +1,17 @@
+# Observability Backpressure Run Scaffold
+
+Date: 2026-03-03
+Scope: P1-1 placeholder evidence file for `T-090`/`T-091`
+
+## Planned checks
+
+- queue depth/capacity bounds
+- dropped/coalesced counter monotonicity
+- throttle transition count updates
+- delivery degradation field consistency
+
+## Execution state
+
+- status: scaffold_created
+- runtime_load_run: pending
+- validation_result: pending

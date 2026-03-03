@@ -1,0 +1,17 @@
+# Observability SLO Alarm Run Scaffold
+
+Date: 2026-03-03
+Scope: P1-1 placeholder evidence file for `T-116`/`T-117` readiness path
+
+## Planned checks
+
+- collector sample cadence and window integrity
+- threshold config apply + revision updates
+- alarm breach/recover transitions
+- alarm payload consistency
+
+## Execution state
+
+- status: scaffold_created
+- runtime_alarm_run: pending
+- validation_result: pending

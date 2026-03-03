@@ -105,8 +105,8 @@ AI-speed policy:
 | T-087 | EPIC-05 | Implement register snapshot stream publisher and validation checks | P1 | S | S4 | Backlog | T-086 |
 | T-088 | EPIC-05 | Define bus/memory filter request model and guard rules | P1 | S | S4 | Backlog | T-087 |
 | T-089 | EPIC-05 | Implement filtered bus/memory stream and load validation run | P1 | S | S4 | Backlog | T-088 |
-| T-090 | EPIC-05 | Implement stream backpressure counters and watermark metrics | P1 | XS | S4 | Backlog | T-083, T-085, T-089 |
-| T-091 | EPIC-05 | Expose backpressure telemetry via API and event streams | P1 | S | S4 | Backlog | T-090 |
+| T-090 | EPIC-05 | Implement stream backpressure counters and watermark metrics | P1 | XS | S4 | In Progress | T-083, T-085, T-089 |
+| T-091 | EPIC-05 | Expose backpressure telemetry via API and event streams | P1 | S | S4 | In Progress | T-090 |
 | T-092 | EPIC-06 | Build conformance harness scaffold and test manifest loader | P1 | S | S4 | In Progress | T-075, T-083, T-085 |
 | T-093 | EPIC-06 | Implement evidence artifact collection and report packaging flow | P1 | S | S4 | In Progress | T-092 |
 | T-094 | EPIC-06 | Implement acceptance checklist execution runner | P0 | S | S4 | Ready | T-093 |
@@ -131,8 +131,8 @@ AI-speed policy:
 | T-113 | EPIC-01 | Implement restore-resume transition guards and error semantics | P0 | S | S4 | Backlog | T-112 |
 | T-114 | EPIC-05 | Define restore compatibility rule matrix (schema/abi/profile) | P0 | XS | S4 | Backlog | T-044 |
 | T-115 | EPIC-05 | Implement restore compatibility validator and error mapping | P0 | S | S4 | Backlog | T-114 |
-| T-116 | EPIC-05 | Implement performance SLO metric collectors and sampling pipeline | P0 | S | S4 | Backlog | T-083, T-085, T-091 |
-| T-117 | EPIC-05 | Expose SLO endpoints and threshold breach alarm events | P0 | S | S4 | Backlog | T-116 |
+| T-116 | EPIC-05 | Implement performance SLO metric collectors and sampling pipeline | P0 | S | S4 | Ready | T-083, T-085, T-091 |
+| T-117 | EPIC-05 | Expose SLO endpoints and threshold breach alarm events | P0 | S | S4 | Ready | T-116 |
 | T-118 | EPIC-05 | Define realtime/slow-motion clock control model and bounds | P1 | XS | S4 | Backlog | T-077 |
 | T-119 | EPIC-05 | Implement clock mode API and deterministic mode transition flow | P1 | S | S4 | Backlog | T-118 |
 | T-120 | EPIC-05 | Implement single-step execution control API and scheduler hook | P1 | S | S4 | Backlog | T-119, T-087, T-089 |

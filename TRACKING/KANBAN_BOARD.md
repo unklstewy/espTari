@@ -25,12 +25,15 @@ This board is the operational view for daily execution.
 - T-051, T-052, T-053 (decomposition of T-009)
 - T-094, T-095 (conformance checklist runner + review pack)
 - T-110, T-111 (section-11 acceptance suite/reporting path)
+- T-116, T-117 (SLO collectors + threshold/alarm exposure)
 - (no remaining T-054 through T-121 items)
 
 ### In Progress
 
 - T-092 (conformance harness scaffold + manifest loader)
 - T-093 (evidence artifact collection + report packaging flow)
+- T-090 (stream backpressure counters + watermark metrics)
+- T-091 (backpressure telemetry/event exposure)
 
 ### In Review
 
