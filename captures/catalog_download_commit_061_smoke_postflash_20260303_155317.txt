@@ -1,0 +1,8 @@
+== staged commit success (verify_sha256) ==
+{"ok":true,"data":{"catalog":"floppies","entry_id":"disk.automation.a_093","job_id":"dl_000001","queue_state":"queued","priority":"normal","enqueued_at_us":17407809,"stage_state":"committed","staging_path":"/sdcard/.staging/catalog_downloads/dl_000001.part","final_path":"/sdcard/disks/st/AUTOMATION/A_093.ST","bytes_downloaded":737280,"sha256_expected":"sha256:abcd","sha256_actual":"sha256:abcd","verified":true,"committed_at_us":17409809}}
+== staged blocker simulate_truncated -> UPLOAD_INCOMPLETE ==
+{"ok":false,"error":{"code":"UPLOAD_INCOMPLETE","category":"catalog","message":"Staging artifact missing or truncated before verification","retryable":false}}
+== staged blocker simulate_hash_mismatch -> CATALOG_SYNC_FAILED ==
+{"ok":false,"error":{"code":"CATALOG_SYNC_FAILED","category":"catalog","message":"Integrity verification failed for staged download","retryable":false}}
+== staged blocker simulate_commit_failure -> CATALOG_SYNC_FAILED ==
+{"ok":false,"error":{"code":"CATALOG_SYNC_FAILED","category":"catalog","message":"Atomic commit failed while finalizing staged download","retryable":false}}
