@@ -1,0 +1,33 @@
+# T-081 post-fix acceptance smoke 20260303_173857
+
+## engine health
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+## rom attach success
+{"ok":true,"data":{"session_id":"ses_local","rom":{"id":"rom.atari.st.01","catalog":"rom","local_path":"/sdcard/roms/st/TOS104.ROM","binding":{"machine":"atari_st","profile":"st_520_pal","binding_result":"matched"}},"rom_id":"rom.atari.st.01","result":"applied","phase":"applied","phase_history":["validated","mounted","applied"],"request_id":"req_264421618","mount":{"slot":"rom.primary","mounted_path":"/sdcard/roms/st/TOS104.ROM","mounted_at_us":264421635},"apply":{"applied_at_us":264421639,"runtime_generation":9},"attached_at_us":264421639}}
+
+## rom attach forced apply fail
+HTTP/1.1 409 Conflict
+Content-Type: application/json
+Content-Length: 303
+
+{"ok":false,"error":{"code":"MEDIA_ATTACH_FAILED","category":"engine","message":"ROM apply phase failed; previous ROM restored","retryable":false,"details":{"session_id":"ses_local","rom_id":"rom.atari.st.01","failed_phase":"applied","request_id":"req_264446656","validation_stage":"rom_attach_apply"}}}
+
+## disk attach A success
+{"ok":true,"data":{"session_id":"ses_local","drive":"A","disk":{"id":"disk.automation.a_093","catalog":"disk","local_path":"/sdcard/disks/st/AUTOMATION/A_093.ST","format":"st","write_protect":true,"binding_result":"matched"},"disk_id":"disk.automation.a_093","result":"active","phase_history":["validated","mounted","active"],"request_id":"req_264470665","mount":{"mounted_at_us":264470675,"mounted_path":"/sdcard/disks/st/AUTOMATION/A_093.ST"},"runtime":{"active_at_us":264470679,"generation":10},"attached_at_us":264470679}}
+
+## disk attach B forced active fail
+HTTP/1.1 409 Conflict
+Content-Type: application/json
+Content-Length: 286
+
+{"ok":false,"error":{"code":"MEDIA_ATTACH_FAILED","category":"engine","message":"Disk active phase failed; previous disk restored","retryable":false,"details":{"session_id":"ses_local","drive":"B","disk_id":"disk.automation.a_093","failed_phase":"active","request_id":"req_264496701"}}}
+
+## disk eject A
+{"ok":true,"data":{"session_id":"ses_local","drive":"A","result":"ejected","phase_history":["detached","ejected"],"request_id":"req_264520634","ejected_disk_id":"disk.automation.a_093","ejected_at_us":264520644}}
+
+## disk eject A noop
+{"ok":true,"data":{"session_id":"ses_local","drive":"A","result":"no_op","phase_history":["detached","ejected"],"request_id":"req_264542634","ejected_disk_id":null,"ejected_at_us":264542643}}
+
+## engine stream
+{"ok":true,"data":{"stream":"engine","event_seq":7,"event_timestamp_us":264560481,"delivery":{"degraded":false,"reason":"none","dropped_events_since_last":0,"coalesced_updates":0,"throttle_active":false},"backpressure":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":264560481},"backpressure_event":{"type":"stream_backpressure_telemetry","schema_version":1,"session_id":"ses_local","event_seq":7,"event_timestamp_us":264560481,"stream":"engine","metrics":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":264560481}},"media_attach_status_events":[{"type":"media_attach_status","schema_version":1,"session_id":"ses_local","event_seq":38,"event_timestamp_us":264446667,"media_type":"rom","media_id":"rom.atari.st.01","phase":"validated","result":"in_progress","request_id":"req_264446656"},{"type":"media_attach_status","schema_version":1,"session_id":"ses_local","event_seq":39,"event_timestamp_us":264446671,"media_type":"rom","media_id":"rom.atari.st.01","phase":"mounted","result":"in_progress","request_id":"req_264446656"},{"type":"media_attach_status","schema_version":1,"session_id":"ses_local","event_seq":40,"event_timestamp_us":264446673,"media_type":"rom","media_id":"rom.atari.st.01","phase":"failed","result":"failed","request_id":"req_264446656","error":{"code":"MEDIA_ATTACH_FAILED","message":"ROM apply phase failed; previous ROM restored"}}],"media_disk_state_events":[{"type":"media_disk_state","schema_version":1,"session_id":"ses_local","event_seq":46,"event_timestamp_us":264542645,"drive":"A","state":"ejected","disk_id":null,"request_id":"req_264542634"}],"slo_alarm":{"seq":0,"state":"normal","severity":"info"}}}
