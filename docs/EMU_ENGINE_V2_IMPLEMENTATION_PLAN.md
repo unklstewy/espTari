@@ -650,6 +650,7 @@ Profile fields:
 - default ROM recommendation set
 - enabled stream defaults
 - ST profile manifest parser + schema validation contract (canonical manifest path, required schema fields, normalized parse output, and deterministic blockers for missing/invalid manifests) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `6.1` and is normative for session bootstrap.
+- Session bootstrap now validates ST profile manifests via canonical path parsing and projects `profile_manifest_validation` metadata in `POST /api/v2/engine/session` success responses.
 - Profile wiring validation + fail-fast diagnostics contract (module-resolution checks, `scheduler.step_order` validation, startup abort-before-run guarantees, and deterministic wiring blocker mapping) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `6.1` and is normative for bootstrap safety.
 
 ## 8.3 Deterministic scheduler contract

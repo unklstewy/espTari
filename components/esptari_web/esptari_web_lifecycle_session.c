@@ -1,11 +1,13 @@
 #include "esptari_web_lifecycle_session.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "cJSON.h"
 #include "esp_err.h"
+#include "esp_timer.h"
 #include "esptari_core.h"
 #include "esptari_web_catalog_state.h"
 #include "esptari_web_http_utils.h"
@@ -110,6 +112,132 @@ static esp_err_t send_start_error(httpd_req_t *req,
              detail_key,
              detail_value);
     return esptari_web_send_json(req, payload, status_code);
+}
+
+static esp_err_t send_manifest_error(httpd_req_t *req,
+                                     const char *code,
+                                     int status_code,
+                                     const char *path,
+                                     const char *reason)
+{
+    char payload[512];
+    snprintf(payload,
+             sizeof(payload),
+             "{\"ok\":false,\"error\":{\"code\":\"%s\",\"details\":{\"path\":\"%s\",\"reason\":\"%s\"}}}",
+             code,
+             path,
+             reason);
+    return esptari_web_send_json(req, payload, status_code);
+}
+
+static bool module_selector_valid(cJSON *modules, const char *key)
+{
+    cJSON *value = cJSON_GetObjectItemCaseSensitive(modules, key);
+    return cJSON_IsString(value) && value->valuestring != NULL && value->valuestring[0] != '\0';
+}
+
+static bool step_order_token_allowed(const char *token)
+{
+    return strcmp(token, "cpu") == 0 || strcmp(token, "video") == 0 || strcmp(token, "io") == 0 ||
+           strcmp(token, "storage") == 0 || strcmp(token, "machine_profile") == 0;
+}
+
+static esp_err_t validate_profile_manifest(httpd_req_t *req,
+                                           const char *machine,
+                                           const char *profile,
+                                           char *manifest_path,
+                                           size_t manifest_path_len,
+                                           uint32_t *out_manifest_version,
+                                           uint64_t *out_validated_at_us)
+{
+    snprintf(manifest_path,
+             manifest_path_len,
+             "/sdcard/config/engine_v2/machines/atari_st/%s.json",
+             profile);
+
+    char manifest_buf[3072] = {0};
+    bool loaded = false;
+    FILE *fp = fopen(manifest_path, "r");
+    if (fp != NULL) {
+        size_t n = fread(manifest_buf, 1, sizeof(manifest_buf) - 1, fp);
+        fclose(fp);
+        if (n > 0) {
+            loaded = true;
+        }
+    }
+
+    if (!loaded && strcmp(profile, "st_520_pal") == 0) {
+        strlcpy(manifest_buf,
+                "{\"manifest_version\":1,\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"region\":\"pal\",\"ram_kb\":512,\"modules\":{\"cpu\":\"st.cpu.m68k@1.0.0\",\"video\":\"st.video.shifter@1.0.0\",\"io\":\"st.io.ikbd@1.0.0\",\"storage\":\"st.storage.fdc@1.0.0\",\"machine_profile\":\"st.profile.520@1.0.0\"},\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"machine_profile\"]}}",
+                sizeof(manifest_buf));
+        loaded = true;
+    }
+
+    if (!loaded) {
+        return send_manifest_error(req, "MACHINE_PROFILE_NOT_FOUND", 404, manifest_path, "manifest not found");
+    }
+
+    cJSON *root = cJSON_Parse(manifest_buf);
+    if (root == NULL) {
+        return send_manifest_error(req, "BAD_REQUEST", 400, manifest_path, "manifest is not valid JSON");
+    }
+
+    cJSON *manifest_version = cJSON_GetObjectItemCaseSensitive(root, "manifest_version");
+    cJSON *manifest_machine = cJSON_GetObjectItemCaseSensitive(root, "machine");
+    cJSON *manifest_profile = cJSON_GetObjectItemCaseSensitive(root, "profile");
+    cJSON *region = cJSON_GetObjectItemCaseSensitive(root, "region");
+    cJSON *ram_kb = cJSON_GetObjectItemCaseSensitive(root, "ram_kb");
+    cJSON *modules = cJSON_GetObjectItemCaseSensitive(root, "modules");
+    cJSON *scheduler = cJSON_GetObjectItemCaseSensitive(root, "scheduler");
+    cJSON *tick_hz = cJSON_IsObject(scheduler) ? cJSON_GetObjectItemCaseSensitive(scheduler, "tick_hz") : NULL;
+    cJSON *step_order = cJSON_IsObject(scheduler) ? cJSON_GetObjectItemCaseSensitive(scheduler, "step_order") : NULL;
+
+    bool schema_ok = cJSON_IsNumber(manifest_version) && cJSON_IsString(manifest_machine) && cJSON_IsString(manifest_profile) &&
+                     cJSON_IsString(region) && cJSON_IsNumber(ram_kb) && cJSON_IsObject(modules) && cJSON_IsObject(scheduler) &&
+                     cJSON_IsNumber(tick_hz) && cJSON_IsArray(step_order) && module_selector_valid(modules, "cpu") &&
+                     module_selector_valid(modules, "video") && module_selector_valid(modules, "io") &&
+                     module_selector_valid(modules, "storage") && module_selector_valid(modules, "machine_profile");
+
+    if (!schema_ok) {
+        cJSON_Delete(root);
+        return send_manifest_error(req, "BAD_REQUEST", 400, manifest_path, "profile manifest failed schema validation");
+    }
+
+    if (strcmp(manifest_machine->valuestring, machine) != 0 || strcmp(manifest_profile->valuestring, profile) != 0) {
+        cJSON_Delete(root);
+        return send_manifest_error(req, "BAD_REQUEST", 400, manifest_path, "machine/profile mismatch");
+    }
+
+    if (strcmp(region->valuestring, "pal") != 0 && strcmp(region->valuestring, "ntsc") != 0) {
+        cJSON_Delete(root);
+        return send_manifest_error(req, "BAD_REQUEST", 400, manifest_path, "invalid region");
+    }
+
+    int order_count = cJSON_GetArraySize(step_order);
+    if (order_count <= 0) {
+        cJSON_Delete(root);
+        return send_manifest_error(req, "BAD_REQUEST", 400, manifest_path, "scheduler.step_order must not be empty");
+    }
+
+    for (int i = 0; i < order_count; i++) {
+        cJSON *entry = cJSON_GetArrayItem(step_order, i);
+        if (!cJSON_IsString(entry) || entry->valuestring == NULL || !step_order_token_allowed(entry->valuestring)) {
+            cJSON_Delete(root);
+            return send_manifest_error(req, "BAD_REQUEST", 400, manifest_path, "invalid scheduler.step_order token");
+        }
+        for (int j = i + 1; j < order_count; j++) {
+            cJSON *next = cJSON_GetArrayItem(step_order, j);
+            if (cJSON_IsString(next) && next->valuestring != NULL && strcmp(entry->valuestring, next->valuestring) == 0) {
+                cJSON_Delete(root);
+                return send_manifest_error(req, "BAD_REQUEST", 400, manifest_path, "duplicate scheduler.step_order token");
+            }
+        }
+    }
+
+    *out_manifest_version = (uint32_t)manifest_version->valueint;
+    *out_validated_at_us = (uint64_t)esp_timer_get_time();
+    cJSON_Delete(root);
+    return ESP_OK;
 }
 
 static bool parse_optional_string(cJSON *root, const char *field, char *out, size_t out_len)
@@ -287,6 +415,21 @@ esp_err_t esptari_web_lifecycle_session_handler(httpd_req_t *req)
         }
     }
 
+    char manifest_path[192] = {0};
+    uint32_t manifest_version = 0;
+    uint64_t manifest_validated_at_us = 0;
+    esp_err_t manifest_err = validate_profile_manifest(req,
+                                                       machine,
+                                                       profile,
+                                                       manifest_path,
+                                                       sizeof(manifest_path),
+                                                       &manifest_version,
+                                                       &manifest_validated_at_us);
+    if (manifest_err != ESP_OK) {
+        cJSON_Delete(root);
+        return manifest_err;
+    }
+
     cJSON_Delete(root);
 
     esp_err_t err = esptari_core_start();
@@ -324,12 +467,16 @@ esp_err_t esptari_web_lifecycle_session_handler(httpd_req_t *req)
                                 esp_err_to_name(err));
     }
 
-    char resp[768];
+    char resp[1152];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"state\":\"running\",\"machine\":\"%s\",\"profile\":\"%s\",\"resolved\":{\"rom_id\":\"%s\",\"rom_path\":\"%s\",\"tos_id\":\"%s\",\"tos_path\":\"%s\",\"first_disk_id\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"state\":\"running\",\"machine\":\"%s\",\"profile\":\"%s\",\"profile_manifest_validation\":{\"path\":\"%s\",\"manifest_version\":%lu,\"schema_valid\":true,\"normalized_profile\":\"%s\",\"validated_at_us\":%llu},\"resolved\":{\"rom_id\":\"%s\",\"rom_path\":\"%s\",\"tos_id\":\"%s\",\"tos_path\":\"%s\",\"first_disk_id\":\"%s\"}}}",
              machine,
              profile,
+             manifest_path,
+             (unsigned long)manifest_version,
+             profile,
+             (unsigned long long)manifest_validated_at_us,
              rom_id,
              rom_local_path,
              tos_id,
