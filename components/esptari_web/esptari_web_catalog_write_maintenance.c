@@ -15,6 +15,38 @@
 #define send_json esptari_web_send_json
 #define json_get_string esptari_web_json_get_string
 
+static esp_err_t send_rescan_local_response(httpd_req_t *req,
+                                            const catalog_def_t *def,
+                                            uint64_t now_us,
+                                            uint32_t present,
+                                            uint32_t missing)
+{
+    char resp[2048];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"scan_id\":\"%s\",\"indexed_at_us\":%llu,\"stats\":{\"entries_total\":%lu,\"entries_present\":%lu,\"entries_missing\":%lu,\"entries_changed\":0,\"entries_unchanged\":%lu},\"presence_index\":[{\"entry_id\":\"%s\",\"catalog\":\"%s\",\"local_present\":%s,\"local_path\":\"%s\",\"file_size\":%s,\"mtime_us\":%s,\"sha256\":null,\"indexed_at_us\":%llu},{\"entry_id\":\"%s\",\"catalog\":\"%s\",\"local_present\":%s,\"local_path\":%s,\"file_size\":null,\"mtime_us\":null,\"sha256\":null,\"indexed_at_us\":%llu}]}}",
+             def->name,
+             esptari_web_catalog_last_scan_id(),
+             (unsigned long long)now_us,
+             (unsigned long)def->entry_count,
+             (unsigned long)present,
+             (unsigned long)missing,
+             (unsigned long)def->entry_count,
+             def->entries[0].id,
+             def->name,
+             esptari_web_catalog_entry_local_present(def, 0) ? "true" : "false",
+             esptari_web_catalog_entry_local_path_projected(def, 0),
+             esptari_web_catalog_entry_local_present(def, 0) ? "737280" : "null",
+             esptari_web_catalog_entry_local_present(def, 0) ? "1710002500000" : "null",
+             (unsigned long long)now_us,
+             def->entries[def->entry_count > 1 ? 1 : 0].id,
+             def->name,
+             esptari_web_catalog_entry_local_present(def, def->entry_count > 1 ? 1 : 0) ? "true" : "false",
+             esptari_web_catalog_entry_local_present(def, def->entry_count > 1 ? 1 : 0) ? "\"/sdcard/present\"" : "null",
+             (unsigned long long)now_us);
+    return send_json(req, resp, 200);
+}
+
 static bool is_allowed_scan_root(const char *root)
 {
     static const char *allowed_roots[] = {
@@ -156,28 +188,5 @@ esp_err_t esptari_web_catalog_rescan_local_handler(httpd_req_t *req)
         }
     }
 
-    char resp[2048];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"scan_id\":\"%s\",\"indexed_at_us\":%llu,\"stats\":{\"entries_total\":%lu,\"entries_present\":%lu,\"entries_missing\":%lu,\"entries_changed\":0,\"entries_unchanged\":%lu},\"presence_index\":[{\"entry_id\":\"%s\",\"catalog\":\"%s\",\"local_present\":%s,\"local_path\":\"%s\",\"file_size\":%s,\"mtime_us\":%s,\"sha256\":null,\"indexed_at_us\":%llu},{\"entry_id\":\"%s\",\"catalog\":\"%s\",\"local_present\":%s,\"local_path\":%s,\"file_size\":null,\"mtime_us\":null,\"sha256\":null,\"indexed_at_us\":%llu}]}}",
-             def->name,
-             esptari_web_catalog_last_scan_id(),
-             (unsigned long long)now_us,
-             (unsigned long)def->entry_count,
-             (unsigned long)present,
-             (unsigned long)missing,
-             (unsigned long)def->entry_count,
-             def->entries[0].id,
-             def->name,
-             esptari_web_catalog_entry_local_present(def, 0) ? "true" : "false",
-             esptari_web_catalog_entry_local_path_projected(def, 0),
-             esptari_web_catalog_entry_local_present(def, 0) ? "737280" : "null",
-             esptari_web_catalog_entry_local_present(def, 0) ? "1710002500000" : "null",
-             (unsigned long long)now_us,
-             def->entries[def->entry_count > 1 ? 1 : 0].id,
-             def->name,
-             esptari_web_catalog_entry_local_present(def, def->entry_count > 1 ? 1 : 0) ? "true" : "false",
-             esptari_web_catalog_entry_local_present(def, def->entry_count > 1 ? 1 : 0) ? "\"/sdcard/present\"" : "null",
-             (unsigned long long)now_us);
-    return send_json(req, resp, 200);
+    return send_rescan_local_response(req, def, now_us, present, missing);
 }

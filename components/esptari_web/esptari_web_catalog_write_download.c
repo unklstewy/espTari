@@ -15,6 +15,38 @@
 #define send_json esptari_web_send_json
 #define json_get_string esptari_web_json_get_string
 
+static esp_err_t send_probe_links_response(httpd_req_t *req,
+                                           const catalog_def_t *def,
+                                           uint64_t probe_seq,
+                                           uint64_t started_at_us,
+                                           uint64_t completed_at_us,
+                                           uint32_t timeout_ms,
+                                           uint32_t mark_dead_after_failures,
+                                           uint32_t probed,
+                                           uint32_t online,
+                                           uint32_t offline,
+                                           uint32_t dead)
+{
+    char resp[1024];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"worker_id\":\"probe_%06llu\",\"started_at_us\":%llu,\"completed_at_us\":%llu,\"policy\":{\"timeout_ms\":%lu,\"mark_dead_after_failures\":%lu,\"concurrency\":16},\"summary\":{\"probed\":%lu,\"online\":%lu,\"offline\":%lu,\"dead\":%lu,\"timed_out\":0},\"results\":[{\"entry_id\":\"%s\",\"state_before\":\"%s\",\"state_after\":\"%s\",\"attempts\":1,\"timed_out\":false,\"latency_ms\":11}]}}",
+             def->name,
+             (unsigned long long)probe_seq,
+             (unsigned long long)started_at_us,
+             (unsigned long long)completed_at_us,
+             (unsigned long)timeout_ms,
+             (unsigned long)mark_dead_after_failures,
+             (unsigned long)probed,
+             (unsigned long)online,
+             (unsigned long)offline,
+             (unsigned long)dead,
+             def->entries[0].id,
+             esptari_web_catalog_entry_state(def, 0),
+             esptari_web_catalog_entry_state(def, 0));
+    return send_json(req, resp, 200);
+}
+
 esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
 {
     const catalog_def_t *def = NULL;
@@ -191,22 +223,15 @@ esp_err_t esptari_web_catalog_probe_links_handler(httpd_req_t *req)
     }
 
     uint64_t probe_seq = esptari_web_catalog_next_probe_seq();
-    char resp[1024];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"worker_id\":\"probe_%06llu\",\"started_at_us\":%llu,\"completed_at_us\":%llu,\"policy\":{\"timeout_ms\":%lu,\"mark_dead_after_failures\":%lu,\"concurrency\":16},\"summary\":{\"probed\":%lu,\"online\":%lu,\"offline\":%lu,\"dead\":%lu,\"timed_out\":0},\"results\":[{\"entry_id\":\"%s\",\"state_before\":\"%s\",\"state_after\":\"%s\",\"attempts\":1,\"timed_out\":false,\"latency_ms\":11}]}}",
-             def->name,
-             (unsigned long long)probe_seq,
-             (unsigned long long)started_at_us,
-             (unsigned long long)completed_at_us,
-             (unsigned long)timeout_ms,
-             (unsigned long)mark_dead_after_failures,
-             (unsigned long)probed,
-             (unsigned long)online,
-             (unsigned long)offline,
-             (unsigned long)dead,
-             def->entries[0].id,
-             esptari_web_catalog_entry_state(def, 0),
-             esptari_web_catalog_entry_state(def, 0));
-    return send_json(req, resp, 200);
+    return send_probe_links_response(req,
+                                     def,
+                                     probe_seq,
+                                     started_at_us,
+                                     completed_at_us,
+                                     timeout_ms,
+                                     mark_dead_after_failures,
+                                     probed,
+                                     online,
+                                     offline,
+                                     dead);
 }

@@ -34,6 +34,44 @@ static bool str_contains_nocase(const char *haystack, const char *needle)
     return false;
 }
 
+static int append_missing_asset_json(char *assets,
+                                     size_t assets_size,
+                                     size_t offset,
+                                     bool first,
+                                     const catalog_def_t *def,
+                                     size_t index,
+                                     uint64_t first_missing_at_us)
+{
+    return snprintf(assets + offset,
+                    assets_size - offset,
+                    "%s{\"entry_id\":\"%s\",\"catalog\":\"%s\",\"local_present\":false,\"expected_path\":\"%s\",\"availability_state\":\"%s\",\"first_missing_at_us\":%llu,\"last_seen_scan_id\":\"%s\"}",
+                    first ? "" : ",",
+                    def->entries[index].id,
+                    def->name,
+                    def->entries[index].local_path[0] == '\0' ? "/sdcard/disks/st/UNKNOWN.ST" : def->entries[index].local_path,
+                    esptari_web_catalog_entry_state(def, index),
+                    (unsigned long long)first_missing_at_us,
+                    esptari_web_catalog_prev_scan_id()[0] == '\0' ? esptari_web_catalog_last_scan_id() : esptari_web_catalog_prev_scan_id());
+}
+
+static esp_err_t send_missing_report_response(httpd_req_t *req,
+                                              const catalog_def_t *def,
+                                              uint32_t missing_total,
+                                              const char *assets_json)
+{
+    char resp[2048];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"scan_id\":\"%s\",\"base_scan_id\":%s,\"summary\":{\"missing_total\":%lu,\"new_missing\":0,\"resolved_since_base\":0,\"unchanged_missing\":%lu},\"missing_assets\":[%s]}}",
+             def->name,
+             esptari_web_catalog_last_scan_id(),
+             esptari_web_catalog_prev_scan_id()[0] == '\0' ? "null" : "\"scan_base\"",
+             (unsigned long)missing_total,
+             (unsigned long)missing_total,
+             assets_json);
+    return send_json(req, resp, 200);
+}
+
 esp_err_t esptari_web_catalogs_list_handler(httpd_req_t *req)
 {
     cJSON *resp = cJSON_CreateObject();
@@ -194,33 +232,20 @@ static esp_err_t catalog_missing_report_handler(httpd_req_t *req)
         }
         catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, i);
         uint64_t first_missing_at_us = runtime != NULL ? runtime->first_missing_at_us : 1710002000000ULL;
-        int wrote = snprintf(assets + offset,
-                             sizeof(assets) - offset,
-                             "%s{\"entry_id\":\"%s\",\"catalog\":\"%s\",\"local_present\":false,\"expected_path\":\"%s\",\"availability_state\":\"%s\",\"first_missing_at_us\":%llu,\"last_seen_scan_id\":\"%s\"}",
-                             emitted == 0 ? "" : ",",
-                             def->entries[i].id,
-                             def->name,
-                             def->entries[i].local_path[0] == '\0' ? "/sdcard/disks/st/UNKNOWN.ST" : def->entries[i].local_path,
-                             esptari_web_catalog_entry_state(def, i),
-                             (unsigned long long)first_missing_at_us,
-                             esptari_web_catalog_prev_scan_id()[0] == '\0' ? esptari_web_catalog_last_scan_id() : esptari_web_catalog_prev_scan_id());
+        int wrote = append_missing_asset_json(assets,
+                                              sizeof(assets),
+                                              offset,
+                                              emitted == 0,
+                                              def,
+                                              i,
+                                              first_missing_at_us);
         if (wrote > 0) {
             offset += (size_t)wrote;
             emitted++;
         }
     }
 
-    char resp[2048];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"scan_id\":\"%s\",\"base_scan_id\":%s,\"summary\":{\"missing_total\":%lu,\"new_missing\":0,\"resolved_since_base\":0,\"unchanged_missing\":%lu},\"missing_assets\":[%s]}}",
-             def->name,
-             esptari_web_catalog_last_scan_id(),
-             esptari_web_catalog_prev_scan_id()[0] == '\0' ? "null" : "\"scan_base\"",
-             (unsigned long)missing_total,
-             (unsigned long)missing_total,
-             assets);
-    return send_json(req, resp, 200);
+    return send_missing_report_response(req, def, missing_total, assets);
 }
 
 esp_err_t esptari_web_catalogs_router_handler(httpd_req_t *req)
