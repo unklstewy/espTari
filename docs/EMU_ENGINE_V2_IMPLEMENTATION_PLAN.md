@@ -462,6 +462,8 @@ Browser input capture policy:
 - packet fields:
   - `chunk_id`, `sample_rate`, `channels`, `format`, `payload`, `timestamp_us`
 - Audio metadata channel/schema contract (`audio.metadata.v1`, `audio_chunk_meta_v1` required fields, ordering rules, and payload-pairing validation) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `10.3` and is the canonical source.
+- Runtime projection for contract verification is exposed on `GET /api/v2/stream/audio` via `audio_metadata_contract` and `audio_chunk_meta_sample` fields in stream probe responses.
+- Deterministic metadata guards are enforced on `GET /api/v2/stream/audio` query validation: non-`1` `metadata_schema_version` returns `UNSUPPORTED_VERSION`; invalid `format` or non-positive `sample_rate`/`channels`/`frames`/`payload_bytes` return `BAD_REQUEST`.
 - Audio payload stream emitter + pacing control contract (emitter checks `AUD-EMIT-01..03`, `set_rate_limit` audio pacing schema, and deterministic pacing/backpressure guard behavior) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `10.3` and is the canonical source.
 
 ### Engine status/health event stream

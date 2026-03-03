@@ -69,6 +69,8 @@ static char stream_media_attach_events_json_buf[1536];
 static char stream_media_disk_state_events_json_buf[1536];
 static char stream_video_contract_json_buf[1024];
 static char stream_video_meta_sample_json_buf[640];
+static char stream_audio_contract_json_buf[1024];
+static char stream_audio_meta_sample_json_buf[640];
 static char stream_video_payload_emitter_json_buf[1024];
 static char stream_video_payload_sample_json_buf[256];
 static char stream_response_buf[12288];
@@ -248,6 +250,15 @@ static bool is_supported_video_pixel_format(const char *pixel_format)
            strcmp(pixel_format, "RGB888") == 0;
 }
 
+static bool is_supported_audio_format(const char *audio_format)
+{
+    if (audio_format == NULL) {
+        return false;
+    }
+    return strcmp(audio_format, "PCM_S16LE") == 0 ||
+           strcmp(audio_format, "PCM_F32LE") == 0;
+}
+
 static const char *video_pacing_mode_name(video_pacing_mode_t mode)
 {
     if (mode == VIDEO_PACING_FIXED_FPS) {
@@ -292,6 +303,42 @@ static esp_err_t validate_video_metadata_contract(httpd_req_t *req)
     }
 
     const char *dimension_fields[] = {"width", "height", "payload_bytes"};
+    for (size_t i = 0; i < sizeof(dimension_fields) / sizeof(dimension_fields[0]); i++) {
+        memset(value, 0, sizeof(value));
+        if (!query_value(req, dimension_fields[i], value, sizeof(value))) {
+            continue;
+        }
+
+        char *end = NULL;
+        unsigned long parsed = strtoul(value, &end, 10);
+        if (end == value || *end != '\0' || parsed == 0UL) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    return ESP_OK;
+}
+
+static esp_err_t validate_audio_metadata_contract(httpd_req_t *req)
+{
+    char value[32] = {0};
+
+    if (query_value(req, "metadata_schema_version", value, sizeof(value))) {
+        char *end = NULL;
+        unsigned long schema_version = strtoul(value, &end, 10);
+        if (end == value || *end != '\0') {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+        if (schema_version != 1UL) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"UNSUPPORTED_VERSION\"}}", 400);
+        }
+    }
+
+    if (query_value(req, "format", value, sizeof(value)) && !is_supported_audio_format(value)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    const char *dimension_fields[] = {"sample_rate", "channels", "frames", "payload_bytes"};
     for (size_t i = 0; i < sizeof(dimension_fields) / sizeof(dimension_fields[0]); i++) {
         memset(value, 0, sizeof(value));
         if (!query_value(req, dimension_fields[i], value, sizeof(value))) {
@@ -418,6 +465,11 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
         if (video_contract_err != ESP_OK) {
             return video_contract_err;
         }
+    } else if (stream == STREAM_KIND_AUDIO) {
+        esp_err_t audio_contract_err = validate_audio_metadata_contract(req);
+        if (audio_contract_err != ESP_OK) {
+            return audio_contract_err;
+        }
     }
 
     stream_event_seq++;
@@ -509,6 +561,8 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     strlcpy(stream_media_disk_state_events_json_buf, "[]", sizeof(stream_media_disk_state_events_json_buf));
     strlcpy(stream_video_contract_json_buf, "null", sizeof(stream_video_contract_json_buf));
     strlcpy(stream_video_meta_sample_json_buf, "null", sizeof(stream_video_meta_sample_json_buf));
+    strlcpy(stream_audio_contract_json_buf, "null", sizeof(stream_audio_contract_json_buf));
+    strlcpy(stream_audio_meta_sample_json_buf, "null", sizeof(stream_audio_meta_sample_json_buf));
     strlcpy(stream_video_payload_emitter_json_buf, "null", sizeof(stream_video_payload_emitter_json_buf));
     strlcpy(stream_video_payload_sample_json_buf, "null", sizeof(stream_video_payload_sample_json_buf));
     if (stream == STREAM_KIND_VIDEO) {
@@ -546,6 +600,15 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
                  (unsigned long long)video_emitter_state.sequence_violations,
                  (unsigned long long)video_emitter_state.pairing_violations,
                  video_emitter_state.last_error_code);
+    } else if (stream == STREAM_KIND_AUDIO) {
+        snprintf(stream_audio_contract_json_buf,
+                 sizeof(stream_audio_contract_json_buf),
+                 "{\"channel\":\"audio.metadata.v1\",\"schema\":\"audio_chunk_meta_v1\",\"required_fields\":[\"type\",\"schema_version\",\"channel\",\"session_id\",\"chunk_id\",\"timestamp_us\",\"sample_rate\",\"channels\",\"format\",\"frames\",\"payload_bytes\"],\"format_enum\":[\"PCM_S16LE\",\"PCM_F32LE\"],\"ordering\":\"chunk_id_strictly_ascending\",\"payload_pairing\":\"chunk_id_and_payload_bytes_must_match_following_binary_payload\"}");
+        snprintf(stream_audio_meta_sample_json_buf,
+                 sizeof(stream_audio_meta_sample_json_buf),
+                 "{\"type\":\"audio_chunk_meta\",\"schema_version\":1,\"channel\":\"audio.metadata.v1\",\"session_id\":\"ses_local\",\"chunk_id\":%llu,\"timestamp_us\":%llu,\"sample_rate\":48000,\"channels\":2,\"format\":\"PCM_S16LE\",\"frames\":1024,\"payload_bytes\":4096}",
+                 (unsigned long long)stream_event_seq,
+                 (unsigned long long)timestamp_us);
     }
     if (stream == STREAM_KIND_ENGINE) {
         const esptari_web_media_attach_event_t *events = NULL;
@@ -633,7 +696,7 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     }
 
     snprintf(stream_response_buf, sizeof(stream_response_buf),
-             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"audio_metadata_contract\":%s,\"audio_chunk_meta_sample\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
              stream_name,
              (unsigned long long)stream_event_seq,
              (unsigned long long)timestamp_us,
@@ -667,6 +730,8 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
              (unsigned long long)metrics->sample_timestamp_us,
              stream_video_contract_json_buf,
              stream_video_meta_sample_json_buf,
+             stream_audio_contract_json_buf,
+             stream_audio_meta_sample_json_buf,
              stream_video_payload_emitter_json_buf,
              stream_video_payload_sample_json_buf,
              stream_media_attach_events_json_buf,

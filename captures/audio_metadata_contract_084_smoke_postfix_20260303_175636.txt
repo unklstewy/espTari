@@ -1,0 +1,43 @@
+# T-084 audio metadata contract smoke 20260303_175636
+
+## session start
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 11
+
+{"ok":true}
+
+## stream audio baseline
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 1803
+
+{"ok":true,"data":{"stream":"audio","event_seq":1,"event_timestamp_us":26316183,"delivery":{"degraded":false,"reason":"none","dropped_events_since_last":0,"coalesced_updates":0,"throttle_active":false},"backpressure":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":26316183},"backpressure_event":{"type":"stream_backpressure_telemetry","schema_version":1,"session_id":"ses_local","event_seq":1,"event_timestamp_us":26316183,"stream":"audio","metrics":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":26316183}},"video_metadata_contract":null,"video_frame_meta_sample":null,"audio_metadata_contract":{"channel":"audio.metadata.v1","schema":"audio_chunk_meta_v1","required_fields":["type","schema_version","channel","session_id","chunk_id","timestamp_us","sample_rate","channels","format","frames","payload_bytes"],"format_enum":["PCM_S16LE","PCM_F32LE"],"ordering":"chunk_id_strictly_ascending","payload_pairing":"chunk_id_and_payload_bytes_must_match_following_binary_payload"},"audio_chunk_meta_sample":{"type":"audio_chunk_meta","schema_version":1,"channel":"audio.metadata.v1","session_id":"ses_local","chunk_id":1,"timestamp_us":26316183,"sample_rate":48000,"channels":2,"format":"PCM_S16LE","frames":1024,"payload_bytes":4096},"video_payload_emitter":null,"video_payload_sample":null,"media_attach_status_events":[],"media_disk_state_events":[],"slo_alarm":{"seq":0,"state":"normal","severity":"info"}}}
+
+## unsupported metadata schema version
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 51
+
+{"ok":false,"error":{"code":"UNSUPPORTED_VERSION"}}
+
+## invalid audio format
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 43
+
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+## non-positive sample_rate
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 43
+
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+## non-positive payload_bytes
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 43
+
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
