@@ -3,6 +3,7 @@
 #include "esp_log.h"
 #include "esptari_web_catalog_sync.h"
 #include "esptari_web_catalog.h"
+#include "esptari_web_conformance.h"
 #include "esptari_web_core_status.h"
 #include "esptari_web_debug.h"
 #include "esptari_web_files.h"
@@ -46,6 +47,7 @@ void esptari_web_init(uint16_t port)
     esptari_web_metrics_register_routes(server_handle);
     esptari_web_persistence_register_routes(server_handle);
     esptari_web_snapshot_register_routes(server_handle);
+    esptari_web_conformance_register_routes(server_handle);
     esptari_web_catalog_register_routes(server_handle);
     esptari_web_files_register_routes(server_handle);
     esptari_web_catalog_sync_register_routes(server_handle);
