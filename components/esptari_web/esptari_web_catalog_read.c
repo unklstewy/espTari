@@ -54,20 +54,44 @@ static int append_missing_asset_json(char *assets,
                     esptari_web_catalog_prev_scan_id()[0] == '\0' ? esptari_web_catalog_last_scan_id() : esptari_web_catalog_prev_scan_id());
 }
 
+static bool parse_scan_seq(const char *scan_id, uint64_t *out_seq)
+{
+    if (scan_id == NULL || strncmp(scan_id, "scan_", 5) != 0) {
+        return false;
+    }
+    const char *digits = scan_id + 5;
+    if (*digits == '\0') {
+        return false;
+    }
+    char *endptr = NULL;
+    unsigned long long seq = strtoull(digits, &endptr, 10);
+    if (endptr == NULL || *endptr != '\0') {
+        return false;
+    }
+    *out_seq = (uint64_t)seq;
+    return true;
+}
+
 static esp_err_t send_missing_report_response(httpd_req_t *req,
                                               const catalog_def_t *def,
+                                              const char *base_scan_id,
                                               uint32_t missing_total,
+                                              uint32_t new_missing,
+                                              uint32_t resolved_since_base,
+                                              uint32_t unchanged_missing,
                                               const char *assets_json)
 {
     char resp[2048];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"scan_id\":\"%s\",\"base_scan_id\":%s,\"summary\":{\"missing_total\":%lu,\"new_missing\":0,\"resolved_since_base\":0,\"unchanged_missing\":%lu},\"missing_assets\":[%s]}}",
+             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"scan_id\":\"%s\",\"base_scan_id\":%s,\"summary\":{\"missing_total\":%lu,\"new_missing\":%lu,\"resolved_since_base\":%lu,\"unchanged_missing\":%lu},\"missing_assets\":[%s]}}",
              def->name,
              esptari_web_catalog_last_scan_id(),
-             esptari_web_catalog_prev_scan_id()[0] == '\0' ? "null" : "\"scan_base\"",
+             base_scan_id == NULL ? "null" : base_scan_id,
              (unsigned long)missing_total,
-             (unsigned long)missing_total,
+             (unsigned long)new_missing,
+             (unsigned long)resolved_since_base,
+             (unsigned long)unchanged_missing,
              assets_json);
     return send_json(req, resp, 200);
 }
@@ -212,40 +236,75 @@ static esp_err_t catalog_missing_report_handler(httpd_req_t *req)
         return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
     }
     char since_scan_id[48] = {0};
+    const char *base_scan_id_json = NULL;
+    uint64_t base_scan_seq = 0;
     if (query_value(req, "since_scan_id", since_scan_id, sizeof(since_scan_id))) {
         if (esptari_web_catalog_prev_scan_id()[0] == '\0' || strcmp(since_scan_id, esptari_web_catalog_prev_scan_id()) != 0) {
             return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CONFLICT\",\"details\":{\"required_operation\":\"POST /api/v2/catalogs/floppies/rescan-local\"}}}", 409);
         }
+        if (!parse_scan_seq(since_scan_id, &base_scan_seq)) {
+            return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
+        }
+        static char base_buf[64];
+        snprintf(base_buf, sizeof(base_buf), "\"%s\"", since_scan_id);
+        base_scan_id_json = base_buf;
+    } else if (esptari_web_catalog_prev_scan_id()[0] != '\0') {
+        if (!parse_scan_seq(esptari_web_catalog_prev_scan_id(), &base_scan_seq)) {
+            return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
+        }
+        static char base_buf[64];
+        snprintf(base_buf, sizeof(base_buf), "\"%s\"", esptari_web_catalog_prev_scan_id());
+        base_scan_id_json = base_buf;
     }
 
     uint32_t missing_total = 0;
+    uint32_t new_missing = 0;
+    uint32_t resolved_since_base = 0;
+    uint32_t unchanged_missing = 0;
     uint32_t emitted = 0;
     char assets[1024] = {0};
     size_t offset = 0;
     for (size_t i = 0; i < def->entry_count; i++) {
-        if (esptari_web_catalog_entry_local_present(def, i)) {
-            continue;
-        }
-        missing_total++;
-        if (emitted >= limit || offset >= sizeof(assets) - 4) {
-            continue;
-        }
+        bool local_present = esptari_web_catalog_entry_local_present(def, i);
         catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, i);
-        uint64_t first_missing_at_us = runtime != NULL ? runtime->first_missing_at_us : 1710002000000ULL;
-        int wrote = append_missing_asset_json(assets,
-                                              sizeof(assets),
-                                              offset,
-                                              emitted == 0,
-                                              def,
-                                              i,
-                                              first_missing_at_us);
-        if (wrote > 0) {
-            offset += (size_t)wrote;
-            emitted++;
+
+        if (!local_present) {
+            missing_total++;
+            bool became_missing_after_base = runtime != NULL && runtime->last_transition_to_missing_scan_seq > base_scan_seq;
+            if (became_missing_after_base) {
+                new_missing++;
+            } else {
+                unchanged_missing++;
+            }
+
+            if (emitted >= limit || offset >= sizeof(assets) - 4) {
+                continue;
+            }
+            uint64_t first_missing_at_us = runtime != NULL ? runtime->first_missing_at_us : 1710002000000ULL;
+            int wrote = append_missing_asset_json(assets,
+                                                  sizeof(assets),
+                                                  offset,
+                                                  emitted == 0,
+                                                  def,
+                                                  i,
+                                                  first_missing_at_us);
+            if (wrote > 0) {
+                offset += (size_t)wrote;
+                emitted++;
+            }
+        } else if (runtime != NULL && runtime->last_transition_to_present_scan_seq > base_scan_seq) {
+            resolved_since_base++;
         }
     }
 
-    return send_missing_report_response(req, def, missing_total, assets);
+    return send_missing_report_response(req,
+                                        def,
+                                        base_scan_id_json,
+                                        missing_total,
+                                        new_missing,
+                                        resolved_since_base,
+                                        unchanged_missing,
+                                        assets);
 }
 
 esp_err_t esptari_web_catalogs_router_handler(httpd_req_t *req)

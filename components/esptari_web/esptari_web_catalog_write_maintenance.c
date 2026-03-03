@@ -240,9 +240,18 @@ esp_err_t esptari_web_catalog_rescan_local_handler(httpd_req_t *req)
 
         if (runtime != NULL) {
             runtime->local_present = is_present;
+            runtime->last_indexed_scan_seq = scan_seq;
             runtime->last_indexed_at_us = now_us;
             runtime->indexed_file_size_bytes = is_present ? file_size : 0;
             runtime->indexed_mtime_us = is_present ? mtime_us : 0;
+
+            if (was_present != is_present) {
+                if (is_present) {
+                    runtime->last_transition_to_present_scan_seq = scan_seq;
+                } else {
+                    runtime->last_transition_to_missing_scan_seq = scan_seq;
+                }
+            }
         }
 
         if (was_present != is_present) {

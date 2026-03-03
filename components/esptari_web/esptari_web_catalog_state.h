@@ -18,6 +18,9 @@ typedef struct {
     bool state_override;
     char availability_state[16];
     bool local_present;
+    uint64_t last_indexed_scan_seq;
+    uint64_t last_transition_to_missing_scan_seq;
+    uint64_t last_transition_to_present_scan_seq;
     uint64_t indexed_file_size_bytes;
     uint64_t indexed_mtime_us;
     uint64_t last_indexed_at_us;
