@@ -1,0 +1,128 @@
+{
+  "schema_bundle": "espTari-v2-input-policy-enabled",
+  "schema_version": "1.0.0",
+  "api_version": "v2",
+  "endpoint": {
+    "method": "POST",
+    "path": "/api/v2/input/policy/enabled"
+  },
+  "envelope_ref": "docs/emu_engine_v2/api_schema_envelope_v1.json",
+  "state_model_ref": "docs/emu_engine_v2/api_schema_input_policy_v1.json",
+  "request": {
+    "required": ["session_id", "browser_session_id", "enabled"],
+    "optional": ["reason"],
+    "types": {
+      "session_id": "string",
+      "browser_session_id": "string",
+      "enabled": "boolean",
+      "reason": "string"
+    },
+    "constraints": [
+      "capture_mode and escape_release fields are out of scope",
+      "request mutates only input policy enable/disable state"
+    ]
+  },
+  "response_data": {
+    "required": ["session_id", "browser_session_id", "requested_enabled", "result", "previous_policy_state", "policy"],
+    "types": {
+      "session_id": "string",
+      "browser_session_id": "string",
+      "requested_enabled": "boolean",
+      "result": "enum(applied|no_op)",
+      "previous_policy_state": "enum(disabled|enabled_idle|enabled_captured)",
+      "policy": {
+        "type": "object",
+        "required": ["state", "source", "reason", "changed_at_us"],
+        "fields": {
+          "state": "enum(disabled|enabled_idle|enabled_captured)",
+          "source": "enum(user_request|system_guard|lifecycle_transition)",
+          "reason": "string",
+          "changed_at_us": "uint64"
+        }
+      }
+    }
+  },
+  "idempotency_rules": [
+    {
+      "condition": "enabled=true and previous_policy_state=disabled",
+      "result": "applied",
+      "next_policy_state": "enabled_idle"
+    },
+    {
+      "condition": "enabled=true and previous_policy_state in [enabled_idle, enabled_captured]",
+      "result": "no_op",
+      "next_policy_state": "unchanged"
+    },
+    {
+      "condition": "enabled=false and previous_policy_state in [enabled_idle, enabled_captured]",
+      "result": "applied",
+      "next_policy_state": "disabled"
+    },
+    {
+      "condition": "enabled=false and previous_policy_state=disabled",
+      "result": "no_op",
+      "next_policy_state": "disabled"
+    }
+  ],
+  "determinism_requirements": [
+    "No-op responses must include full policy snapshot",
+    "For applied transitions, policy.changed_at_us is monotonic",
+    "For no-op responses, policy reflects current runtime state without oscillation"
+  ],
+  "errors": [
+    {
+      "code": "INPUT_POLICY_MODE_INVALID",
+      "category": "input",
+      "when": "enabled field is missing or not boolean"
+    },
+    {
+      "code": "INPUT_POLICY_SESSION_INVALID",
+      "category": "input",
+      "when": "session_id/browser_session_id missing or not active in runtime"
+    },
+    {
+      "code": "INPUT_POLICY_VIOLATION",
+      "category": "input",
+      "when": "browser session is not policy owner"
+    }
+  ],
+  "examples": {
+    "request_enable": {
+      "session_id": "ses_local",
+      "browser_session_id": "browser_local",
+      "enabled": true,
+      "reason": "user_toggle"
+    },
+    "success_applied": {
+      "session_id": "ses_local",
+      "browser_session_id": "browser_local",
+      "requested_enabled": true,
+      "result": "applied",
+      "previous_policy_state": "disabled",
+      "policy": {
+        "state": "enabled_idle",
+        "source": "user_request",
+        "reason": "user_toggle",
+        "changed_at_us": 1710002223400
+      }
+    },
+    "success_no_op": {
+      "session_id": "ses_local",
+      "browser_session_id": "browser_local",
+      "requested_enabled": true,
+      "result": "no_op",
+      "previous_policy_state": "enabled_idle",
+      "policy": {
+        "state": "enabled_idle",
+        "source": "user_request",
+        "reason": "idempotent_enable",
+        "changed_at_us": 1710002223400
+      }
+    }
+  },
+  "cross_links": {
+    "api_spec": "docs/EMU_ENGINE_V2_API_SPEC.md",
+    "api_spec_section": "9.6.6",
+    "task": "T-052"
+  }
+}

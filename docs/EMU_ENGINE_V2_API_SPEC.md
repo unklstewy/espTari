@@ -3637,6 +3637,10 @@ Policy violation error example:
 
 #### Enable/disable input policy (idempotent)
 
+Machine-readable schema artifact:
+
+- `docs/emu_engine_v2/api_schema_input_policy_enabled_v1.json`
+
 - `POST /api/v2/input/policy/enabled`
 
 Request:
