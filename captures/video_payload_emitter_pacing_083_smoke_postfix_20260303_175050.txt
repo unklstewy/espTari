@@ -1,0 +1,50 @@
+# T-083 video payload emitter + pacing smoke 20260303_175050
+
+## session start
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 11
+
+{"ok":true}
+
+## apply fixed_fps pacing via stream control
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 159
+
+{"ok":true,"data":{"stream":"video","type":"set_rate_limit","pacing":{"pacing_mode":"fixed_fps","target_fps":1,"max_burst_frames":2},"applied_at_us":34167282}}
+
+## video stream baseline with payload emitter diagnostics
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 2068
+
+{"ok":true,"data":{"stream":"video","event_seq":1,"event_timestamp_us":34188437,"delivery":{"degraded":false,"reason":"none","dropped_events_since_last":0,"coalesced_updates":0,"throttle_active":false},"backpressure":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":34188437},"backpressure_event":{"type":"stream_backpressure_telemetry","schema_version":1,"session_id":"ses_local","event_seq":1,"event_timestamp_us":34188437,"stream":"video","metrics":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":34188437}},"video_metadata_contract":{"channel":"video.metadata.v1","schema":"video_frame_meta_v1","required_fields":["type","schema_version","channel","session_id","frame_id","timestamp_us","width","height","pixel_format","payload_bytes"],"pixel_format_enum":["RGB565","XRGB8888","RGB888"],"ordering":"frame_id_strictly_ascending","payload_pairing":"frame_id_and_payload_bytes_must_match_following_binary_payload"},"video_frame_meta_sample":{"type":"video_frame_meta","schema_version":1,"channel":"video.metadata.v1","session_id":"ses_local","frame_id":1,"timestamp_us":34188437,"width":640,"height":400,"pixel_format":"RGB565","payload_bytes":512000},"video_payload_emitter":{"checks":{"VID-EMIT-01":"pass","VID-EMIT-02":"pass","VID-EMIT-03":"pass"},"pacing":{"pacing_mode":"fixed_fps","target_fps":1,"max_burst_frames":2,"throttle_active":false},"state":{"last_frame_id":1,"emitted_pairs":1,"sequence_violations":0,"pairing_violations":0,"last_error":"none"}},"video_payload_sample":{"frame_id":1,"payload_bytes":512000,"binary_payload_emitted":true},"media_attach_status_events":[],"media_disk_state_events":[],"slo_alarm":{"seq":0,"state":"normal","severity":"info"}}}
+
+## immediate second call (expect rate_limited delivery reason)
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 2075
+
+{"ok":true,"data":{"stream":"video","event_seq":2,"event_timestamp_us":34214083,"delivery":{"degraded":true,"reason":"rate_limited","dropped_events_since_last":1,"coalesced_updates":1,"throttle_active":true},"backpressure":{"queue_depth":128,"queue_capacity":128,"dropped_events":1,"dropped_events_since_last":1,"throttle_active":true,"high_watermark_depth":128,"high_watermark_ratio":1.000,"overflow_events_total":1,"throttle_transitions_total":1,"sample_timestamp_us":34214083},"backpressure_event":{"type":"stream_backpressure_telemetry","schema_version":1,"session_id":"ses_local","event_seq":2,"event_timestamp_us":34214083,"stream":"video","metrics":{"queue_depth":128,"queue_capacity":128,"dropped_events":1,"dropped_events_since_last":1,"throttle_active":true,"high_watermark_depth":128,"high_watermark_ratio":1.000,"overflow_events_total":1,"throttle_transitions_total":1,"sample_timestamp_us":34214083}},"video_metadata_contract":{"channel":"video.metadata.v1","schema":"video_frame_meta_v1","required_fields":["type","schema_version","channel","session_id","frame_id","timestamp_us","width","height","pixel_format","payload_bytes"],"pixel_format_enum":["RGB565","XRGB8888","RGB888"],"ordering":"frame_id_strictly_ascending","payload_pairing":"frame_id_and_payload_bytes_must_match_following_binary_payload"},"video_frame_meta_sample":{"type":"video_frame_meta","schema_version":1,"channel":"video.metadata.v1","session_id":"ses_local","frame_id":2,"timestamp_us":34214083,"width":640,"height":400,"pixel_format":"RGB565","payload_bytes":512000},"video_payload_emitter":{"checks":{"VID-EMIT-01":"pass","VID-EMIT-02":"pass","VID-EMIT-03":"pass"},"pacing":{"pacing_mode":"fixed_fps","target_fps":1,"max_burst_frames":2,"throttle_active":true},"state":{"last_frame_id":2,"emitted_pairs":2,"sequence_violations":0,"pairing_violations":0,"last_error":"none"}},"video_payload_sample":{"frame_id":2,"payload_bytes":512000,"binary_payload_emitted":true},"media_attach_status_events":[],"media_disk_state_events":[],"slo_alarm":{"seq":0,"state":"normal","severity":"info"}}}
+
+## invalid pacing payload (target_fps out of range)
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 43
+
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+## forced payload mismatch fail-fast
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## forced frame regression fail-fast
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}

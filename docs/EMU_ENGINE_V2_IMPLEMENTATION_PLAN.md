@@ -451,6 +451,8 @@ Browser input capture policy:
 - Runtime projection for contract verification is exposed on `GET /api/v2/stream/video` via `video_metadata_contract` and `video_frame_meta_sample` fields in stream probe responses.
 - Deterministic metadata guards are enforced on `GET /api/v2/stream/video` query validation: non-`1` `metadata_schema_version` returns `UNSUPPORTED_VERSION`; invalid `pixel_format` or non-positive `width`/`height`/`payload_bytes` return `BAD_REQUEST`.
 - Video payload stream emitter + pacing control contract (emitter checks `VID-EMIT-01..03`, `set_rate_limit` video pacing schema, and deterministic pacing/backpressure guard behavior) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `10.2` and is the canonical source.
+- Runtime pacing control endpoint is exposed via `POST /api/v2/stream/control` for `type=set_rate_limit` and `stream=video`, with `pacing_mode`, `target_fps`, and `max_burst_frames` validation enforcing deterministic `BAD_REQUEST`/`ENGINE_NOT_RUNNING` guards.
+- `GET /api/v2/stream/video` now projects payload-emitter diagnostics through `video_payload_emitter` and `video_payload_sample`, including sequencing checks (`VID-EMIT-01..03`), pacing state, and deterministic fail-fast integrity behavior (`INTERNAL_ERROR`) when forced pairing/ordering violations are detected.
 - optional debug mode:
   - scanline phase markers, border timing markers
 
