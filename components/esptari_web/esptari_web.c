@@ -9,6 +9,7 @@
 #include "esptari_web_input.h"
 #include "esptari_web_mappings.h"
 #include "esptari_web_metrics.h"
+#include "esptari_web_persistence.h"
 #include "esptari_web_snapshot.h"
 #include "esptari_web_stream.h"
 
@@ -41,6 +42,7 @@ void esptari_web_init(uint16_t port)
     esptari_web_stream_register_routes(server_handle);
     esptari_web_debug_register_routes(server_handle);
     esptari_web_metrics_register_routes(server_handle);
+    esptari_web_persistence_register_routes(server_handle);
     esptari_web_snapshot_register_routes(server_handle);
     esptari_web_catalog_register_routes(server_handle);
 

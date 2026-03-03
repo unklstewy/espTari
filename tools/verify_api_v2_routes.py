@@ -23,6 +23,9 @@ EXPECTED_ROUTES = {
     ("POST", "/api/v2/engine/session/suspend-save"),
     ("POST", "/api/v2/engine/session/restore-resume"),
     ("POST", "/api/v2/engine/state/restore/validate"),
+    ("POST", "/api/v2/engine/state/save"),
+    ("POST", "/api/v2/engine/state/restore"),
+    ("GET", "/api/v2/engine/state/list"),
     ("POST", "/api/v2/media/rom/attach"),
     ("POST", "/api/v2/media/disk/attach"),
     ("POST", "/api/v2/media/disk/eject"),
@@ -238,6 +241,7 @@ def main() -> int:
         "esptari_web_stream_register_routes",
         "esptari_web_debug_register_routes",
         "esptari_web_metrics_register_routes",
+        "esptari_web_persistence_register_routes",
         "esptari_web_snapshot_register_routes",
         "esptari_web_catalog_register_routes",
     }
