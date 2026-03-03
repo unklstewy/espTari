@@ -1,0 +1,33 @@
+GET /api/v2/catalogs/list -> 200
+{"ok":true,"data":{"catalogs":[{"name":"roms","path":"/sdcard/config/engine_v2/rom_catalog.json","entries":2},{"name":"floppies","path":"/sdcard/config/engine_v2/disk_catalog.json","entries":2},{"name":"tos","path":"/sdcard/config/engine_v2/tos_catalog.json","entries":2}]}}
+
+GET /api/v2/catalogs/floppies/entries -> 200
+{"ok":true,"data":{"catalog":"floppies","entries":[{"id":"disk.automation.a_093","local_path":"/sdcard/disks/st/AUTOMATION/A_093.ST","hosted_url":"http://ataristdb.sidecartridge.com/AUTOMATION/A_093.ST","availability_state":"online"},{"id":"disk.demos.dead_entry","local_path":"","hosted_url":"http://ataristdb.sidecartridge.com/DEMOS/DEAD.ST","availability_state":"dead"}]}}
+
+GET /api/v2/catalogs/floppies/entries?query=workbench -> 200
+{"ok":true,"data":{"catalog":"floppies","entries":[]}}
+
+GET /api/v2/catalogs/floppies/entries?missing_only=true -> 200
+{"ok":true,"data":{"catalog":"floppies","entries":[{"id":"disk.demos.dead_entry","local_path":"","hosted_url":"http://ataristdb.sidecartridge.com/DEMOS/DEAD.ST","availability_state":"dead"}]}}
+
+GET /api/v2/catalogs/floppies/entries?state=missing -> 200
+{"ok":true,"data":{"catalog":"floppies","entries":[]}}
+
+GET /api/v2/catalogs/floppies/entries/wb31.adf -> 404
+{"ok":false,"error":{"code":"CATALOG_ENTRY_NOT_FOUND"}}
+
+GET /api/v2/catalogs/floppies/entries/does-not-exist.adf -> 404
+{"ok":false,"error":{"code":"CATALOG_ENTRY_NOT_FOUND"}}
+
+GET /api/v2/catalogs/floppy/entries -> 404
+{"ok":false,"error":{"code":"CATALOG_NOT_FOUND"}}
+
+GET /api/v2/catalogs/unknown/entries -> 404
+{"ok":false,"error":{"code":"CATALOG_NOT_FOUND"}}
+
+GET /api/v2/catalogs/floppies/entries/disk.automation.a_093 -> 200
+{"ok":true,"data":{"id":"disk.automation.a_093","local_path":"/sdcard/disks/st/AUTOMATION/A_093.ST","hosted_url":"http://ataristdb.sidecartridge.com/AUTOMATION/A_093.ST","availability_state":"online","availability_checked_at":"2026-03-01T15:22:01Z","download_fail_count":0}}
+
+GET /api/v2/catalogs/floppies/entries?state=dead -> 200
+{"ok":true,"data":{"catalog":"floppies","entries":[{"id":"disk.demos.dead_entry","local_path":"","hosted_url":"http://ataristdb.sidecartridge.com/DEMOS/DEAD.ST","availability_state":"dead"}]}}
+

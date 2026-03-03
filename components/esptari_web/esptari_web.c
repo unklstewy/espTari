@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include "esp_err.h"
 #include "esp_log.h"
@@ -43,6 +44,43 @@ static uint64_t perf_alarm_seq;
 static const double perf_input_latency_target_max = 50.0;
 static const double perf_jitter_target_max = 30.0;
 static const double perf_drop_target_max = 1.0;
+
+typedef struct {
+    const char *id;
+    const char *local_path;
+    const char *hosted_url;
+    const char *availability_state;
+    const char *availability_checked_at;
+    uint32_t download_fail_count;
+} catalog_entry_t;
+
+typedef struct {
+    const char *name;
+    const char *path;
+    const catalog_entry_t *entries;
+    size_t entry_count;
+} catalog_def_t;
+
+static const catalog_entry_t rom_catalog_entries[] = {
+    {"rom.atari.st.01", "/sdcard/roms/st/TOS104.ROM", "", "local_only", "2026-03-01T15:22:01Z", 0},
+    {"rom.atari.st.02", "", "http://catalog.example/roms/TOS206.ROM", "online", "2026-03-01T15:22:05Z", 0},
+};
+
+static const catalog_entry_t floppy_catalog_entries[] = {
+    {"disk.automation.a_093", "/sdcard/disks/st/AUTOMATION/A_093.ST", "http://ataristdb.sidecartridge.com/AUTOMATION/A_093.ST", "online", "2026-03-01T15:22:01Z", 0},
+    {"disk.demos.dead_entry", "", "http://ataristdb.sidecartridge.com/DEMOS/DEAD.ST", "dead", "2026-03-01T15:22:11Z", 3},
+};
+
+static const catalog_entry_t tos_catalog_entries[] = {
+    {"tos.eu.1.04", "/sdcard/tos/TOS104.IMG", "", "local_only", "2026-03-01T15:22:21Z", 0},
+    {"tos.eu.2.06", "", "http://catalog.example/tos/TOS206.IMG", "offline", "2026-03-01T15:22:31Z", 1},
+};
+
+static const catalog_def_t catalog_defs[] = {
+    {"roms", "/sdcard/config/engine_v2/rom_catalog.json", rom_catalog_entries, sizeof(rom_catalog_entries) / sizeof(rom_catalog_entries[0])},
+    {"floppies", "/sdcard/config/engine_v2/disk_catalog.json", floppy_catalog_entries, sizeof(floppy_catalog_entries) / sizeof(floppy_catalog_entries[0])},
+    {"tos", "/sdcard/config/engine_v2/tos_catalog.json", tos_catalog_entries, sizeof(tos_catalog_entries) / sizeof(tos_catalog_entries[0])},
+};
 
 static bool query_value(httpd_req_t *req, const char *key, char *out, size_t out_len);
 
@@ -1145,6 +1183,172 @@ static esp_err_t metrics_alarms_handler(httpd_req_t *req)
     return out;
 }
 
+static const catalog_def_t *find_catalog(const char *name)
+{
+    if (name == NULL) {
+        return NULL;
+    }
+    for (size_t i = 0; i < sizeof(catalog_defs) / sizeof(catalog_defs[0]); i++) {
+        if (strcmp(catalog_defs[i].name, name) == 0) {
+            return &catalog_defs[i];
+        }
+    }
+    return NULL;
+}
+
+static bool entry_missing_local(const catalog_entry_t *entry)
+{
+    return entry == NULL || entry->local_path == NULL || entry->local_path[0] == '\0';
+}
+
+static bool str_contains_nocase(const char *haystack, const char *needle)
+{
+    if (needle == NULL || needle[0] == '\0') {
+        return true;
+    }
+    if (haystack == NULL) {
+        return false;
+    }
+    size_t needle_len = strlen(needle);
+    for (const char *p = haystack; *p != '\0'; p++) {
+        if (strncasecmp(p, needle, needle_len) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static esp_err_t catalogs_list_handler(httpd_req_t *req)
+{
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(resp, "data", data);
+    cJSON *catalogs = cJSON_CreateArray();
+    cJSON_AddItemToObject(data, "catalogs", catalogs);
+
+    for (size_t i = 0; i < sizeof(catalog_defs) / sizeof(catalog_defs[0]); i++) {
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "name", catalog_defs[i].name);
+        cJSON_AddStringToObject(item, "path", catalog_defs[i].path);
+        cJSON_AddNumberToObject(item, "entries", (double)catalog_defs[i].entry_count);
+        cJSON_AddItemToArray(catalogs, item);
+    }
+
+    char *resp_json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    if (resp_json == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+    esp_err_t out = send_json(req, resp_json, 200);
+    free(resp_json);
+    return out;
+}
+
+static esp_err_t catalog_entries_list_handler(httpd_req_t *req)
+{
+    char catalog[32] = {0};
+    if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/entries", catalog) != 1) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    const catalog_def_t *def = find_catalog(catalog);
+    if (def == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
+    }
+
+    char query[96] = {0};
+    char state[24] = {0};
+    char missing_only_str[8] = {0};
+    bool has_query = query_value(req, "query", query, sizeof(query));
+    bool has_state = query_value(req, "state", state, sizeof(state));
+    bool missing_only = query_value(req, "missing_only", missing_only_str, sizeof(missing_only_str)) &&
+                        strcmp(missing_only_str, "true") == 0;
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(resp, "data", data);
+    cJSON_AddStringToObject(data, "catalog", def->name);
+    cJSON *entries = cJSON_CreateArray();
+    cJSON_AddItemToObject(data, "entries", entries);
+
+    for (size_t i = 0; i < def->entry_count; i++) {
+        const catalog_entry_t *entry = &def->entries[i];
+        if (missing_only && !entry_missing_local(entry)) {
+            continue;
+        }
+        if (has_state && strcmp(state, entry->availability_state) != 0) {
+            continue;
+        }
+        if (has_query && !str_contains_nocase(entry->id, query) && !str_contains_nocase(entry->local_path, query) &&
+            !str_contains_nocase(entry->hosted_url, query)) {
+            continue;
+        }
+
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "id", entry->id);
+        cJSON_AddStringToObject(item, "local_path", entry->local_path);
+        cJSON_AddStringToObject(item, "hosted_url", entry->hosted_url);
+        cJSON_AddStringToObject(item, "availability_state", entry->availability_state);
+        cJSON_AddItemToArray(entries, item);
+    }
+
+    char *resp_json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    if (resp_json == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+    esp_err_t out = send_json(req, resp_json, 200);
+    free(resp_json);
+    return out;
+}
+
+static esp_err_t catalog_entry_get_handler(httpd_req_t *req)
+{
+    char catalog[32] = {0};
+    char entry_id[128] = {0};
+    if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/entries/%127s", catalog, entry_id) != 2) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    const catalog_def_t *def = find_catalog(catalog);
+    if (def == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
+    }
+
+    const catalog_entry_t *match = NULL;
+    for (size_t i = 0; i < def->entry_count; i++) {
+        if (strcmp(def->entries[i].id, entry_id) == 0) {
+            match = &def->entries[i];
+            break;
+        }
+    }
+    if (match == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_ENTRY_NOT_FOUND\"}}", 404);
+    }
+
+    char resp[640];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"id\":\"%s\",\"local_path\":\"%s\",\"hosted_url\":\"%s\",\"availability_state\":\"%s\",\"availability_checked_at\":\"%s\",\"download_fail_count\":%lu}}",
+             match->id,
+             match->local_path,
+             match->hosted_url,
+             match->availability_state,
+             match->availability_checked_at,
+             (unsigned long)match->download_fail_count);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t catalogs_router_handler(httpd_req_t *req)
+{
+    if (strstr(req->uri, "/entries/") != NULL) {
+        return catalog_entry_get_handler(req);
+    }
+    return catalog_entries_list_handler(req);
+}
+
 static esp_err_t handle_state_change(httpd_req_t *req,
                                      esp_err_t (*op)(void),
                                      const char *guard_id,
@@ -1720,6 +1924,8 @@ void esptari_web_init(uint16_t port)
     httpd_uri_t metrics_samples = {.uri = "/api/v2/metrics/performance/samples", .method = HTTP_GET, .handler = metrics_samples_handler, .user_ctx = NULL};
     httpd_uri_t metrics_thresholds = {.uri = "/api/v2/metrics/performance/thresholds", .method = HTTP_GET, .handler = metrics_thresholds_handler, .user_ctx = NULL};
     httpd_uri_t metrics_alarms = {.uri = "/api/v2/metrics/performance/alarms", .method = HTTP_GET, .handler = metrics_alarms_handler, .user_ctx = NULL};
+    httpd_uri_t catalogs_list = {.uri = "/api/v2/catalogs/list", .method = HTTP_GET, .handler = catalogs_list_handler, .user_ctx = NULL};
+    httpd_uri_t catalogs_entries = {.uri = "/api/v2/catalogs/*", .method = HTTP_GET, .handler = catalogs_router_handler, .user_ctx = NULL};
 
     httpd_register_uri_handler(server_handle, &health);
     httpd_register_uri_handler(server_handle, &status);
@@ -1752,6 +1958,8 @@ void esptari_web_init(uint16_t port)
     httpd_register_uri_handler(server_handle, &metrics_samples);
     httpd_register_uri_handler(server_handle, &metrics_thresholds);
     httpd_register_uri_handler(server_handle, &metrics_alarms);
+    httpd_register_uri_handler(server_handle, &catalogs_list);
+    httpd_register_uri_handler(server_handle, &catalogs_entries);
 
     ESP_LOGI(TAG, "Web API ready on port %u", (unsigned)port);
 }
