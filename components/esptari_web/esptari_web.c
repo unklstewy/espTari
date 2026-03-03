@@ -1,15 +1,6 @@
 #include "esptari_web.h"
 
-#include <stdio.h>
-#include <string.h>
-#include <strings.h>
-#include <stdlib.h>
-#include "esp_err.h"
 #include "esp_log.h"
-#include "esp_timer.h"
-#include "cJSON.h"
-#include "esptari_core.h"
-#include "esptari_input.h"
 #include "esptari_web_catalog.h"
 #include "esptari_web_core_status.h"
 #include "esptari_web_debug.h"
