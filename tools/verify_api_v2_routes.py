@@ -40,6 +40,7 @@ EXPECTED_ROUTES = {
     ("GET", "/api/v2/inspect/bus/stream"),
     ("GET", "/api/v2/inspect/memory/stream"),
     ("GET", "/api/v2/metrics/performance"),
+    ("GET", "/api/v2/metrics/performance/history"),
     ("POST", "/api/v2/metrics/performance/collectors/config"),
     ("GET", "/api/v2/metrics/performance/samples"),
     ("GET", "/api/v2/metrics/performance/thresholds"),
