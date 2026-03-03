@@ -10,89 +10,46 @@
 #include "esp_err.h"
 #include "esp_timer.h"
 #include "esptari_core.h"
+#include "esptari_web_http_utils.h"
 #include "esptari_web_debug_state.h"
-
-static esp_err_t send_json(httpd_req_t *req, const char *json, int status_code)
-{
-    httpd_resp_set_type(req, "application/json");
-    const char *status = "500 Internal Server Error";
-    switch (status_code) {
-    case 200:
-        status = "200 OK";
-        break;
-    case 201:
-        status = "201 Created";
-        break;
-    case 400:
-        status = "400 Bad Request";
-        break;
-    case 404:
-        status = "404 Not Found";
-        break;
-    case 409:
-        status = "409 Conflict";
-        break;
-    case 412:
-        status = "412 Precondition Failed";
-        break;
-    default:
-        break;
-    }
-    httpd_resp_set_status(req, status);
-    return httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
-}
-
-static esp_err_t read_request_body(httpd_req_t *req, char *out_buf, size_t out_buf_size)
-{
-    if (req->content_len <= 0 || (size_t)req->content_len >= out_buf_size) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    int received = httpd_req_recv(req, out_buf, req->content_len);
-    if (received <= 0) {
-        return ESP_FAIL;
-    }
-    out_buf[received] = '\0';
-    return ESP_OK;
-}
 
 esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
 {
     if (req->content_len <= 0) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     char body[512];
-    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    if (esptari_web_read_request_body(req, body, sizeof(body)) != ESP_OK) {
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     cJSON *root = cJSON_Parse(body);
     if (root == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     cJSON *session_id_item = cJSON_GetObjectItemCaseSensitive(root, "session_id");
     if (!cJSON_IsString(session_id_item) || session_id_item->valuestring == NULL) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     if (strcmp(session_id_item->valuestring, "ses_local") != 0) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
     }
 
     cJSON *steps_item = cJSON_GetObjectItemCaseSensitive(root, "steps");
     if (!cJSON_IsNumber(steps_item)) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     int steps = steps_item->valueint;
     if ((double)steps != steps_item->valuedouble || steps < 1 || steps > 1024) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_STEP_INVALID\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_STEP_INVALID\"}}", 400);
     }
 
     cJSON *capture_item = cJSON_GetObjectItemCaseSensitive(root, "capture");
@@ -104,14 +61,14 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
     if (capture_item != NULL) {
         if (!cJSON_IsArray(capture_item)) {
             cJSON_Delete(root);
-            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
         }
         cJSON *selector = NULL;
         cJSON_ArrayForEach(selector, capture_item)
         {
             if (!cJSON_IsString(selector) || selector->valuestring == NULL) {
                 cJSON_Delete(root);
-                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_STEP_INVALID\"}}", 400);
+                return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_STEP_INVALID\"}}", 400);
             }
 
             if (strcmp(selector->valuestring, "opcode") == 0) {
@@ -131,7 +88,7 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
                 }
             } else {
                 cJSON_Delete(root);
-                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_STEP_INVALID\"}}", 400);
+                return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_STEP_INVALID\"}}", 400);
             }
         }
     }
@@ -141,15 +98,15 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
     esptari_session_status_t status;
     esptari_core_get_status(&status);
     if (status.state == ESPTARI_SESSION_STOPPED) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
     }
 
     if (strcmp(esptari_web_debug_clock_mode, "single_step") != 0) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"STEP-CTRL-03\",\"endpoint\":\"/api/v2/debug/clock/step\",\"esp_err\":\"ESP_ERR_INVALID_STATE\"}}}", 409);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"STEP-CTRL-03\",\"endpoint\":\"/api/v2/debug/clock/step\",\"esp_err\":\"ESP_ERR_INVALID_STATE\"}}}", 409);
     }
 
     if (capture_register_delta) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"CAP-DIAG-PROFILE\",\"endpoint\":\"/api/v2/debug/clock/step\",\"esp_err\":\"ESP_ERR_INVALID_STATE\"}}}", 409);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"CAP-DIAG-PROFILE\",\"endpoint\":\"/api/v2/debug/clock/step\",\"esp_err\":\"ESP_ERR_INVALID_STATE\"}}}", 409);
     }
 
     uint64_t tick_before = esptari_web_debug_tick_counter;
@@ -167,7 +124,7 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
     uint64_t candidate_timestamp = esptari_web_debug_timestamp_origin_us + esptari_web_debug_tick_counter;
     if (candidate_timestamp < esptari_web_debug_timestamp_last_emitted_us) {
         esptari_web_debug_timestamp_regressions++;
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"TS-CHECK-01\"}}}", 500);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"TS-CHECK-01\"}}}", 500);
     }
     esptari_web_debug_timestamp_last_emitted_us = candidate_timestamp;
 
@@ -277,10 +234,10 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
     char *resp_json = cJSON_PrintUnformatted(resp);
     cJSON_Delete(resp);
     if (resp_json == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
     }
 
-    esp_err_t out = send_json(req, resp_json, 200);
+    esp_err_t out = esptari_web_send_json(req, resp_json, 200);
     free(resp_json);
     return out;
 }

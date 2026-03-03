@@ -10,6 +10,7 @@
 #include "esp_err.h"
 #include "esp_timer.h"
 #include "esptari_core.h"
+#include "esptari_web_http_utils.h"
 
 static bool perf_collectors_active;
 static uint32_t perf_sampling_interval_ms = 500;
@@ -26,84 +27,13 @@ static const double perf_input_latency_target_max = 50.0;
 static const double perf_jitter_target_max = 30.0;
 static const double perf_drop_target_max = 1.0;
 
-static esp_err_t send_json(httpd_req_t *req, const char *json, int status_code)
-{
-    httpd_resp_set_type(req, "application/json");
-    const char *status = "500 Internal Server Error";
-    switch (status_code) {
-    case 200:
-        status = "200 OK";
-        break;
-    case 201:
-        status = "201 Created";
-        break;
-    case 400:
-        status = "400 Bad Request";
-        break;
-    case 404:
-        status = "404 Not Found";
-        break;
-    case 409:
-        status = "409 Conflict";
-        break;
-    case 412:
-        status = "412 Precondition Failed";
-        break;
-    default:
-        break;
-    }
-    httpd_resp_set_status(req, status);
-    return httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
-}
-
-static esp_err_t read_request_body(httpd_req_t *req, char *out_buf, size_t out_buf_size)
-{
-    if (req->content_len <= 0 || (size_t)req->content_len >= out_buf_size) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    int received = httpd_req_recv(req, out_buf, req->content_len);
-    if (received <= 0) {
-        return ESP_FAIL;
-    }
-    out_buf[received] = '\0';
-    return ESP_OK;
-}
-
-static bool query_value(httpd_req_t *req, const char *key, char *out, size_t out_len)
-{
-    if (httpd_req_get_url_query_len(req) <= 0) {
-        return false;
-    }
-
-    char query[256] = {0};
-    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK) {
-        return false;
-    }
-    return httpd_query_key_value(query, key, out, out_len) == ESP_OK;
-}
-
-static bool parse_u32_str(const char *value, uint32_t *out)
-{
-    if (value == NULL || value[0] == '\0' || out == NULL) {
-        return false;
-    }
-    char *end = NULL;
-    unsigned long parsed = strtoul(value, &end, 10);
-    if (end == value || *end != '\0') {
-        return false;
-    }
-    *out = (uint32_t)parsed;
-    return true;
-}
-
 static esp_err_t metrics_validate_session_query(httpd_req_t *req, char *session_id, size_t len)
 {
-    if (!query_value(req, "session_id", session_id, len) || session_id[0] == '\0') {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    if (!esptari_web_query_value(req, "session_id", session_id, len) || session_id[0] == '\0') {
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
     if (strcmp(session_id, "ses_local") != 0) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
     }
     return ESP_OK;
 }
@@ -136,36 +66,36 @@ static esp_err_t metrics_performance_handler(httpd_req_t *req)
              drop_value,
              perf_drop_target_max,
              drop_value <= perf_drop_target_max ? "ok" : "breach");
-    return send_json(req, resp, 200);
+    return esptari_web_send_json(req, resp, 200);
 }
 
 static esp_err_t metrics_collectors_config_handler(httpd_req_t *req)
 {
     char body[1024];
-    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    if (esptari_web_read_request_body(req, body, sizeof(body)) != ESP_OK) {
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     cJSON *root = cJSON_Parse(body);
     if (root == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     cJSON *session_id_item = cJSON_GetObjectItemCaseSensitive(root, "session_id");
     if (!cJSON_IsString(session_id_item) || session_id_item->valuestring == NULL) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
     if (strcmp(session_id_item->valuestring, "ses_local") != 0) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
     }
 
     esptari_session_status_t status;
     esptari_core_get_status(&status);
     if (status.state != ESPTARI_SESSION_RUNNING && status.state != ESPTARI_SESSION_PAUSED) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
     }
 
     cJSON *sampling_item = cJSON_GetObjectItemCaseSensitive(root, "sampling_interval_ms");
@@ -173,14 +103,14 @@ static esp_err_t metrics_collectors_config_handler(httpd_req_t *req)
     cJSON *collectors_item = cJSON_GetObjectItemCaseSensitive(root, "collectors");
     if (!cJSON_IsNumber(sampling_item) || !cJSON_IsNumber(window_item) || !cJSON_IsObject(collectors_item)) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     int sampling_ms = sampling_item->valueint;
     int window_ms = window_item->valueint;
     if (sampling_ms < 100 || sampling_ms > 10000 || window_ms < 1000 || window_ms > 60000) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     cJSON *input_item = cJSON_GetObjectItemCaseSensitive(collectors_item, "input_latency_ms");
@@ -188,7 +118,7 @@ static esp_err_t metrics_collectors_config_handler(httpd_req_t *req)
     cJSON *drop_item = cJSON_GetObjectItemCaseSensitive(collectors_item, "dropped_frame_percent");
     if (!cJSON_IsObject(input_item) || !cJSON_IsObject(jitter_item) || !cJSON_IsObject(drop_item)) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     cJSON *input_enabled = cJSON_GetObjectItemCaseSensitive(input_item, "enabled");
@@ -196,13 +126,13 @@ static esp_err_t metrics_collectors_config_handler(httpd_req_t *req)
     cJSON *drop_enabled = cJSON_GetObjectItemCaseSensitive(drop_item, "enabled");
     if (!cJSON_IsBool(input_enabled) || !cJSON_IsBool(jitter_enabled) || !cJSON_IsBool(drop_enabled)) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     cJSON *emit_history_item = cJSON_GetObjectItemCaseSensitive(root, "emit_history");
     if (emit_history_item != NULL && !cJSON_IsBool(emit_history_item)) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
     perf_sampling_interval_ms = (uint32_t)sampling_ms;
@@ -228,7 +158,7 @@ static esp_err_t metrics_collectors_config_handler(httpd_req_t *req)
              (unsigned long)perf_window_ms,
              perf_emit_history ? "true" : "false",
              (unsigned long long)now_us);
-    return send_json(req, resp, 200);
+    return esptari_web_send_json(req, resp, 200);
 }
 
 static esp_err_t metrics_samples_handler(httpd_req_t *req)
@@ -241,14 +171,14 @@ static esp_err_t metrics_samples_handler(httpd_req_t *req)
 
     char limit_str[16] = {0};
     uint32_t limit = 1;
-    if (query_value(req, "limit", limit_str, sizeof(limit_str))) {
-        if (!parse_u32_str(limit_str, &limit) || limit == 0 || limit > 100) {
-            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    if (esptari_web_query_value(req, "limit", limit_str, sizeof(limit_str))) {
+        if (!esptari_web_parse_u32_str(limit_str, &limit) || limit == 0 || limit > 100) {
+            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
         }
     }
 
     if (!perf_collectors_active) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
     }
 
     cJSON *resp = cJSON_CreateObject();
@@ -282,9 +212,9 @@ static esp_err_t metrics_samples_handler(httpd_req_t *req)
     char *resp_json = cJSON_PrintUnformatted(resp);
     cJSON_Delete(resp);
     if (resp_json == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
     }
-    esp_err_t out = send_json(req, resp_json, 200);
+    esp_err_t out = esptari_web_send_json(req, resp_json, 200);
     free(resp_json);
     return out;
 }
@@ -306,7 +236,7 @@ static esp_err_t metrics_thresholds_handler(httpd_req_t *req)
              perf_jitter_target_max,
              perf_drop_target_max,
              (unsigned long)perf_window_ms);
-    return send_json(req, resp, 200);
+    return esptari_web_send_json(req, resp, 200);
 }
 
 static esp_err_t metrics_alarms_handler(httpd_req_t *req)
@@ -319,14 +249,14 @@ static esp_err_t metrics_alarms_handler(httpd_req_t *req)
 
     char limit_str[16] = {0};
     uint32_t limit = 1;
-    if (query_value(req, "limit", limit_str, sizeof(limit_str))) {
-        if (!parse_u32_str(limit_str, &limit) || limit == 0 || limit > 100) {
-            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    if (esptari_web_query_value(req, "limit", limit_str, sizeof(limit_str))) {
+        if (!esptari_web_parse_u32_str(limit_str, &limit) || limit == 0 || limit > 100) {
+            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
         }
     }
 
     if (!perf_collectors_active) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
     }
 
     cJSON *resp = cJSON_CreateObject();
@@ -364,9 +294,9 @@ static esp_err_t metrics_alarms_handler(httpd_req_t *req)
     char *resp_json = cJSON_PrintUnformatted(resp);
     cJSON_Delete(resp);
     if (resp_json == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
     }
-    esp_err_t out = send_json(req, resp_json, 200);
+    esp_err_t out = esptari_web_send_json(req, resp_json, 200);
     free(resp_json);
     return out;
 }
