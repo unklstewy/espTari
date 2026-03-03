@@ -16,6 +16,7 @@
 #define read_request_body esptari_web_read_request_body
 #define query_value esptari_web_query_value
 #define parse_u32_str esptari_web_parse_u32_str
+#define json_get_string esptari_web_json_get_string
 
 typedef struct {
     const char *id;
@@ -91,16 +92,6 @@ static const catalog_def_t catalog_defs[] = {
     {"floppies", "/sdcard/config/engine_v2/disk_catalog.json", floppy_catalog_entries, sizeof(floppy_catalog_entries) / sizeof(floppy_catalog_entries[0])},
     {"tos", "/sdcard/config/engine_v2/tos_catalog.json", tos_catalog_entries, sizeof(tos_catalog_entries) / sizeof(tos_catalog_entries[0])},
 };
-
-static bool json_get_string(cJSON *root, const char *key, const char **value)
-{
-    cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
-    if (!cJSON_IsString(item) || item->valuestring == NULL) {
-        return false;
-    }
-    *value = item->valuestring;
-    return true;
-}
 
 static const catalog_def_t *find_catalog(const char *name)
 {

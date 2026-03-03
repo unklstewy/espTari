@@ -72,3 +72,13 @@ bool esptari_web_parse_u32_str(const char *value, uint32_t *out)
     *out = (uint32_t)parsed;
     return true;
 }
+
+bool esptari_web_json_get_string(cJSON *root, const char *key, const char **value)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
+    if (!cJSON_IsString(item) || item->valuestring == NULL) {
+        return false;
+    }
+    *value = item->valuestring;
+    return true;
+}

@@ -14,22 +14,13 @@
 
 #define send_json esptari_web_send_json
 #define read_request_body esptari_web_read_request_body
+#define json_get_string esptari_web_json_get_string
 
 static const char *MAPPINGS_PREFIX = "/api/v2/input/mappings/";
 
 static char *alloc_json_buf(size_t size)
 {
     return (char *)malloc(size);
-}
-
-static bool json_get_string(cJSON *root, const char *key, const char **value)
-{
-    cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
-    if (!cJSON_IsString(item) || item->valuestring == NULL) {
-        return false;
-    }
-    *value = item->valuestring;
-    return true;
 }
 
 static const char *mapping_id_from_uri(const char *uri)

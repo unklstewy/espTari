@@ -12,16 +12,7 @@
 
 #define send_json esptari_web_send_json
 #define read_request_body esptari_web_read_request_body
-
-static bool json_get_string(cJSON *root, const char *key, const char **value)
-{
-    cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
-    if (!cJSON_IsString(item) || item->valuestring == NULL) {
-        return false;
-    }
-    *value = item->valuestring;
-    return true;
-}
+#define json_get_string esptari_web_json_get_string
 
 static esp_err_t handle_state_change(httpd_req_t *req,
                                      esp_err_t (*op)(void),
