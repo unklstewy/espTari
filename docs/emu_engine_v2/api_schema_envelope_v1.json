@@ -1,0 +1,121 @@
+{
+  "schema_bundle": "espTari-v2-envelope",
+  "schema_version": "1.0.0",
+  "api_version": "v2",
+  "base_path": "/api/v2",
+  "versioning_policy": {
+    "compatible_additions": "minor",
+    "breaking_changes": "major-path"
+  },
+  "response_envelope": {
+    "success": {
+      "ok": true,
+      "required": ["ok", "request_id", "timestamp_us", "data"],
+      "request_id_pattern": "^req_[A-Za-z0-9._:-]+$",
+      "timestamp_us_type": "uint64",
+      "data_type": "object"
+    },
+    "error": {
+      "ok": false,
+      "required": ["ok", "request_id", "timestamp_us", "error"],
+      "error_required": ["code", "category", "message", "retryable", "details"],
+      "request_id_pattern": "^req_[A-Za-z0-9._:-]+$",
+      "timestamp_us_type": "uint64"
+    }
+  },
+  "error_schema": {
+    "code_format": "UPPER_SNAKE_CASE",
+    "code_stability": "immutable-after-publication",
+    "categories": [
+      "request",
+      "auth",
+      "path",
+      "engine",
+      "media",
+      "ebin",
+      "stream",
+      "input",
+      "snapshot",
+      "debug",
+      "catalog",
+      "scheduler",
+      "internal"
+    ],
+    "fallback": {
+      "code": "INTERNAL_ERROR",
+      "category": "internal"
+    }
+  },
+  "canonical_error_codes": {
+    "request": ["BAD_REQUEST"],
+    "auth": ["UNAUTHORIZED", "FORBIDDEN"],
+    "path": ["NOT_FOUND", "PATH_NOT_ALLOWED"],
+    "engine": [
+      "CONFLICT",
+      "ENGINE_NOT_RUNNING",
+      "ENGINE_ALREADY_RUNNING",
+      "INVALID_SESSION_STATE",
+      "MACHINE_PROFILE_NOT_FOUND",
+      "ENGINE_NOT_SUSPENDED",
+      "ENGINE_SUBSYSTEM_UNAVAILABLE"
+    ],
+    "media": ["UNSUPPORTED_MEDIA_FORMAT", "UPLOAD_INCOMPLETE", "MEDIA_ATTACH_FAILED"],
+    "ebin": [
+      "EBIN_NOT_FOUND",
+      "EBIN_INVALID",
+      "EBIN_SIGNATURE_INVALID",
+      "EBIN_ABI_MISMATCH",
+      "EBIN_DEPENDENCY_MISSING"
+    ],
+    "stream": ["STREAM_BACKPRESSURE", "INSPECT_FILTER_INVALID"],
+    "input": [
+      "INPUT_DEVICE_UNAVAILABLE",
+      "INPUT_MAPPING_NOT_FOUND",
+      "INPUT_EVENT_INVALID",
+      "INPUT_CAPTURE_DISABLED",
+      "INPUT_CAPTURE_NOT_ACTIVE",
+      "INPUT_POLICY_INVALID_STATE",
+      "INPUT_POLICY_VIOLATION",
+      "INPUT_POLICY_MODE_INVALID",
+      "INPUT_POLICY_SESSION_INVALID"
+    ],
+    "snapshot": [
+      "SNAPSHOT_NOT_FOUND",
+      "SNAPSHOT_SAVE_FAILED",
+      "SNAPSHOT_RESTORE_FAILED",
+      "SNAPSHOT_INCOMPATIBLE"
+    ],
+    "debug": ["DEBUG_CLOCK_INVALID"],
+    "catalog": ["CATALOG_NOT_FOUND", "CATALOG_ENTRY_NOT_FOUND", "CATALOG_LINK_DEAD", "CATALOG_SYNC_FAILED"],
+    "scheduler": ["SCRAPER_JOB_NOT_FOUND", "SCRAPER_SCHEDULE_INVALID"],
+    "internal": ["INTERNAL_ERROR"]
+  },
+  "examples": {
+    "success": {
+      "ok": true,
+      "request_id": "req_01H8Z7Y6",
+      "timestamp_us": 1710000000000,
+      "data": {
+        "session_id": "ses_local",
+        "state": "running"
+      }
+    },
+    "error": {
+      "ok": false,
+      "request_id": "req_01H8Z7Y7",
+      "timestamp_us": 1710000004321,
+      "error": {
+        "code": "INVALID_SESSION_STATE",
+        "category": "engine",
+        "message": "Cannot pause session from state stopped",
+        "retryable": false,
+        "details": {
+          "endpoint": "/api/v2/engine/session/pause",
+          "current_state": "stopped",
+          "allowed_states": ["running"],
+          "requested_transition": "stopped->paused"
+        }
+      }
+    }
+  }
+}

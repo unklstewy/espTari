@@ -161,15 +161,68 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   return res.json()
 }
 
+function normalizeSessionState(state: string | undefined): EmulatorState['state'] {
+  if (state === 'running' || state === 'paused' || state === 'stopped' || state === 'error') {
+    return state
+  }
+  if (state === 'suspended') return 'paused'
+  return 'stopped'
+}
+
+async function getSystemV2(): Promise<EmulatorState> {
+  const [statusRes, sessionRes] = await Promise.all([
+    get<{ status: string; free_heap?: number; free_psram?: number; uptime_ms?: number }>('/api/status'),
+    get<{ ok: boolean; data?: { state?: string } }>('/api/v2/engine/session'),
+  ])
+
+  const freeHeap = Number(statusRes.free_heap ?? 0)
+  const freePsram = Number(statusRes.free_psram ?? 0)
+
+  return {
+    state: normalizeSessionState(sessionRes?.data?.state),
+    free_heap: freeHeap,
+    total_heap: freeHeap,
+    free_psram: freePsram,
+    total_psram: freePsram,
+    min_free_heap: freeHeap,
+    uptime_ms: Number(statusRes.uptime_ms ?? 0),
+  }
+}
+
+async function controlSystemV2(action: string): Promise<EmulatorState> {
+  const actionMap: Record<string, string> = {
+    start: '/api/v2/engine/session/start',
+    pause: '/api/v2/engine/session/pause',
+    resume: '/api/v2/engine/session/resume',
+    stop: '/api/v2/engine/session/stop',
+    reset: '/api/v2/engine/session/reset',
+  }
+
+  const path = actionMap[action]
+  if (!path) {
+    throw new Error(`Unsupported action: ${action}`)
+  }
+
+  if (action === 'reset') {
+    await post<{ ok: boolean }>(path, { session_id: 'ses_local', mode: 'warm', preserve_media: true })
+  } else if (action === 'resume') {
+    await post<{ ok: boolean }>(path, { session_id: 'ses_local', resume_mode: 'running' })
+  } else {
+    await post<{ ok: boolean }>(path, { session_id: 'ses_local' })
+  }
+
+  return getSystemV2()
+}
+
 export const api = {
   /** Live system status (heap, PSRAM, uptime) */
   getStatus: () => get<SystemStatus>('/api/status'),
 
   /** Current emulator state */
-  getSystem: () => get<EmulatorState>('/api/system'),
+  getSystem: () => getSystemV2(),
 
   /** Control emulator (action: start | stop | reset | pause | resume) */
-  controlSystem: (action: string) => post<EmulatorState>('/api/system', { action }),
+  controlSystem: (action: string) => controlSystemV2(action),
 
   /** List available machine profiles */
   getMachines: () => get<MachineProfile[]>('/api/machines'),

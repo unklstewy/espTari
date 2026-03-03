@@ -95,6 +95,10 @@ Canonical contract rules:
 - Endpoint sections define only the `data` payload for success and must not redefine top-level envelope fields.
 - Lifecycle and status contracts in sections `6.1` through `6.8` and `12` are bound to this canonical envelope.
 
+Machine-readable schema bundle:
+
+- `docs/emu_engine_v2/api_schema_envelope_v1.json`
+
 Success:
 
 ```json
@@ -210,6 +214,7 @@ Bundle contents:
 
 - Canonical REST success/error envelope: section `4`
 - Canonical error taxonomy and deterministic codes: section `5`
+- Machine-readable envelope/error schema bundle: `docs/emu_engine_v2/api_schema_envelope_v1.json`
 - Lifecycle endpoint schemas and guard inputs: sections `6.1` through `6.6B`
 - Transition model and invalid-transition constraints: section `12`
 
