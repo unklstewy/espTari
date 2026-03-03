@@ -25,6 +25,11 @@ static uint64_t clock_mode_transition_seq;
 static uint64_t clock_last_transition_at_us;
 static uint64_t debug_tick_counter;
 static uint64_t debug_cycle_counter;
+static const uint32_t debug_scheduler_hz = 8000000U;
+static uint64_t timestamp_origin_us;
+static uint64_t timestamp_last_emitted_us;
+static uint64_t timestamp_regressions;
+static uint32_t arbitration_round;
 
 static bool query_value(httpd_req_t *req, const char *key, char *out, size_t out_len);
 
@@ -108,15 +113,27 @@ static esp_err_t session_state_handler(httpd_req_t *req)
         }
     }
 
-    char resp[896];
+    if (timestamp_origin_us == 0) {
+        timestamp_origin_us = now_us;
+        timestamp_last_emitted_us = now_us;
+    }
+
+    char resp[1536];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"state\":\"%s\",\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"uptime_ms\":%llu,\"cycle_counter\":%llu,\"tick_counter\":%llu,\"loaded_modules\":[],\"stream_health\":{\"video\":{\"connected_clients\":0,\"dropped_packets\":%llu},\"audio\":{\"connected_clients\":0,\"dropped_packets\":%llu}}}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"state\":\"%s\",\"run_mode\":\"%s\",\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"snapshot_at_us\":%llu,\"uptime_ms\":%llu,\"cycle_counter\":%llu,\"tick_counter\":%llu,\"loaded_modules\":[],\"runtime\":{\"scheduler_hz\":%lu,\"timestamp_origin_us\":%llu,\"timestamp_last_emitted_us\":%llu,\"timestamp_regressions\":%llu,\"last_transition_at_us\":%llu,\"last_error\":null},\"stream_health\":{\"video\":{\"connected_clients\":0,\"dropped_packets\":%llu},\"audio\":{\"connected_clients\":0,\"dropped_packets\":%llu}}}}",
              session_id,
              esptari_core_state_to_string(status.state),
+             clock_mode,
+             (unsigned long long)timestamp_last_emitted_us,
              (unsigned long long)uptime_ms,
              (unsigned long long)debug_cycle_counter,
              (unsigned long long)debug_tick_counter,
+             (unsigned long)debug_scheduler_hz,
+             (unsigned long long)timestamp_origin_us,
+             (unsigned long long)timestamp_last_emitted_us,
+             (unsigned long long)timestamp_regressions,
+             (unsigned long long)status.last_transition_us,
              (unsigned long long)backpressure_overflow_total,
              (unsigned long long)backpressure_overflow_total);
     return send_json(req, resp, 200);
@@ -1223,9 +1240,21 @@ static esp_err_t clock_step_handler(httpd_req_t *req)
     uint64_t tick_before = debug_tick_counter;
     uint64_t cycle_before = debug_cycle_counter;
     uint64_t ticks_committed = (uint64_t)steps;
+    uint32_t arbitration_round_before = arbitration_round;
 
     debug_tick_counter += ticks_committed;
     debug_cycle_counter += ticks_committed * 12ULL;
+    arbitration_round += (uint32_t)ticks_committed;
+    if (timestamp_origin_us == 0) {
+        timestamp_origin_us = (uint64_t)esp_timer_get_time();
+        timestamp_last_emitted_us = timestamp_origin_us;
+    }
+    uint64_t candidate_timestamp = timestamp_origin_us + debug_tick_counter;
+    if (candidate_timestamp < timestamp_last_emitted_us) {
+        timestamp_regressions++;
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"TS-CHECK-01\"}}}", 500);
+    }
+    timestamp_last_emitted_us = candidate_timestamp;
 
     cJSON *resp = cJSON_CreateObject();
     cJSON *data = cJSON_CreateObject();
@@ -1239,6 +1268,11 @@ static esp_err_t clock_step_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(data, "tick_counter_after", (double)debug_tick_counter);
     cJSON_AddNumberToObject(data, "cycle_counter_before", (double)cycle_before);
     cJSON_AddNumberToObject(data, "cycle_counter_after", (double)debug_cycle_counter);
+    cJSON *arbitration = cJSON_CreateObject();
+    cJSON_AddNumberToObject(arbitration, "arbitration_round", (double)arbitration_round);
+    cJSON_AddNumberToObject(arbitration, "slots_executed", (double)(ticks_committed * 3ULL));
+    cJSON_AddStringToObject(arbitration, "last_bus_owner", "cpu");
+    cJSON_AddItemToObject(data, "arbitration", arbitration);
 
     cJSON *stats = cJSON_CreateObject();
     cJSON_AddNumberToObject(stats, "ticks_with_hooks", (double)ticks_committed);
@@ -1255,24 +1289,33 @@ static esp_err_t clock_step_handler(httpd_req_t *req)
         cJSON_AddNumberToObject(pre_hook, "tick_counter", (double)tick_counter);
         cJSON_AddNumberToObject(pre_hook, "cycle_counter", (double)cycle_counter);
         cJSON_AddStringToObject(pre_hook, "hook_phase", "arb_pre_tick");
+        cJSON_AddNumberToObject(pre_hook, "arbitration_round", (double)(arbitration_round_before + (uint32_t)step_index + 1U));
         cJSON_AddNumberToObject(pre_hook, "slot_index", 0);
         cJSON_AddStringToObject(pre_hook, "component_id", "scheduler");
+        cJSON_AddStringToObject(pre_hook, "bus_owner", "cpu");
+        cJSON_AddNumberToObject(pre_hook, "wait_cycles", 0);
         cJSON_AddItemToArray(hooks, pre_hook);
 
         cJSON *component_hook = cJSON_CreateObject();
         cJSON_AddNumberToObject(component_hook, "tick_counter", (double)tick_counter);
         cJSON_AddNumberToObject(component_hook, "cycle_counter", (double)cycle_counter);
         cJSON_AddStringToObject(component_hook, "hook_phase", "arb_component_step");
+        cJSON_AddNumberToObject(component_hook, "arbitration_round", (double)(arbitration_round_before + (uint32_t)step_index + 1U));
         cJSON_AddNumberToObject(component_hook, "slot_index", 1);
         cJSON_AddStringToObject(component_hook, "component_id", "m68000");
+        cJSON_AddStringToObject(component_hook, "bus_owner", "cpu");
+        cJSON_AddNumberToObject(component_hook, "wait_cycles", 0);
         cJSON_AddItemToArray(hooks, component_hook);
 
         cJSON *post_hook = cJSON_CreateObject();
         cJSON_AddNumberToObject(post_hook, "tick_counter", (double)tick_counter);
         cJSON_AddNumberToObject(post_hook, "cycle_counter", (double)cycle_counter);
         cJSON_AddStringToObject(post_hook, "hook_phase", "arb_post_tick");
+        cJSON_AddNumberToObject(post_hook, "arbitration_round", (double)(arbitration_round_before + (uint32_t)step_index + 1U));
         cJSON_AddNumberToObject(post_hook, "slot_index", 2);
         cJSON_AddStringToObject(post_hook, "component_id", "scheduler");
+        cJSON_AddStringToObject(post_hook, "bus_owner", "cpu");
+        cJSON_AddNumberToObject(post_hook, "wait_cycles", 0);
         cJSON_AddItemToArray(hooks, post_hook);
     }
     cJSON_AddItemToObject(data, "scheduler_hooks", hooks);

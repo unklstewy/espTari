@@ -1,0 +1,19 @@
+base=http://esptari.local
+--- session
+{"ok":true,"data":{"session_id":"ses_local","state":"stopped","run_mode":"realtime","machine":"atari_st","profile":"st_520_pal","snapshot_at_us":16002852,"uptime_ms":0,"cycle_counter":0,"tick_counter":0,"loaded_modules":[],"runtime":{"scheduler_hz":8000000,"timestamp_origin_us":16002852,"timestamp_last_emitted_us":16002852,"timestamp_regressions":0,"last_transition_at_us":15404020,"last_error":null},"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+--- start
+{"ok":true}
+--- mode
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":true,"mode_transition_seq":1,"from_mode":"realtime","to_mode":"single_step","effective_ratio":1.000000,"last_transition_at_us":16076058}}
+--- step
+{"ok":true,"data":{"session_id":"ses_local","run_mode":"single_step","steps_requested":2,"ticks_committed":2,"tick_counter_before":0,"tick_counter_after":2,"cycle_counter_before":0,"cycle_counter_after":24,"arbitration":{"arbitration_round":2,"slots_executed":6,"last_bus_owner":"cpu"},"scheduler_hook_stats":{"ticks_with_hooks":2,"hook_order_violations":0,"component_step_mismatches":0},"scheduler_hooks":[{"tick_counter":1,"cycle_counter":12,"hook_phase":"arb_pre_tick","arbitration_round":1,"slot_index":0,"component_id":"scheduler","bus_owner":"cpu","wait_cycles":0},{"tick_counter":1,"cycle_counter":12,"hook_phase":"arb_component_step","arbitration_round":1,"slot_index":1,"component_id":"m68000","bus_owner":"cpu","wait_cycles":0},{"tick_counter":1,"cycle_counter":12,"hook_phase":"arb_post_tick","arbitration_round":1,"slot_index":2,"component_id":"scheduler","bus_owner":"cpu","wait_cycles":0},{"tick_counter":2,"cycle_counter":24,"hook_phase":"arb_pre_tick","arbitration_round":2,"slot_index":0,"component_id":"scheduler","bus_owner":"cpu","wait_cycles":0},{"tick_counter":2,"cycle_counter":24,"hook_phase":"arb_component_step","arbitration_round":2,"slot_index":1,"component_id":"m68000","bus_owner":"cpu","wait_cycles":0},{"tick_counter":2,"cycle_counter":24,"hook_phase":"arb_post_tick","arbitration_round":2,"slot_index":2,"component_id":"scheduler","bus_owner":"cpu","wait_cycles":0}],"capture_payloads":[{"kind":"opcode_capture_v1","tick_counter":1,"cycle_counter":12,"pc":16777218,"opcode_word":"0x4E71","instruction_size_bytes":2},{"kind":"opcode_capture_v1","tick_counter":2,"cycle_counter":24,"pc":16777220,"opcode_word":"0x4E71","instruction_size_bytes":2}]}}
+--- derived checks
+runtime_scheduler_hz_present=True
+runtime_timestamp_origin_present=True
+runtime_timestamp_last_present=True
+runtime_timestamp_regressions_present=True
+arbitration_present=True
+arbitration_round_present=True
+hooks_count=6
+hook_missing_keys=[]
+first_tick_phase_order_ok=True
