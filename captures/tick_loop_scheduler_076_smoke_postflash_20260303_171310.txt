@@ -1,0 +1,21 @@
+# T-076 smoke 20260303_171310
+## wait for api readiness
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+## stop session baseline
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-STOP","endpoint":"/api/v2/engine/session/stop","esp_err":"ESP_ERR_INVALID_STATE"}}}
+## start session
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"st_520_pal","profile_manifest_validation":{"path":"/sdcard/config/engine_v2/machines/atari_st/st_520_pal.json","manifest_version":1,"schema_valid":true,"normalized_profile":"st_520_pal","validated_at_us":41163196},"profile_wiring_validation":{"wiring_valid":true,"validated_modules":5,"step_order_length":5,"validated_at_us":41163196},"resolved":{"rom_id":"rom.atari.st.01","rom_path":"/sdcard/roms/st/TOS104.ROM","tos_id":"","tos_path":"","first_disk_id":""}}}
+## set mode realtime
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":false,"mode_transition_seq":0,"from_mode":"realtime","to_mode":"realtime","effective_ratio":1.000000,"reason":"already_in_target_mode"}}
+## realtime state 1
+{"ok":true,"data":{"mode":"realtime","effective_ratio":1.000000,"mode_transition_seq":0,"last_transition_at_us":0,"scheduler_hz":8000000,"tick_counter":0,"cycle_counter":0,"timestamp_origin_us":41203604,"timestamp_last_emitted_us":41203604,"timestamp_regressions":0,"arbitration_round":0}}
+## realtime state 2
+{"ok":true,"data":{"mode":"realtime","effective_ratio":1.000000,"mode_transition_seq":0,"last_transition_at_us":0,"scheduler_hz":8000000,"tick_counter":8528000,"cycle_counter":102336000,"timestamp_origin_us":41203604,"timestamp_last_emitted_us":49731604,"timestamp_regressions":0,"arbitration_round":8528000}}
+## set mode slow_motion ratio 0.250000
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":true,"mode_transition_seq":1,"from_mode":"realtime","to_mode":"slow_motion","effective_ratio":0.250000,"last_transition_at_us":42308831}}
+## slow_motion state 1
+{"ok":true,"data":{"mode":"slow_motion","effective_ratio":0.250000,"mode_transition_seq":1,"last_transition_at_us":42308831,"scheduler_hz":8000000,"tick_counter":8567530,"cycle_counter":102810360,"timestamp_origin_us":41203604,"timestamp_last_emitted_us":49771134,"timestamp_regressions":0,"arbitration_round":8567530}}
+## slow_motion state 2
+{"ok":true,"data":{"mode":"slow_motion","effective_ratio":0.250000,"mode_transition_seq":1,"last_transition_at_us":42308831,"scheduler_hz":8000000,"tick_counter":11697578,"cycle_counter":140370936,"timestamp_origin_us":41203604,"timestamp_last_emitted_us":52901182,"timestamp_regressions":0,"arbitration_round":11697578}}
+## computed deltas
+{"realtime_tick_delta":8528000,"slow_motion_tick_delta":3130048,"slow_motion_ratio_estimate":0.36703189493433397,"realtime_monotonic":true,"slow_motion_monotonic":true}

@@ -661,6 +661,7 @@ Profile fields:
 - Shared bus arbitration resolved through profile-defined policy.
 - API-visible timestamps derive from this scheduler only.
 - Deterministic tick-loop scheduler core contract (tick/cycle invariants, mode-specific execution rules for realtime/slow-motion/single-step, scheduler sequencing checks, and fail-fast guards) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `6.10A` and is normative for runtime timing behavior.
+- Runtime debug scheduler now advances tick/cycle counters deterministically from elapsed wall time in `realtime`/`slow_motion` modes and preserves monotonic timestamp emission invariants.
 - Arbitration hook layer + deterministic timestamp emitter contract (hook dispatch order, arbitration metadata fields, timestamp monotonicity/determinism checks, and fail-fast internal error mapping) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `6.10A` and is normative for observability-grade timing consistency.
 
 ---

@@ -92,12 +92,19 @@ esp_err_t esptari_web_debug_clock_mode_handler(httpd_req_t *req)
 
     const char *from_mode = esptari_web_debug_clock_mode;
     if (!idempotent) {
+        uint64_t now_us = (uint64_t)esp_timer_get_time();
         esptari_web_debug_clock_mode = strcmp(target_mode, "realtime") == 0
                                            ? "realtime"
                                            : (strcmp(target_mode, "slow_motion") == 0 ? "slow_motion" : "single_step");
         esptari_web_debug_clock_effective_ratio = target_ratio;
         esptari_web_debug_clock_mode_transition_seq++;
-        esptari_web_debug_clock_last_transition_at_us = (uint64_t)esp_timer_get_time();
+        esptari_web_debug_clock_last_transition_at_us = now_us;
+        if (esptari_web_debug_timestamp_origin_us == 0) {
+            esptari_web_debug_timestamp_origin_us = now_us;
+            esptari_web_debug_timestamp_last_emitted_us = now_us;
+        }
+        esptari_web_debug_last_advance_at_us = now_us;
+        esptari_web_debug_tick_accumulator = 0.0;
     }
 
     char resp[512];

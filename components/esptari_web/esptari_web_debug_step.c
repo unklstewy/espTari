@@ -127,6 +127,8 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
         return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"TS-CHECK-01\"}}}", 500);
     }
     esptari_web_debug_timestamp_last_emitted_us = candidate_timestamp;
+    esptari_web_debug_last_advance_at_us = (uint64_t)esp_timer_get_time();
+    esptari_web_debug_tick_accumulator = 0.0;
 
     cJSON *resp = cJSON_CreateObject();
     cJSON *data = cJSON_CreateObject();
