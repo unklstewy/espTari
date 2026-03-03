@@ -12,6 +12,7 @@ extern const uint32_t esptari_web_debug_scheduler_hz;
 extern uint64_t esptari_web_debug_timestamp_origin_us;
 extern uint64_t esptari_web_debug_timestamp_last_emitted_us;
 extern uint64_t esptari_web_debug_timestamp_regressions;
+extern uint64_t esptari_web_debug_timestamp_emit_seq;
 extern uint32_t esptari_web_debug_arbitration_round;
 extern uint64_t esptari_web_debug_last_advance_at_us;
 extern double esptari_web_debug_tick_accumulator;

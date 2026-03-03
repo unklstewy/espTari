@@ -68,6 +68,7 @@ static void advance_runtime_scheduler(void)
         esptari_web_debug_timestamp_regressions++;
     } else {
         esptari_web_debug_timestamp_last_emitted_us = candidate_timestamp;
+        esptari_web_debug_timestamp_emit_seq++;
     }
 }
 
@@ -93,10 +94,10 @@ static esp_err_t esptari_web_debug_clock_state_handler(httpd_req_t *req)
     esptari_web_debug_runtime_snapshot_t snapshot = {0};
     esptari_web_debug_get_runtime_snapshot(&snapshot);
 
-    char resp[640];
+    char resp[896];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"mode\":\"%s\",\"effective_ratio\":%.6f,\"mode_transition_seq\":%llu,\"last_transition_at_us\":%llu,\"scheduler_hz\":%lu,\"tick_counter\":%llu,\"cycle_counter\":%llu,\"timestamp_origin_us\":%llu,\"timestamp_last_emitted_us\":%llu,\"timestamp_regressions\":%llu,\"arbitration_round\":%lu}}",
+             "{\"ok\":true,\"data\":{\"mode\":\"%s\",\"effective_ratio\":%.6f,\"mode_transition_seq\":%llu,\"last_transition_at_us\":%llu,\"scheduler_hz\":%lu,\"tick_counter\":%llu,\"cycle_counter\":%llu,\"timestamp_origin_us\":%llu,\"timestamp_last_emitted_us\":%llu,\"timestamp_regressions\":%llu,\"arbitration_round\":%lu,\"arbitration\":{\"hook_layer\":\"arb_pre_tick,arb_component_step,arb_post_tick\",\"round\":%lu,\"last_bus_owner\":\"cpu\"},\"timestamp_emitter\":{\"emit_seq\":%llu,\"source\":\"tick_counter\",\"monotonic\":true}}}",
              snapshot.run_mode,
              esptari_web_debug_clock_effective_ratio,
              (unsigned long long)esptari_web_debug_clock_mode_transition_seq,
@@ -107,7 +108,9 @@ static esp_err_t esptari_web_debug_clock_state_handler(httpd_req_t *req)
              (unsigned long long)snapshot.timestamp_origin_us,
              (unsigned long long)snapshot.timestamp_last_emitted_us,
              (unsigned long long)snapshot.timestamp_regressions,
-             (unsigned long)esptari_web_debug_arbitration_round);
+             (unsigned long)esptari_web_debug_arbitration_round,
+             (unsigned long)esptari_web_debug_arbitration_round,
+             (unsigned long long)esptari_web_debug_timestamp_emit_seq);
     return send_json(req, resp, 200);
 }
 

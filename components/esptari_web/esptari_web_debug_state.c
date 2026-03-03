@@ -10,6 +10,7 @@ const uint32_t esptari_web_debug_scheduler_hz = 8000000U;
 uint64_t esptari_web_debug_timestamp_origin_us;
 uint64_t esptari_web_debug_timestamp_last_emitted_us;
 uint64_t esptari_web_debug_timestamp_regressions;
+uint64_t esptari_web_debug_timestamp_emit_seq;
 uint32_t esptari_web_debug_arbitration_round;
 uint64_t esptari_web_debug_last_advance_at_us;
 double esptari_web_debug_tick_accumulator;
