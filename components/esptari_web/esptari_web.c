@@ -1216,6 +1216,10 @@ static esp_err_t clock_step_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"STEP-CTRL-03\",\"endpoint\":\"/api/v2/debug/clock/step\",\"esp_err\":\"ESP_ERR_INVALID_STATE\"}}}", 409);
     }
 
+    if (capture_register_delta) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"CAP-DIAG-PROFILE\",\"endpoint\":\"/api/v2/debug/clock/step\",\"esp_err\":\"ESP_ERR_INVALID_STATE\"}}}", 409);
+    }
+
     uint64_t tick_before = debug_tick_counter;
     uint64_t cycle_before = debug_cycle_counter;
     uint64_t ticks_committed = (uint64_t)steps;

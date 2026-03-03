@@ -1,0 +1,16 @@
+base=http://esptari.local
+--- start
+{"ok":true}
+HTTP_STATUS:200
+--- set single_step mode
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":true,"mode_transition_seq":1,"from_mode":"realtime","to_mode":"single_step","effective_ratio":1.000000,"last_transition_at_us":15629736}}
+HTTP_STATUS:200
+--- unsupported capture selector trace_raw (expect DEBUG_STEP_INVALID)
+{"ok":false,"error":{"code":"DEBUG_STEP_INVALID"}}
+HTTP_STATUS:400
+--- profile-unavailable capture selector register_delta (expect INVALID_SESSION_STATE)
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"CAP-DIAG-PROFILE","endpoint":"/api/v2/debug/clock/step","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- valid capture selectors opcode,bus_error
+{"ok":true,"data":{"session_id":"ses_local","run_mode":"single_step","steps_requested":2,"ticks_committed":2,"tick_counter_before":0,"tick_counter_after":2,"cycle_counter_before":0,"cycle_counter_after":24,"scheduler_hook_stats":{"ticks_with_hooks":2,"hook_order_violations":0,"component_step_mismatches":0},"capture_payloads":[{"kind":"opcode_capture_v1","tick_counter":1,"cycle_counter":12,"pc":16777218,"opcode_word":"0x4E71","instruction_size_bytes":2},{"kind":"bus_error_capture_v1","tick_counter":1,"cycle_counter":12,"fault_address":16785412,"access_type":"instruction_fetch","fault_phase":"ack","vector":2},{"kind":"opcode_capture_v1","tick_counter":2,"cycle_counter":24,"pc":16777220,"opcode_word":"0x4E71","instruction_size_bytes":2},{"kind":"bus_error_capture_v1","tick_counter":2,"cycle_counter":24,"fault_address":16785416,"access_type":"instruction_fetch","fault_phase":"ack","vector":2}]}}
+HTTP_STATUS:200
