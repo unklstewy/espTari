@@ -9,10 +9,10 @@
 #include "esp_err.h"
 #include "esp_timer.h"
 #include "esptari_web_catalog_state.h"
+#include "esptari_web_catalog_utils.h"
 #include "esptari_web_http_utils.h"
 
 #define send_json esptari_web_send_json
-#define read_request_body esptari_web_read_request_body
 #define json_get_string esptari_web_json_get_string
 
 static bool is_allowed_scan_root(const char *root)
@@ -33,30 +33,24 @@ static bool is_allowed_scan_root(const char *root)
 
 esp_err_t esptari_web_catalog_mark_dead_handler(httpd_req_t *req)
 {
-    char catalog[32] = {0};
-    if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/mark-dead", catalog) != 1) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-
-    const catalog_def_t *def = esptari_web_catalog_find(catalog);
-    if (def == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
+    const catalog_def_t *def = NULL;
+    esp_err_t resolve_err = esptari_web_catalog_resolve_def(req, "/api/v2/catalogs/%31[^/]/mark-dead", &def);
+    if (resolve_err != ESP_OK) {
+        return resolve_err;
     }
 
     char body[512];
-    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-    cJSON *root = cJSON_Parse(body);
-    if (root == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    cJSON *root = NULL;
+    esp_err_t parse_err = esptari_web_catalog_parse_body_json(req, body, sizeof(body), &root);
+    if (parse_err != ESP_OK) {
+        return parse_err;
     }
 
     const char *entry_id = NULL;
     const char *reason = NULL;
     if (!json_get_string(root, "entry_id", &entry_id) || !json_get_string(root, "reason", &reason)) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
     }
     bool has_non_space = false;
     for (const char *p = reason; *p != '\0'; p++) {
@@ -67,19 +61,19 @@ esp_err_t esptari_web_catalog_mark_dead_handler(httpd_req_t *req)
     }
     if (!has_non_space) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
     }
 
     int entry_index = esptari_web_catalog_find_entry_index(def, entry_id);
     if (entry_index < 0) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_ENTRY_NOT_FOUND\"}}", 404);
+        return esptari_web_catalog_error(req, "CATALOG_ENTRY_NOT_FOUND", 404);
     }
 
     catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, (size_t)entry_index);
     if (runtime == NULL) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CONFLICT\"}}", 409);
+        return esptari_web_catalog_error(req, "CONFLICT", 409);
     }
 
     const char *state_before = esptari_web_catalog_entry_state(def, (size_t)entry_index);
@@ -111,29 +105,24 @@ esp_err_t esptari_web_catalog_mark_dead_handler(httpd_req_t *req)
 
 esp_err_t esptari_web_catalog_rescan_local_handler(httpd_req_t *req)
 {
-    char catalog[32] = {0};
-    if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/rescan-local", catalog) != 1) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-    const catalog_def_t *def = esptari_web_catalog_find(catalog);
-    if (def == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
+    const catalog_def_t *def = NULL;
+    esp_err_t resolve_err = esptari_web_catalog_resolve_def(req, "/api/v2/catalogs/%31[^/]/rescan-local", &def);
+    if (resolve_err != ESP_OK) {
+        return resolve_err;
     }
 
     char body[1024];
-    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-    cJSON *root = cJSON_Parse(body);
-    if (root == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    cJSON *root = NULL;
+    esp_err_t parse_err = esptari_web_catalog_parse_body_json(req, body, sizeof(body), &root);
+    if (parse_err != ESP_OK) {
+        return parse_err;
     }
 
     cJSON *hash_mode = cJSON_GetObjectItemCaseSensitive(root, "hash_mode");
     if (cJSON_IsString(hash_mode) && hash_mode->valuestring != NULL &&
         strcmp(hash_mode->valuestring, "metadata_only") != 0 && strcmp(hash_mode->valuestring, "full") != 0) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
     }
 
     cJSON *scan_roots = cJSON_GetObjectItemCaseSensitive(root, "scan_roots");
@@ -143,7 +132,7 @@ esp_err_t esptari_web_catalog_rescan_local_handler(httpd_req_t *req)
         {
             if (!cJSON_IsString(root_item) || root_item->valuestring == NULL || !is_allowed_scan_root(root_item->valuestring)) {
                 cJSON_Delete(root);
-                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"PATH_NOT_ALLOWED\"}}", 400);
+                return esptari_web_catalog_error(req, "PATH_NOT_ALLOWED", 400);
             }
         }
     }

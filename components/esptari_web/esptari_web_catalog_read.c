@@ -10,6 +10,7 @@
 #include "cJSON.h"
 #include "esp_err.h"
 #include "esptari_web_catalog_state.h"
+#include "esptari_web_catalog_utils.h"
 #include "esptari_web_http_utils.h"
 
 #define send_json esptari_web_send_json
@@ -63,14 +64,10 @@ esp_err_t esptari_web_catalogs_list_handler(httpd_req_t *req)
 
 static esp_err_t catalog_entries_list_handler(httpd_req_t *req)
 {
-    char catalog[32] = {0};
-    if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/entries", catalog) != 1) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-
-    const catalog_def_t *def = esptari_web_catalog_find(catalog);
-    if (def == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
+    const catalog_def_t *def = NULL;
+    esp_err_t resolve_err = esptari_web_catalog_resolve_def(req, "/api/v2/catalogs/%31[^/]/entries", &def);
+    if (resolve_err != ESP_OK) {
+        return resolve_err;
     }
 
     char query[96] = {0};
@@ -124,20 +121,17 @@ static esp_err_t catalog_entries_list_handler(httpd_req_t *req)
 
 static esp_err_t catalog_entry_get_handler(httpd_req_t *req)
 {
-    char catalog[32] = {0};
     char entry_id[128] = {0};
-    if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/entries/%127s", catalog, entry_id) != 2) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-
-    const catalog_def_t *def = esptari_web_catalog_find(catalog);
-    if (def == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
-    }
-
-    int entry_index = esptari_web_catalog_find_entry_index(def, entry_id);
-    if (entry_index < 0) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_ENTRY_NOT_FOUND\"}}", 404);
+    const catalog_def_t *def = NULL;
+    int entry_index = -1;
+    esp_err_t resolve_err = esptari_web_catalog_resolve_entry(req,
+                                                              "/api/v2/catalogs/%31[^/]/entries/%127s",
+                                                              &def,
+                                                              &entry_index,
+                                                              entry_id,
+                                                              sizeof(entry_id));
+    if (resolve_err != ESP_OK) {
+        return resolve_err;
     }
 
     const catalog_entry_t *match = &def->entries[(size_t)entry_index];
@@ -159,13 +153,10 @@ static esp_err_t catalog_entry_get_handler(httpd_req_t *req)
 
 static esp_err_t catalog_missing_report_handler(httpd_req_t *req)
 {
-    char catalog[32] = {0};
-    if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/missing-report", catalog) != 1) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-    const catalog_def_t *def = esptari_web_catalog_find(catalog);
-    if (def == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
+    const catalog_def_t *def = NULL;
+    esp_err_t resolve_err = esptari_web_catalog_resolve_def(req, "/api/v2/catalogs/%31[^/]/missing-report", &def);
+    if (resolve_err != ESP_OK) {
+        return resolve_err;
     }
     if (esptari_web_catalog_last_scan_id()[0] == '\0') {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CONFLICT\",\"details\":{\"required_operation\":\"POST /api/v2/catalogs/floppies/rescan-local\"}}}", 409);
@@ -175,12 +166,12 @@ static esp_err_t catalog_missing_report_handler(httpd_req_t *req)
     uint32_t limit = 200;
     if (query_value(req, "limit", limit_str, sizeof(limit_str))) {
         if (!parse_u32_str(limit_str, &limit) || limit == 0) {
-            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
         }
     }
     char state[24] = {0};
     if (query_value(req, "state", state, sizeof(state)) && strcmp(state, "missing") != 0) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
     }
     char since_scan_id[48] = {0};
     if (query_value(req, "since_scan_id", since_scan_id, sizeof(since_scan_id))) {

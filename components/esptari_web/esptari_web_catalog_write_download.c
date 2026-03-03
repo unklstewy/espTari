@@ -9,38 +9,31 @@
 #include "esp_err.h"
 #include "esp_timer.h"
 #include "esptari_web_catalog_state.h"
+#include "esptari_web_catalog_utils.h"
 #include "esptari_web_http_utils.h"
 
 #define send_json esptari_web_send_json
-#define read_request_body esptari_web_read_request_body
 #define json_get_string esptari_web_json_get_string
 
 esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
 {
-    char catalog[32] = {0};
-    if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/download-entry", catalog) != 1) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-
-    const catalog_def_t *def = esptari_web_catalog_find(catalog);
-    if (def == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
+    const catalog_def_t *def = NULL;
+    esp_err_t resolve_err = esptari_web_catalog_resolve_def(req, "/api/v2/catalogs/%31[^/]/download-entry", &def);
+    if (resolve_err != ESP_OK) {
+        return resolve_err;
     }
 
     char body[512];
-    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-
-    cJSON *root = cJSON_Parse(body);
-    if (root == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    cJSON *root = NULL;
+    esp_err_t parse_err = esptari_web_catalog_parse_body_json(req, body, sizeof(body), &root);
+    if (parse_err != ESP_OK) {
+        return parse_err;
     }
 
     const char *entry_id = NULL;
     if (!json_get_string(root, "entry_id", &entry_id) || entry_id[0] == '\0') {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
     }
 
     bool overwrite = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "overwrite"));
@@ -50,7 +43,7 @@ esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
     int entry_index = esptari_web_catalog_find_entry_index(def, entry_id);
     if (entry_index < 0) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_ENTRY_NOT_FOUND\"}}", 404);
+        return esptari_web_catalog_error(req, "CATALOG_ENTRY_NOT_FOUND", 404);
     }
 
     const catalog_entry_t *entry = &def->entries[(size_t)entry_index];
@@ -59,7 +52,7 @@ esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
 
     if (entry->hosted_url == NULL || entry->hosted_url[0] == '\0') {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
     }
     if (strcmp(state, "dead") == 0 && !allow_dead_retry) {
         cJSON_Delete(root);
@@ -71,7 +64,7 @@ esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
     }
     if (verify_sha256 && (entry->sha256_expected == NULL || entry->sha256_expected[0] == '\0')) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
     }
 
     uint64_t now_us = (uint64_t)esp_timer_get_time();
@@ -96,26 +89,20 @@ esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
 
 esp_err_t esptari_web_catalog_download_missing_handler(httpd_req_t *req)
 {
-    char catalog[32] = {0};
-    if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/download-missing", catalog) != 1) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-
-    const catalog_def_t *def = esptari_web_catalog_find(catalog);
-    if (def == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
+    const catalog_def_t *def = NULL;
+    esp_err_t resolve_err = esptari_web_catalog_resolve_def(req, "/api/v2/catalogs/%31[^/]/download-missing", &def);
+    if (resolve_err != ESP_OK) {
+        return resolve_err;
     }
 
     uint32_t limit = 100;
     bool skip_dead = true;
     char body[512];
     if (req->content_len > 0) {
-        if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
-            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-        }
-        cJSON *root = cJSON_Parse(body);
-        if (root == NULL) {
-            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        cJSON *root = NULL;
+        esp_err_t parse_err = esptari_web_catalog_parse_body_json(req, body, sizeof(body), &root);
+        if (parse_err != ESP_OK) {
+            return parse_err;
         }
         cJSON *limit_item = cJSON_GetObjectItemCaseSensitive(root, "limit");
         if (cJSON_IsNumber(limit_item) && limit_item->valuedouble > 0) {
@@ -151,24 +138,17 @@ esp_err_t esptari_web_catalog_download_missing_handler(httpd_req_t *req)
 
 esp_err_t esptari_web_catalog_probe_links_handler(httpd_req_t *req)
 {
-    char catalog[32] = {0};
-    if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/probe-links", catalog) != 1) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-
-    const catalog_def_t *def = esptari_web_catalog_find(catalog);
-    if (def == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
+    const catalog_def_t *def = NULL;
+    esp_err_t resolve_err = esptari_web_catalog_resolve_def(req, "/api/v2/catalogs/%31[^/]/probe-links", &def);
+    if (resolve_err != ESP_OK) {
+        return resolve_err;
     }
 
     char body[512];
-    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-
-    cJSON *root = cJSON_Parse(body);
-    if (root == NULL) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    cJSON *root = NULL;
+    esp_err_t parse_err = esptari_web_catalog_parse_body_json(req, body, sizeof(body), &root);
+    if (parse_err != ESP_OK) {
+        return parse_err;
     }
 
     uint32_t limit = 500;
@@ -190,7 +170,7 @@ esp_err_t esptari_web_catalog_probe_links_handler(httpd_req_t *req)
     cJSON_Delete(root);
 
     if (timeout_ms == 0 || mark_dead_after_failures < 1) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
     }
 
     uint64_t started_at_us = (uint64_t)esp_timer_get_time();
