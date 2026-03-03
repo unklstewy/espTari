@@ -32,8 +32,6 @@ This board is the operational view for daily execution.
 
 - T-092 (conformance harness scaffold + manifest loader)
 - T-093 (evidence artifact collection + report packaging flow)
-- T-090 (stream backpressure counters + watermark metrics)
-- T-091 (backpressure telemetry/event exposure)
 
 ### In Review
 
@@ -49,6 +47,8 @@ This board is the operational view for daily execution.
 ### Done
 
 - T-054 through T-121
+- T-090 (stream backpressure counters + watermark metrics)
+- T-091 (backpressure telemetry/event exposure)
 - PRQ-001 (core runtime code-path closure)
 - PRQ-002 (deterministic fixture/scenario package)
 - PRQ-003 (deployment workflow documentation)

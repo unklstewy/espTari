@@ -8,10 +8,20 @@ Establish the runtime validation scaffold for backpressure telemetry and SLO ala
 
 ## Task activation summary
 
-- `T-090`: moved to `In Progress`
-- `T-091`: moved to `In Progress`
+- `T-090`: moved to `Done` (implemented + validated)
+- `T-091`: moved to `Done` (implemented + validated)
 - `T-116`: moved to `Ready`
 - `T-117`: moved to `Ready`
+
+## Implementation validation snapshot (T-090/T-091)
+
+- Code slice: `components/esptari_web/esptari_web_stream.c`
+- Route contract verification: `./.venv/bin/python tools/verify_api_v2_routes.py` -> `PASSED` (78 routes)
+- Firmware build validation: ESP-IDF `build` command completed successfully (`espTari.bin` generated)
+- Behavioral closure highlights:
+   - per-stream backpressure counters/watermarks now tracked for `video|audio|engine|registers|bus|memory`
+   - telemetry snapshot endpoint enforces required query params and documented error semantics (`BAD_REQUEST`, `ENGINE_NOT_RUNNING`, `INSPECT_FILTER_INVALID`)
+   - stream payload now includes `stream_backpressure_telemetry` event object aligned to section `10.8`
 
 ## Validation dimensions
 

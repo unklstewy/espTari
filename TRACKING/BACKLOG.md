@@ -105,8 +105,8 @@ AI-speed policy:
 | T-087 | EPIC-05 | Implement register snapshot stream publisher and validation checks | P1 | S | S4 | Backlog | T-086 |
 | T-088 | EPIC-05 | Define bus/memory filter request model and guard rules | P1 | S | S4 | Backlog | T-087 |
 | T-089 | EPIC-05 | Implement filtered bus/memory stream and load validation run | P1 | S | S4 | Backlog | T-088 |
-| T-090 | EPIC-05 | Implement stream backpressure counters and watermark metrics | P1 | XS | S4 | In Progress | T-083, T-085, T-089 |
-| T-091 | EPIC-05 | Expose backpressure telemetry via API and event streams | P1 | S | S4 | In Progress | T-090 |
+| T-090 | EPIC-05 | Implement stream backpressure counters and watermark metrics | P1 | XS | S4 | Done | T-083, T-085, T-089 |
+| T-091 | EPIC-05 | Expose backpressure telemetry via API and event streams | P1 | S | S4 | Done | T-090 |
 | T-092 | EPIC-06 | Build conformance harness scaffold and test manifest loader | P1 | S | S4 | In Progress | T-075, T-083, T-085 |
 | T-093 | EPIC-06 | Implement evidence artifact collection and report packaging flow | P1 | S | S4 | In Progress | T-092 |
 | T-094 | EPIC-06 | Implement acceptance checklist execution runner | P0 | S | S4 | Ready | T-093 |

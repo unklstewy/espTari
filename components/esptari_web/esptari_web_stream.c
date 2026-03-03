@@ -12,12 +12,146 @@
 #define send_json esptari_web_send_json
 #define query_value esptari_web_query_value
 
+#define STREAM_QUEUE_CAPACITY 128u
+#define STREAM_QUEUE_DEPTH_IDLE 32u
+
+typedef enum {
+    STREAM_KIND_VIDEO = 0,
+    STREAM_KIND_AUDIO,
+    STREAM_KIND_ENGINE,
+    STREAM_KIND_REGISTERS,
+    STREAM_KIND_BUS,
+    STREAM_KIND_MEMORY,
+    STREAM_KIND_COUNT,
+} stream_kind_t;
+
+typedef struct {
+    uint32_t queue_depth;
+    uint32_t queue_capacity;
+    uint32_t high_watermark_depth;
+    uint32_t dropped_events_since_last;
+    bool throttle_active;
+    uint64_t dropped_events;
+    uint64_t overflow_events_total;
+    uint64_t throttle_transitions_total;
+    uint64_t sample_timestamp_us;
+} stream_backpressure_metrics_t;
+
 static uint64_t stream_event_seq;
-static uint64_t backpressure_overflow_total;
-static uint64_t backpressure_throttle_transitions_total;
-static bool backpressure_throttle_active;
 static uint64_t slo_alarm_seq;
 static bool slo_alarm_breached;
+static stream_backpressure_metrics_t stream_metrics[STREAM_KIND_COUNT] = {
+    [STREAM_KIND_VIDEO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
+    [STREAM_KIND_AUDIO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
+    [STREAM_KIND_ENGINE] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
+    [STREAM_KIND_REGISTERS] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
+    [STREAM_KIND_BUS] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
+    [STREAM_KIND_MEMORY] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
+};
+
+static const char *stream_kind_name(stream_kind_t stream)
+{
+    switch (stream) {
+        case STREAM_KIND_VIDEO:
+            return "video";
+        case STREAM_KIND_AUDIO:
+            return "audio";
+        case STREAM_KIND_ENGINE:
+            return "engine";
+        case STREAM_KIND_REGISTERS:
+            return "registers";
+        case STREAM_KIND_BUS:
+            return "bus";
+        case STREAM_KIND_MEMORY:
+            return "memory";
+        default:
+            return "video";
+    }
+}
+
+static bool stream_kind_from_name(const char *name, stream_kind_t *out_stream)
+{
+    if (name == NULL || out_stream == NULL) {
+        return false;
+    }
+
+    if (strcmp(name, "video") == 0) {
+        *out_stream = STREAM_KIND_VIDEO;
+        return true;
+    }
+    if (strcmp(name, "audio") == 0) {
+        *out_stream = STREAM_KIND_AUDIO;
+        return true;
+    }
+    if (strcmp(name, "engine") == 0) {
+        *out_stream = STREAM_KIND_ENGINE;
+        return true;
+    }
+    if (strcmp(name, "registers") == 0) {
+        *out_stream = STREAM_KIND_REGISTERS;
+        return true;
+    }
+    if (strcmp(name, "bus") == 0) {
+        *out_stream = STREAM_KIND_BUS;
+        return true;
+    }
+    if (strcmp(name, "memory") == 0) {
+        *out_stream = STREAM_KIND_MEMORY;
+        return true;
+    }
+
+    return false;
+}
+
+static stream_backpressure_metrics_t *stream_metrics_for(stream_kind_t stream)
+{
+    if ((int)stream < 0 || stream >= STREAM_KIND_COUNT) {
+        return NULL;
+    }
+    return &stream_metrics[stream];
+}
+
+static void update_backpressure_metrics(stream_backpressure_metrics_t *metrics,
+                                        bool pressure_active,
+                                        uint64_t timestamp_us,
+                                        uint32_t *dropped_events_since_last,
+                                        uint32_t *coalesced_updates)
+{
+    if (metrics == NULL || dropped_events_since_last == NULL || coalesced_updates == NULL) {
+        return;
+    }
+
+    bool previous_throttle = metrics->throttle_active;
+
+    *dropped_events_since_last = 0;
+    *coalesced_updates = 0;
+
+    if (pressure_active) {
+        metrics->queue_depth = metrics->queue_capacity;
+        metrics->throttle_active = true;
+        *dropped_events_since_last = 1;
+        *coalesced_updates = 1;
+        metrics->dropped_events += (uint64_t)(*dropped_events_since_last);
+        metrics->overflow_events_total += 1;
+    } else {
+        metrics->queue_depth = STREAM_QUEUE_DEPTH_IDLE;
+        metrics->throttle_active = false;
+    }
+
+    if (metrics->queue_depth > metrics->high_watermark_depth) {
+        metrics->high_watermark_depth = metrics->queue_depth;
+    }
+    if (metrics->high_watermark_depth > metrics->queue_capacity) {
+        metrics->high_watermark_depth = metrics->queue_capacity;
+    }
+
+    if (previous_throttle != metrics->throttle_active) {
+        metrics->throttle_transitions_total += 1;
+    }
+
+    metrics->dropped_events_since_last = *dropped_events_since_last;
+    metrics->sample_timestamp_us = timestamp_us;
+}
 
 static bool starts_with_unknown(const char *value)
 {
@@ -75,7 +209,7 @@ static esp_err_t stream_guard_running(httpd_req_t *req)
     return ESP_OK;
 }
 
-static esp_err_t emit_stream_probe(httpd_req_t *req, const char *stream_name)
+static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
 {
     esp_err_t guard = stream_guard_running(req);
     if (guard != ESP_OK) {
@@ -89,27 +223,28 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, const char *stream_name)
 
     stream_event_seq++;
     uint64_t timestamp_us = (uint64_t)esp_timer_get_time();
-
-    bool degraded = false;
-    const char *delivery_reason = "none";
-    uint64_t dropped_events_since_last = 0;
-    uint64_t coalesced_updates = 0;
+    const char *stream_name = stream_kind_name(stream);
+    stream_backpressure_metrics_t *metrics = stream_metrics_for(stream);
+    if (metrics == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
 
     char backpressure[16] = {0};
-    if (query_value(req, "backpressure", backpressure, sizeof(backpressure)) && strcmp(backpressure, "1") == 0) {
-        degraded = true;
-        delivery_reason = "queue_overflow";
-        dropped_events_since_last = 1;
-        coalesced_updates = 1;
-        backpressure_overflow_total++;
-        if (!backpressure_throttle_active) {
-            backpressure_throttle_active = true;
-            backpressure_throttle_transitions_total++;
-        }
-    } else if (backpressure_throttle_active) {
-        backpressure_throttle_active = false;
-        backpressure_throttle_transitions_total++;
-    }
+    bool pressure_active = query_value(req, "backpressure", backpressure, sizeof(backpressure)) && strcmp(backpressure, "1") == 0;
+    uint32_t dropped_events_since_last = 0;
+    uint32_t coalesced_updates = 0;
+    update_backpressure_metrics(metrics,
+                                pressure_active,
+                                timestamp_us,
+                                &dropped_events_since_last,
+                                &coalesced_updates);
+
+    bool degraded = dropped_events_since_last > 0 || coalesced_updates > 0 || metrics->throttle_active;
+    const char *delivery_reason = (dropped_events_since_last > 0 || coalesced_updates > 0)
+                                      ? "queue_overflow"
+                                      : "none";
+
+    double high_watermark_ratio = (double)metrics->high_watermark_depth / (double)metrics->queue_capacity;
 
     const char *slo_state = "normal";
     const char *slo_severity = "info";
@@ -130,24 +265,40 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, const char *stream_name)
         slo_severity = "warning";
     }
 
-    char resp[896];
+    char resp[1792];
     snprintf(resp, sizeof(resp),
-             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%llu,\"coalesced_updates\":%llu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%u,\"queue_capacity\":128,\"dropped_events\":%llu,\"dropped_events_since_last\":%llu,\"throttle_active\":%s,\"high_watermark_depth\":128,\"high_watermark_ratio\":1.0,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
              stream_name,
              (unsigned long long)stream_event_seq,
              (unsigned long long)timestamp_us,
              degraded ? "true" : "false",
              delivery_reason,
-             (unsigned long long)dropped_events_since_last,
-             (unsigned long long)coalesced_updates,
-             backpressure_throttle_active ? "true" : "false",
-             backpressure_throttle_active ? 96u : 32u,
-             (unsigned long long)backpressure_overflow_total,
-             (unsigned long long)dropped_events_since_last,
-             backpressure_throttle_active ? "true" : "false",
-             (unsigned long long)backpressure_overflow_total,
-             (unsigned long long)backpressure_throttle_transitions_total,
+             (unsigned long)dropped_events_since_last,
+             (unsigned long)coalesced_updates,
+             metrics->throttle_active ? "true" : "false",
+             (unsigned long)metrics->queue_depth,
+             (unsigned long)metrics->queue_capacity,
+             (unsigned long long)metrics->dropped_events,
+             (unsigned long)metrics->dropped_events_since_last,
+             metrics->throttle_active ? "true" : "false",
+             (unsigned long)metrics->high_watermark_depth,
+             high_watermark_ratio,
+             (unsigned long long)metrics->overflow_events_total,
+             (unsigned long long)metrics->throttle_transitions_total,
+             (unsigned long long)metrics->sample_timestamp_us,
+             (unsigned long long)stream_event_seq,
              (unsigned long long)timestamp_us,
+             stream_name,
+             (unsigned long)metrics->queue_depth,
+             (unsigned long)metrics->queue_capacity,
+             (unsigned long long)metrics->dropped_events,
+             (unsigned long)metrics->dropped_events_since_last,
+             metrics->throttle_active ? "true" : "false",
+             (unsigned long)metrics->high_watermark_depth,
+             high_watermark_ratio,
+             (unsigned long long)metrics->overflow_events_total,
+             (unsigned long long)metrics->throttle_transitions_total,
+             (unsigned long long)metrics->sample_timestamp_us,
              (unsigned long long)slo_alarm_seq,
              slo_state,
              slo_severity);
@@ -156,77 +307,81 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, const char *stream_name)
 
 static esp_err_t stream_video_handler(httpd_req_t *req)
 {
-    return emit_stream_probe(req, "video");
+    return emit_stream_probe(req, STREAM_KIND_VIDEO);
 }
 
 static esp_err_t stream_audio_handler(httpd_req_t *req)
 {
-    return emit_stream_probe(req, "audio");
+    return emit_stream_probe(req, STREAM_KIND_AUDIO);
 }
 
 static esp_err_t stream_engine_handler(httpd_req_t *req)
 {
-    return emit_stream_probe(req, "engine");
+    return emit_stream_probe(req, STREAM_KIND_ENGINE);
 }
 
 static esp_err_t inspect_registers_stream_handler(httpd_req_t *req)
 {
-    return emit_stream_probe(req, "registers");
+    return emit_stream_probe(req, STREAM_KIND_REGISTERS);
 }
 
 static esp_err_t inspect_bus_stream_handler(httpd_req_t *req)
 {
-    return emit_stream_probe(req, "bus");
+    return emit_stream_probe(req, STREAM_KIND_BUS);
 }
 
 static esp_err_t inspect_memory_stream_handler(httpd_req_t *req)
 {
-    return emit_stream_probe(req, "memory");
-}
-
-static bool is_known_stream_name(const char *stream)
-{
-    return stream != NULL &&
-           (strcmp(stream, "video") == 0 ||
-            strcmp(stream, "audio") == 0 ||
-            strcmp(stream, "engine") == 0 ||
-            strcmp(stream, "registers") == 0 ||
-            strcmp(stream, "bus") == 0 ||
-            strcmp(stream, "memory") == 0);
+    return emit_stream_probe(req, STREAM_KIND_MEMORY);
 }
 
 static esp_err_t stream_backpressure_telemetry_handler(httpd_req_t *req)
 {
-    char stream_name[24] = "video";
-    char session_id[64] = "ses_local";
-    if (query_value(req, "stream", stream_name, sizeof(stream_name)) && !is_known_stream_name(stream_name)) {
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    esp_err_t guard = stream_guard_running(req);
+    if (guard != ESP_OK) {
+        return guard;
     }
-    if (query_value(req, "session_id", session_id, sizeof(session_id)) && session_id[0] == '\0') {
+
+    char stream_name[24] = {0};
+    char session_id[64] = {0};
+
+    if (!query_value(req, "session_id", session_id, sizeof(session_id)) || session_id[0] == '\0') {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
-    uint64_t sample_timestamp_us = (uint64_t)esp_timer_get_time();
-    uint32_t queue_capacity = 128;
-    uint32_t queue_depth = backpressure_throttle_active ? 96 : 32;
-    uint32_t high_watermark_depth = backpressure_throttle_active ? 128 : queue_depth;
-    double high_watermark_ratio = (double)high_watermark_depth / (double)queue_capacity;
+    if (!query_value(req, "stream", stream_name, sizeof(stream_name)) || stream_name[0] == '\0') {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    stream_kind_t stream_kind = STREAM_KIND_VIDEO;
+    if (!stream_kind_from_name(stream_name, &stream_kind)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INSPECT_FILTER_INVALID\"}}", 400);
+    }
+
+    stream_backpressure_metrics_t *metrics = stream_metrics_for(stream_kind);
+    if (metrics == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    metrics->sample_timestamp_us = (uint64_t)esp_timer_get_time();
+    double high_watermark_ratio = (double)metrics->high_watermark_depth / (double)metrics->queue_capacity;
 
     char resp[640];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"stream\":\"%s\",\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"stream\":\"%s\",\"sample_timestamp_us\":%llu,\"queue_depth\":%lu,\"queue_capacity\":%lu,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"overflow_events_total\":%llu,\"throttle_active\":%s,\"throttle_transitions_total\":%llu}}",
              session_id,
-             stream_name,
-             (unsigned long)queue_depth,
-             (unsigned long)queue_capacity,
-             (unsigned long long)backpressure_overflow_total,
-             backpressure_throttle_active ? "true" : "false",
-             (unsigned long)high_watermark_depth,
+             stream_kind_name(stream_kind),
+             (unsigned long long)metrics->sample_timestamp_us,
+             (unsigned long)metrics->queue_depth,
+             (unsigned long)metrics->queue_capacity,
+             (unsigned long)metrics->high_watermark_depth,
              high_watermark_ratio,
-             (unsigned long long)backpressure_overflow_total,
-             (unsigned long long)backpressure_throttle_transitions_total,
-             (unsigned long long)sample_timestamp_us);
+             (unsigned long long)metrics->dropped_events,
+             (unsigned long)metrics->dropped_events_since_last,
+             (unsigned long long)metrics->overflow_events_total,
+             metrics->throttle_active ? "true" : "false",
+             (unsigned long long)metrics->throttle_transitions_total);
     return send_json(req, resp, 200);
 }
 
@@ -236,7 +391,10 @@ void esptari_web_stream_get_runtime_snapshot(esptari_web_stream_runtime_snapshot
         return;
     }
 
-    out->dropped_packets_total = backpressure_overflow_total;
+    out->dropped_packets_total = 0;
+    for (int i = 0; i < (int)STREAM_KIND_COUNT; ++i) {
+        out->dropped_packets_total += stream_metrics[i].dropped_events;
+    }
 }
 
 void esptari_web_stream_register_routes(httpd_handle_t server_handle)
