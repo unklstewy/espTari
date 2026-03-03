@@ -1,0 +1,8 @@
+== stop (pre) ==
+{"ok":true}
+== start with valid rom_id/disk_ids/tos_id ==
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"st_520_pal","resolved":{"rom_id":"rom.atari.st.01","rom_path":"/sdcard/roms/st/TOS104.ROM","tos_id":"tos.eu.1.04","tos_path":"/sdcard/tos/TOS104.IMG","first_disk_id":"disk.automation.a_093"}}}
+== stop (mid) ==
+{"ok":true}
+== start with missing rom_id entry ==
+{"ok":false,"error":{"code":"CATALOG_ENTRY_NOT_FOUND","details":{"entry_id":"rom.missing"}}}

@@ -7,6 +7,7 @@
 #include "cJSON.h"
 #include "esp_err.h"
 #include "esptari_core.h"
+#include "esptari_web_catalog_state.h"
 #include "esptari_web_http_utils.h"
 
 static esp_err_t handle_state_change(httpd_req_t *req,
@@ -39,12 +40,192 @@ static esp_err_t handle_state_change(httpd_req_t *req,
     return esptari_web_send_json(req, buf, status_code);
 }
 
+static esp_err_t send_start_error(httpd_req_t *req,
+                                  const char *code,
+                                  int status_code,
+                                  const char *detail_key,
+                                  const char *detail_value)
+{
+    if (detail_key == NULL || detail_value == NULL) {
+        char payload[160];
+        snprintf(payload, sizeof(payload), "{\"ok\":false,\"error\":{\"code\":\"%s\"}}", code);
+        return esptari_web_send_json(req, payload, status_code);
+    }
+
+    char payload[320];
+    snprintf(payload,
+             sizeof(payload),
+             "{\"ok\":false,\"error\":{\"code\":\"%s\",\"details\":{\"%s\":\"%s\"}}}",
+             code,
+             detail_key,
+             detail_value);
+    return esptari_web_send_json(req, payload, status_code);
+}
+
+static bool parse_optional_string(cJSON *root, const char *field, char *out, size_t out_len)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(root, field);
+    if (item == NULL) {
+        out[0] = '\0';
+        return true;
+    }
+    if (!cJSON_IsString(item) || item->valuestring == NULL || item->valuestring[0] == '\0') {
+        return false;
+    }
+    strlcpy(out, item->valuestring, out_len);
+    return true;
+}
+
+static bool parse_required_string(cJSON *root, const char *field, char *out, size_t out_len)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(root, field);
+    if (!cJSON_IsString(item) || item->valuestring == NULL || item->valuestring[0] == '\0') {
+        return false;
+    }
+    strlcpy(out, item->valuestring, out_len);
+    return true;
+}
+
+static esp_err_t resolve_catalog_entry(httpd_req_t *req,
+                                       const char *catalog_name,
+                                       const char *entry_id,
+                                       bool require_local,
+                                       const char **out_local_path)
+{
+    const catalog_def_t *def = esptari_web_catalog_find(catalog_name);
+    if (def == NULL) {
+        return send_start_error(req, "CATALOG_NOT_FOUND", 404, "catalog", catalog_name);
+    }
+
+    int entry_index = esptari_web_catalog_find_entry_index(def, entry_id);
+    if (entry_index < 0) {
+        return send_start_error(req, "CATALOG_ENTRY_NOT_FOUND", 404, "entry_id", entry_id);
+    }
+
+    bool local_present = esptari_web_catalog_entry_local_present(def, (size_t)entry_index);
+    if (require_local && !local_present) {
+        return send_start_error(req, "CONFLICT", 409, "entry_id", entry_id);
+    }
+
+    if (out_local_path != NULL) {
+        *out_local_path = esptari_web_catalog_entry_local_path_projected(def, (size_t)entry_index);
+    }
+
+    return ESP_OK;
+}
+
 esp_err_t esptari_web_lifecycle_session_handler(httpd_req_t *req)
 {
-    return handle_state_change(req,
-                               esptari_core_start,
-                               "G-LIFECYCLE-SESSION",
-                               "/api/v2/engine/session");
+    char body[768];
+    if (esptari_web_read_request_body(req, body, sizeof(body)) != ESP_OK) {
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *root = cJSON_Parse(body);
+    if (root == NULL) {
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char machine[64] = {0};
+    char profile[64] = {0};
+    char rom_id[96] = {0};
+    char tos_id[96] = {0};
+    char first_disk_id[96] = {0};
+    bool disk_ids_supplied = false;
+
+    if (!parse_required_string(root, "machine", machine, sizeof(machine)) ||
+        !parse_required_string(root, "profile", profile, sizeof(profile)) ||
+        !parse_required_string(root, "rom_id", rom_id, sizeof(rom_id))) {
+        cJSON_Delete(root);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    if (!parse_optional_string(root, "tos_id", tos_id, sizeof(tos_id))) {
+        cJSON_Delete(root);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *disk_ids = cJSON_GetObjectItemCaseSensitive(root, "disk_ids");
+    if (disk_ids != NULL) {
+        if (!cJSON_IsArray(disk_ids)) {
+            cJSON_Delete(root);
+            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+        disk_ids_supplied = true;
+        int disk_count = cJSON_GetArraySize(disk_ids);
+        for (int i = 0; i < disk_count; i++) {
+            cJSON *disk_item = cJSON_GetArrayItem(disk_ids, i);
+            if (!cJSON_IsString(disk_item) || disk_item->valuestring == NULL || disk_item->valuestring[0] == '\0') {
+                cJSON_Delete(root);
+                return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+            if (i == 0) {
+                strlcpy(first_disk_id, disk_item->valuestring, sizeof(first_disk_id));
+            }
+        }
+    }
+
+    const char *rom_local_path = "";
+    esp_err_t resolve_err = resolve_catalog_entry(req, "roms", rom_id, true, &rom_local_path);
+    if (resolve_err != ESP_OK) {
+        cJSON_Delete(root);
+        return resolve_err;
+    }
+
+    const char *tos_local_path = "";
+    if (tos_id[0] != '\0') {
+        resolve_err = resolve_catalog_entry(req, "tos", tos_id, true, &tos_local_path);
+        if (resolve_err != ESP_OK) {
+            cJSON_Delete(root);
+            return resolve_err;
+        }
+    }
+
+    if (disk_ids_supplied && first_disk_id[0] != '\0') {
+        resolve_err = resolve_catalog_entry(req, "floppies", first_disk_id, true, NULL);
+        if (resolve_err != ESP_OK) {
+            cJSON_Delete(root);
+            return resolve_err;
+        }
+    }
+
+    cJSON_Delete(root);
+
+    esp_err_t err = esptari_core_start();
+    if (err == ESP_ERR_INVALID_STATE) {
+        char buf[256];
+        snprintf(buf, sizeof(buf),
+                 "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"%s\",\"endpoint\":\"%s\",\"esp_err\":\"%s\"}}}",
+                 "G-LIFECYCLE-SESSION",
+                 "/api/v2/engine/session",
+                 esp_err_to_name(err));
+        return esptari_web_send_json(req, buf, 409);
+    }
+    if (err == ESP_ERR_NOT_FOUND) {
+        char buf[256];
+        snprintf(buf, sizeof(buf),
+                 "{\"ok\":false,\"error\":{\"code\":\"MACHINE_NOT_LOADED\",\"details\":{\"guard_id\":\"%s\",\"endpoint\":\"%s\",\"esp_err\":\"%s\"}}}",
+                 "G-LOADER-MACHINE-READY",
+                 "/api/v2/engine/session",
+                 esp_err_to_name(err));
+        return esptari_web_send_json(req, buf, 412);
+    }
+    if (err != ESP_OK) {
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char resp[768];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"state\":\"running\",\"machine\":\"%s\",\"profile\":\"%s\",\"resolved\":{\"rom_id\":\"%s\",\"rom_path\":\"%s\",\"tos_id\":\"%s\",\"tos_path\":\"%s\",\"first_disk_id\":\"%s\"}}}",
+             machine,
+             profile,
+             rom_id,
+             rom_local_path,
+             tos_id,
+             tos_local_path,
+             first_disk_id);
+    return esptari_web_send_json(req, resp, 200);
 }
 
 esp_err_t esptari_web_lifecycle_start_handler(httpd_req_t *req)
