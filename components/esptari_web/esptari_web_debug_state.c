@@ -1,0 +1,13 @@
+#include "esptari_web_debug_state.h"
+
+const char *esptari_web_debug_clock_mode = "realtime";
+double esptari_web_debug_clock_effective_ratio = 1.0;
+uint64_t esptari_web_debug_clock_mode_transition_seq;
+uint64_t esptari_web_debug_clock_last_transition_at_us;
+uint64_t esptari_web_debug_tick_counter;
+uint64_t esptari_web_debug_cycle_counter;
+const uint32_t esptari_web_debug_scheduler_hz = 8000000U;
+uint64_t esptari_web_debug_timestamp_origin_us;
+uint64_t esptari_web_debug_timestamp_last_emitted_us;
+uint64_t esptari_web_debug_timestamp_regressions;
+uint32_t esptari_web_debug_arbitration_round;

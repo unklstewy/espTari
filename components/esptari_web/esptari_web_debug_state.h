@@ -1,0 +1,15 @@
+#pragma once
+
+#include <stdint.h>
+
+extern const char *esptari_web_debug_clock_mode;
+extern double esptari_web_debug_clock_effective_ratio;
+extern uint64_t esptari_web_debug_clock_mode_transition_seq;
+extern uint64_t esptari_web_debug_clock_last_transition_at_us;
+extern uint64_t esptari_web_debug_tick_counter;
+extern uint64_t esptari_web_debug_cycle_counter;
+extern const uint32_t esptari_web_debug_scheduler_hz;
+extern uint64_t esptari_web_debug_timestamp_origin_us;
+extern uint64_t esptari_web_debug_timestamp_last_emitted_us;
+extern uint64_t esptari_web_debug_timestamp_regressions;
+extern uint32_t esptari_web_debug_arbitration_round;
