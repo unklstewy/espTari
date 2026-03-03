@@ -1,0 +1,20 @@
+# T-080 smoke 20260303_172536
+## valid disk_id
+disk.automation.a_093
+
+## start session baseline
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"st_520_pal","profile_manifest_validation":{"path":"/sdcard/config/engine_v2/machines/atari_st/st_520_pal.json","manifest_version":1,"schema_valid":true,"normalized_profile":"st_520_pal","validated_at_us":211529932},"profile_wiring_validation":{"wiring_valid":true,"validated_modules":5,"step_order_length":5,"validated_at_us":211529932},"resolved":{"rom_id":"rom.atari.st.01","rom_path":"/sdcard/roms/st/TOS104.ROM","tos_id":"","tos_path":"","first_disk_id":""}}}
+## disk attach success
+{"ok":true,"data":{"session_id":"ses_local","disk_id":"disk.automation.a_093","catalog":"floppies","local_path":"/sdcard/disks/st/AUTOMATION/A_093.ST","state":"attached","attached_at_us":211555547}}
+## disk attach missing disk_id
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"request","message":"disk_id is required","retryable":false}}
+## disk attach unknown disk_id
+{"ok":false,"error":{"code":"CATALOG_ENTRY_NOT_FOUND","category":"catalog","message":"Requested catalog entry was not found","retryable":false,"details":{"catalog":"floppies","entry_id":"disk.missing.404","request_field":"disk_id"}}}
+## disk eject
+{"ok":true,"data":{"session_id":"ses_local","result":"ejected","ejected_at_us":211619045}}
+## disk eject no-op
+{"ok":true,"data":{"session_id":"ses_local","result":"no_op","ejected_at_us":211636716}}
+## stop session
+{"ok":true}
+## disk attach invalid session state
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Media attach requires running or paused state","retryable":false}}
