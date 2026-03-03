@@ -10,6 +10,7 @@
 #include "cJSON.h"
 #include "esp_err.h"
 #include "esp_timer.h"
+#include "esptari_web_catalog_state.h"
 #include "esptari_web_http_utils.h"
 
 #define send_json esptari_web_send_json
@@ -18,151 +19,6 @@
 #define parse_u32_str esptari_web_parse_u32_str
 #define json_get_string esptari_web_json_get_string
 
-typedef struct {
-    const char *id;
-    const char *local_path;
-    const char *hosted_url;
-    const char *sha256_expected;
-    const char *availability_state;
-    const char *availability_checked_at;
-    uint32_t download_fail_count;
-} catalog_entry_t;
-
-typedef struct {
-    bool state_override;
-    char availability_state[16];
-    bool local_present;
-    bool dead_marked;
-    char dead_source[24];
-    char last_dead_reason[96];
-    uint64_t last_dead_marked_at_us;
-    uint32_t dead_retry_attempts;
-    uint32_t dead_retry_successes;
-    uint32_t dead_retry_failures;
-    uint64_t last_dead_retry_at_us;
-    char last_dead_retry_result[16];
-    uint64_t first_missing_at_us;
-} catalog_entry_runtime_t;
-
-typedef struct {
-    const char *name;
-    const char *path;
-    const catalog_entry_t *entries;
-    size_t entry_count;
-} catalog_def_t;
-
-static uint64_t catalog_download_seq;
-static uint64_t catalog_probe_seq;
-static uint64_t catalog_scan_seq;
-static char catalog_last_scan_id[48];
-static char catalog_prev_scan_id[48];
-
-static const catalog_entry_t rom_catalog_entries[] = {
-    {"rom.atari.st.01", "/sdcard/roms/st/TOS104.ROM", "", "", "local_only", "2026-03-01T15:22:01Z", 0},
-    {"rom.atari.st.02", "", "http://catalog.example/roms/TOS206.ROM", "sha256:rom0206", "online", "2026-03-01T15:22:05Z", 0},
-};
-
-static const catalog_entry_t floppy_catalog_entries[] = {
-    {"disk.automation.a_093", "/sdcard/disks/st/AUTOMATION/A_093.ST", "http://ataristdb.sidecartridge.com/AUTOMATION/A_093.ST", "sha256:abcd", "online", "2026-03-01T15:22:01Z", 0},
-    {"disk.demos.dead_entry", "", "http://ataristdb.sidecartridge.com/DEMOS/DEAD.ST", "", "dead", "2026-03-01T15:22:11Z", 3},
-};
-
-static const catalog_entry_t tos_catalog_entries[] = {
-    {"tos.eu.1.04", "/sdcard/tos/TOS104.IMG", "", "", "local_only", "2026-03-01T15:22:21Z", 0},
-    {"tos.eu.2.06", "", "http://catalog.example/tos/TOS206.IMG", "sha256:tos0206", "offline", "2026-03-01T15:22:31Z", 1},
-};
-
-static catalog_entry_runtime_t rom_catalog_runtime[] = {
-    {.state_override = false, .local_present = true, .dead_marked = false, .last_dead_retry_result = "none", .first_missing_at_us = 0},
-    {.state_override = false, .local_present = false, .dead_marked = false, .last_dead_retry_result = "none", .first_missing_at_us = 1710002100000ULL},
-};
-
-static catalog_entry_runtime_t floppy_catalog_runtime[] = {
-    {.state_override = false, .local_present = true, .dead_marked = false, .last_dead_retry_result = "none", .first_missing_at_us = 0},
-    {.state_override = true, .availability_state = "dead", .local_present = false, .dead_marked = true, .dead_source = "probe_threshold", .last_dead_reason = "probe failure threshold reached", .last_dead_marked_at_us = 1710002200000ULL, .last_dead_retry_result = "none", .first_missing_at_us = 1710002200000ULL},
-};
-
-static catalog_entry_runtime_t tos_catalog_runtime[] = {
-    {.state_override = false, .local_present = true, .dead_marked = false, .last_dead_retry_result = "none", .first_missing_at_us = 0},
-    {.state_override = false, .local_present = false, .dead_marked = false, .last_dead_retry_result = "none", .first_missing_at_us = 1710002300000ULL},
-};
-
-static const catalog_def_t catalog_defs[] = {
-    {"roms", "/sdcard/config/engine_v2/rom_catalog.json", rom_catalog_entries, sizeof(rom_catalog_entries) / sizeof(rom_catalog_entries[0])},
-    {"floppies", "/sdcard/config/engine_v2/disk_catalog.json", floppy_catalog_entries, sizeof(floppy_catalog_entries) / sizeof(floppy_catalog_entries[0])},
-    {"tos", "/sdcard/config/engine_v2/tos_catalog.json", tos_catalog_entries, sizeof(tos_catalog_entries) / sizeof(tos_catalog_entries[0])},
-};
-
-static const catalog_def_t *find_catalog(const char *name)
-{
-    if (name == NULL) {
-        return NULL;
-    }
-    for (size_t i = 0; i < sizeof(catalog_defs) / sizeof(catalog_defs[0]); i++) {
-        if (strcmp(catalog_defs[i].name, name) == 0) {
-            return &catalog_defs[i];
-        }
-    }
-    return NULL;
-}
-
-static catalog_entry_runtime_t *catalog_runtime_at(const catalog_def_t *def, size_t index)
-{
-    if (def == NULL) {
-        return NULL;
-    }
-    if (strcmp(def->name, "roms") == 0 && index < (sizeof(rom_catalog_runtime) / sizeof(rom_catalog_runtime[0]))) {
-        return &rom_catalog_runtime[index];
-    }
-    if (strcmp(def->name, "floppies") == 0 && index < (sizeof(floppy_catalog_runtime) / sizeof(floppy_catalog_runtime[0]))) {
-        return &floppy_catalog_runtime[index];
-    }
-    if (strcmp(def->name, "tos") == 0 && index < (sizeof(tos_catalog_runtime) / sizeof(tos_catalog_runtime[0]))) {
-        return &tos_catalog_runtime[index];
-    }
-    return NULL;
-}
-
-static const char *catalog_entry_state(const catalog_def_t *def, size_t index)
-{
-    const catalog_entry_t *entry = &def->entries[index];
-    catalog_entry_runtime_t *runtime = catalog_runtime_at(def, index);
-    if (runtime != NULL && runtime->state_override && runtime->availability_state[0] != '\0') {
-        return runtime->availability_state;
-    }
-    return entry->availability_state;
-}
-
-static bool catalog_entry_local_present(const catalog_def_t *def, size_t index)
-{
-    catalog_entry_runtime_t *runtime = catalog_runtime_at(def, index);
-    if (runtime != NULL) {
-        return runtime->local_present;
-    }
-    const catalog_entry_t *entry = &def->entries[index];
-    return !(entry == NULL || entry->local_path == NULL || entry->local_path[0] == '\0');
-}
-
-static const char *catalog_entry_local_path_projected(const catalog_def_t *def, size_t index)
-{
-    if (!catalog_entry_local_present(def, index)) {
-        return "";
-    }
-    return def->entries[index].local_path;
-}
-
-static int find_catalog_entry_index(const catalog_def_t *def, const char *entry_id)
-{
-    if (def == NULL || entry_id == NULL) {
-        return -1;
-    }
-    for (size_t i = 0; i < def->entry_count; i++) {
-        if (strcmp(def->entries[i].id, entry_id) == 0) {
-            return (int)i;
-        }
-    }
-    return -1;
-}
 
 static bool str_contains_nocase(const char *haystack, const char *needle)
 {
@@ -190,11 +46,12 @@ static esp_err_t catalogs_list_handler(httpd_req_t *req)
     cJSON *catalogs = cJSON_CreateArray();
     cJSON_AddItemToObject(data, "catalogs", catalogs);
 
-    for (size_t i = 0; i < sizeof(catalog_defs) / sizeof(catalog_defs[0]); i++) {
+    for (size_t i = 0; i < esptari_web_catalog_count(); i++) {
+        const catalog_def_t *catalog_def = esptari_web_catalog_at(i);
         cJSON *item = cJSON_CreateObject();
-        cJSON_AddStringToObject(item, "name", catalog_defs[i].name);
-        cJSON_AddStringToObject(item, "path", catalog_defs[i].path);
-        cJSON_AddNumberToObject(item, "entries", (double)catalog_defs[i].entry_count);
+        cJSON_AddStringToObject(item, "name", catalog_def->name);
+        cJSON_AddStringToObject(item, "path", catalog_def->path);
+        cJSON_AddNumberToObject(item, "entries", (double)catalog_def->entry_count);
         cJSON_AddItemToArray(catalogs, item);
     }
 
@@ -215,7 +72,7 @@ static esp_err_t catalog_entries_list_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
-    const catalog_def_t *def = find_catalog(catalog);
+    const catalog_def_t *def = esptari_web_catalog_find(catalog);
     if (def == NULL) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
     }
@@ -238,9 +95,9 @@ static esp_err_t catalog_entries_list_handler(httpd_req_t *req)
 
     for (size_t i = 0; i < def->entry_count; i++) {
         const catalog_entry_t *entry = &def->entries[i];
-        const char *entry_state = catalog_entry_state(def, i);
-        const char *entry_local_path = catalog_entry_local_path_projected(def, i);
-        if (missing_only && catalog_entry_local_present(def, i)) {
+        const char *entry_state = esptari_web_catalog_entry_state(def, i);
+        const char *entry_local_path = esptari_web_catalog_entry_local_path_projected(def, i);
+        if (missing_only && esptari_web_catalog_entry_local_present(def, i)) {
             continue;
         }
         if (has_state && strcmp(state, entry_state) != 0) {
@@ -277,19 +134,19 @@ static esp_err_t catalog_entry_get_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
-    const catalog_def_t *def = find_catalog(catalog);
+    const catalog_def_t *def = esptari_web_catalog_find(catalog);
     if (def == NULL) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
     }
 
-    int entry_index = find_catalog_entry_index(def, entry_id);
+    int entry_index = esptari_web_catalog_find_entry_index(def, entry_id);
     if (entry_index < 0) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_ENTRY_NOT_FOUND\"}}", 404);
     }
 
     const catalog_entry_t *match = &def->entries[(size_t)entry_index];
-    const char *projected_state = catalog_entry_state(def, (size_t)entry_index);
-    const char *projected_local_path = catalog_entry_local_path_projected(def, (size_t)entry_index);
+    const char *projected_state = esptari_web_catalog_entry_state(def, (size_t)entry_index);
+    const char *projected_local_path = esptari_web_catalog_entry_local_path_projected(def, (size_t)entry_index);
 
     char resp[640];
     snprintf(resp,
@@ -311,7 +168,7 @@ static esp_err_t catalog_download_entry_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
-    const catalog_def_t *def = find_catalog(catalog);
+    const catalog_def_t *def = esptari_web_catalog_find(catalog);
     if (def == NULL) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
     }
@@ -336,15 +193,15 @@ static esp_err_t catalog_download_entry_handler(httpd_req_t *req)
     bool verify_sha256 = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "verify_sha256"));
     bool allow_dead_retry = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "allow_dead_retry"));
 
-    int entry_index = find_catalog_entry_index(def, entry_id);
+    int entry_index = esptari_web_catalog_find_entry_index(def, entry_id);
     if (entry_index < 0) {
         cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_ENTRY_NOT_FOUND\"}}", 404);
     }
 
     const catalog_entry_t *entry = &def->entries[(size_t)entry_index];
-    catalog_entry_runtime_t *runtime = catalog_runtime_at(def, (size_t)entry_index);
-    const char *state = catalog_entry_state(def, (size_t)entry_index);
+    catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, (size_t)entry_index);
+    const char *state = esptari_web_catalog_entry_state(def, (size_t)entry_index);
 
     if (entry->hosted_url == NULL || entry->hosted_url[0] == '\0') {
         cJSON_Delete(root);
@@ -354,7 +211,7 @@ static esp_err_t catalog_download_entry_handler(httpd_req_t *req)
         cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_LINK_DEAD\"}}", 409);
     }
-    if (!overwrite && catalog_entry_local_present(def, (size_t)entry_index)) {
+    if (!overwrite && esptari_web_catalog_entry_local_present(def, (size_t)entry_index)) {
         cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CONFLICT\"}}", 409);
     }
@@ -364,7 +221,7 @@ static esp_err_t catalog_download_entry_handler(httpd_req_t *req)
     }
 
     uint64_t now_us = (uint64_t)esp_timer_get_time();
-    catalog_download_seq++;
+    uint64_t download_seq = esptari_web_catalog_next_download_seq();
     if (runtime != NULL && strcmp(state, "dead") == 0 && allow_dead_retry) {
         runtime->dead_retry_attempts++;
         runtime->last_dead_retry_at_us = now_us;
@@ -377,7 +234,7 @@ static esp_err_t catalog_download_entry_handler(httpd_req_t *req)
              "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"entry_id\":\"%s\",\"job_id\":\"dl_%06llu\",\"queue_state\":\"queued\",\"priority\":\"normal\",\"enqueued_at_us\":%llu}}",
              def->name,
              entry->id,
-             (unsigned long long)catalog_download_seq,
+             (unsigned long long)download_seq,
              (unsigned long long)now_us);
     cJSON_Delete(root);
     return send_json(req, resp, 200);
@@ -390,7 +247,7 @@ static esp_err_t catalog_download_missing_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
-    const catalog_def_t *def = find_catalog(catalog);
+    const catalog_def_t *def = esptari_web_catalog_find(catalog);
     if (def == NULL) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
     }
@@ -419,10 +276,10 @@ static esp_err_t catalog_download_missing_handler(httpd_req_t *req)
 
     uint32_t queued = 0;
     for (size_t i = 0; i < def->entry_count && queued < limit; i++) {
-        if (catalog_entry_local_present(def, i)) {
+        if (esptari_web_catalog_entry_local_present(def, i)) {
             continue;
         }
-        if (skip_dead && strcmp(catalog_entry_state(def, i), "dead") == 0) {
+        if (skip_dead && strcmp(esptari_web_catalog_entry_state(def, i), "dead") == 0) {
             continue;
         }
         queued++;
@@ -445,7 +302,7 @@ static esp_err_t catalog_probe_links_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
-    const catalog_def_t *def = find_catalog(catalog);
+    const catalog_def_t *def = esptari_web_catalog_find(catalog);
     if (def == NULL) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
     }
@@ -489,7 +346,7 @@ static esp_err_t catalog_probe_links_handler(httpd_req_t *req)
     uint32_t offline = 0;
     uint32_t online = 0;
     for (size_t i = 0; i < probed; i++) {
-        const char *state = catalog_entry_state(def, i);
+        const char *state = esptari_web_catalog_entry_state(def, i);
         if (strcmp(state, "dead") == 0) {
             dead++;
         } else if (strcmp(state, "offline") == 0) {
@@ -499,13 +356,13 @@ static esp_err_t catalog_probe_links_handler(httpd_req_t *req)
         }
     }
 
-    catalog_probe_seq++;
+    uint64_t probe_seq = esptari_web_catalog_next_probe_seq();
     char resp[1024];
     snprintf(resp,
              sizeof(resp),
              "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"worker_id\":\"probe_%06llu\",\"started_at_us\":%llu,\"completed_at_us\":%llu,\"policy\":{\"timeout_ms\":%lu,\"mark_dead_after_failures\":%lu,\"concurrency\":16},\"summary\":{\"probed\":%lu,\"online\":%lu,\"offline\":%lu,\"dead\":%lu,\"timed_out\":0},\"results\":[{\"entry_id\":\"%s\",\"state_before\":\"%s\",\"state_after\":\"%s\",\"attempts\":1,\"timed_out\":false,\"latency_ms\":11}]}}",
              def->name,
-             (unsigned long long)catalog_probe_seq,
+             (unsigned long long)probe_seq,
              (unsigned long long)started_at_us,
              (unsigned long long)completed_at_us,
              (unsigned long)timeout_ms,
@@ -515,8 +372,8 @@ static esp_err_t catalog_probe_links_handler(httpd_req_t *req)
              (unsigned long)offline,
              (unsigned long)dead,
              def->entries[0].id,
-             catalog_entry_state(def, 0),
-             catalog_entry_state(def, 0));
+            esptari_web_catalog_entry_state(def, 0),
+            esptari_web_catalog_entry_state(def, 0));
     return send_json(req, resp, 200);
 }
 
@@ -527,7 +384,7 @@ static esp_err_t catalog_mark_dead_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
-    const catalog_def_t *def = find_catalog(catalog);
+    const catalog_def_t *def = esptari_web_catalog_find(catalog);
     if (def == NULL) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
     }
@@ -559,19 +416,19 @@ static esp_err_t catalog_mark_dead_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
-    int entry_index = find_catalog_entry_index(def, entry_id);
+    int entry_index = esptari_web_catalog_find_entry_index(def, entry_id);
     if (entry_index < 0) {
         cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_ENTRY_NOT_FOUND\"}}", 404);
     }
 
-    catalog_entry_runtime_t *runtime = catalog_runtime_at(def, (size_t)entry_index);
+    catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, (size_t)entry_index);
     if (runtime == NULL) {
         cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CONFLICT\"}}", 409);
     }
 
-    const char *state_before = catalog_entry_state(def, (size_t)entry_index);
+    const char *state_before = esptari_web_catalog_entry_state(def, (size_t)entry_index);
     uint64_t now_us = (uint64_t)esp_timer_get_time();
     runtime->state_override = true;
     snprintf(runtime->availability_state, sizeof(runtime->availability_state), "%s", "dead");
@@ -620,7 +477,7 @@ static esp_err_t catalog_rescan_local_handler(httpd_req_t *req)
     if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/rescan-local", catalog) != 1) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
-    const catalog_def_t *def = find_catalog(catalog);
+    const catalog_def_t *def = esptari_web_catalog_find(catalog);
     if (def == NULL) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
     }
@@ -655,17 +512,14 @@ static esp_err_t catalog_rescan_local_handler(httpd_req_t *req)
     cJSON_Delete(root);
 
     uint64_t now_us = (uint64_t)esp_timer_get_time();
-    catalog_scan_seq++;
-    if (catalog_last_scan_id[0] != '\0') {
-        snprintf(catalog_prev_scan_id, sizeof(catalog_prev_scan_id), "%s", catalog_last_scan_id);
-    }
-    snprintf(catalog_last_scan_id, sizeof(catalog_last_scan_id), "scan_%06llu", (unsigned long long)catalog_scan_seq);
+    uint64_t scan_seq = esptari_web_catalog_next_scan_seq();
+    esptari_web_catalog_record_scan_id(scan_seq);
 
     uint32_t present = 0;
     uint32_t missing = 0;
     for (size_t i = 0; i < def->entry_count; i++) {
-        catalog_entry_runtime_t *runtime = catalog_runtime_at(def, i);
-        if (catalog_entry_local_present(def, i)) {
+        catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, i);
+        if (esptari_web_catalog_entry_local_present(def, i)) {
             present++;
         } else {
             missing++;
@@ -680,7 +534,7 @@ static esp_err_t catalog_rescan_local_handler(httpd_req_t *req)
              sizeof(resp),
              "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"scan_id\":\"%s\",\"indexed_at_us\":%llu,\"stats\":{\"entries_total\":%lu,\"entries_present\":%lu,\"entries_missing\":%lu,\"entries_changed\":0,\"entries_unchanged\":%lu},\"presence_index\":[{\"entry_id\":\"%s\",\"catalog\":\"%s\",\"local_present\":%s,\"local_path\":\"%s\",\"file_size\":%s,\"mtime_us\":%s,\"sha256\":null,\"indexed_at_us\":%llu},{\"entry_id\":\"%s\",\"catalog\":\"%s\",\"local_present\":%s,\"local_path\":%s,\"file_size\":null,\"mtime_us\":null,\"sha256\":null,\"indexed_at_us\":%llu}]}}",
              def->name,
-             catalog_last_scan_id,
+             esptari_web_catalog_last_scan_id(),
              (unsigned long long)now_us,
              (unsigned long)def->entry_count,
              (unsigned long)present,
@@ -688,15 +542,15 @@ static esp_err_t catalog_rescan_local_handler(httpd_req_t *req)
              (unsigned long)def->entry_count,
              def->entries[0].id,
              def->name,
-             catalog_entry_local_present(def, 0) ? "true" : "false",
-             catalog_entry_local_path_projected(def, 0),
-             catalog_entry_local_present(def, 0) ? "737280" : "null",
-             catalog_entry_local_present(def, 0) ? "1710002500000" : "null",
+             esptari_web_catalog_entry_local_present(def, 0) ? "true" : "false",
+             esptari_web_catalog_entry_local_path_projected(def, 0),
+             esptari_web_catalog_entry_local_present(def, 0) ? "737280" : "null",
+             esptari_web_catalog_entry_local_present(def, 0) ? "1710002500000" : "null",
              (unsigned long long)now_us,
              def->entries[def->entry_count > 1 ? 1 : 0].id,
              def->name,
-             catalog_entry_local_present(def, def->entry_count > 1 ? 1 : 0) ? "true" : "false",
-             catalog_entry_local_present(def, def->entry_count > 1 ? 1 : 0) ? "\"/sdcard/present\"" : "null",
+             esptari_web_catalog_entry_local_present(def, def->entry_count > 1 ? 1 : 0) ? "true" : "false",
+             esptari_web_catalog_entry_local_present(def, def->entry_count > 1 ? 1 : 0) ? "\"/sdcard/present\"" : "null",
              (unsigned long long)now_us);
     return send_json(req, resp, 200);
 }
@@ -707,11 +561,11 @@ static esp_err_t catalog_missing_report_handler(httpd_req_t *req)
     if (sscanf(req->uri, "/api/v2/catalogs/%31[^/]/missing-report", catalog) != 1) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
-    const catalog_def_t *def = find_catalog(catalog);
+    const catalog_def_t *def = esptari_web_catalog_find(catalog);
     if (def == NULL) {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_NOT_FOUND\"}}", 404);
     }
-    if (catalog_last_scan_id[0] == '\0') {
+    if (esptari_web_catalog_last_scan_id()[0] == '\0') {
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CONFLICT\",\"details\":{\"required_operation\":\"POST /api/v2/catalogs/floppies/rescan-local\"}}}", 409);
     }
 
@@ -728,7 +582,7 @@ static esp_err_t catalog_missing_report_handler(httpd_req_t *req)
     }
     char since_scan_id[48] = {0};
     if (query_value(req, "since_scan_id", since_scan_id, sizeof(since_scan_id))) {
-        if (catalog_prev_scan_id[0] == '\0' || strcmp(since_scan_id, catalog_prev_scan_id) != 0) {
+        if (esptari_web_catalog_prev_scan_id()[0] == '\0' || strcmp(since_scan_id, esptari_web_catalog_prev_scan_id()) != 0) {
             return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CONFLICT\",\"details\":{\"required_operation\":\"POST /api/v2/catalogs/floppies/rescan-local\"}}}", 409);
         }
     }
@@ -738,14 +592,14 @@ static esp_err_t catalog_missing_report_handler(httpd_req_t *req)
     char assets[1024] = {0};
     size_t offset = 0;
     for (size_t i = 0; i < def->entry_count; i++) {
-        if (catalog_entry_local_present(def, i)) {
+        if (esptari_web_catalog_entry_local_present(def, i)) {
             continue;
         }
         missing_total++;
         if (emitted >= limit || offset >= sizeof(assets) - 4) {
             continue;
         }
-        catalog_entry_runtime_t *runtime = catalog_runtime_at(def, i);
+        catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, i);
         uint64_t first_missing_at_us = runtime != NULL ? runtime->first_missing_at_us : 1710002000000ULL;
         int wrote = snprintf(assets + offset,
                              sizeof(assets) - offset,
@@ -754,9 +608,9 @@ static esp_err_t catalog_missing_report_handler(httpd_req_t *req)
                              def->entries[i].id,
                              def->name,
                              def->entries[i].local_path[0] == '\0' ? "/sdcard/disks/st/UNKNOWN.ST" : def->entries[i].local_path,
-                             catalog_entry_state(def, i),
+                             esptari_web_catalog_entry_state(def, i),
                              (unsigned long long)first_missing_at_us,
-                             catalog_prev_scan_id[0] == '\0' ? catalog_last_scan_id : catalog_prev_scan_id);
+                             esptari_web_catalog_prev_scan_id()[0] == '\0' ? esptari_web_catalog_last_scan_id() : esptari_web_catalog_prev_scan_id());
         if (wrote > 0) {
             offset += (size_t)wrote;
             emitted++;
@@ -768,8 +622,8 @@ static esp_err_t catalog_missing_report_handler(httpd_req_t *req)
              sizeof(resp),
              "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"scan_id\":\"%s\",\"base_scan_id\":%s,\"summary\":{\"missing_total\":%lu,\"new_missing\":0,\"resolved_since_base\":0,\"unchanged_missing\":%lu},\"missing_assets\":[%s]}}",
              def->name,
-             catalog_last_scan_id,
-             catalog_prev_scan_id[0] == '\0' ? "null" : "\"scan_base\"",
+             esptari_web_catalog_last_scan_id(),
+             esptari_web_catalog_prev_scan_id()[0] == '\0' ? "null" : "\"scan_base\"",
              (unsigned long)missing_total,
              (unsigned long)missing_total,
              assets);
