@@ -1,0 +1,151 @@
+{
+  "schema_bundle": "espTari-v2-lifecycle-transition-matrix",
+  "schema_version": "1.0.0",
+  "api_version": "v2",
+  "state_model_ref": "docs/emu_engine_v2/api_schema_lifecycle_v1.json",
+  "session_states": [
+    "stopped",
+    "starting",
+    "running",
+    "paused",
+    "suspended",
+    "faulted",
+    "stopping"
+  ],
+  "transition_matrix": [
+    {
+      "current_state": "stopped",
+      "requested_transition": "start",
+      "allowed": true,
+      "intermediate_path": ["stopped", "starting", "running"],
+      "guard_predicates": ["G-START-01", "G-START-02"]
+    },
+    {
+      "current_state": "starting",
+      "requested_transition": "any_control_transition",
+      "allowed": false,
+      "intermediate_path": [],
+      "guard_predicates": ["G-COMMON-01"]
+    },
+    {
+      "current_state": "running",
+      "requested_transition": "pause",
+      "allowed": true,
+      "intermediate_path": ["running", "paused"],
+      "guard_predicates": ["G-PAUSE-01"]
+    },
+    {
+      "current_state": "running",
+      "requested_transition": "suspend_save",
+      "allowed": true,
+      "intermediate_path": ["running", "suspended"],
+      "guard_predicates": ["G-SUSPEND-01"]
+    },
+    {
+      "current_state": "running",
+      "requested_transition": "stop",
+      "allowed": true,
+      "intermediate_path": ["running", "stopping", "stopped"],
+      "guard_predicates": ["G-STOP-01"]
+    },
+    {
+      "current_state": "running",
+      "requested_transition": "reset",
+      "allowed": true,
+      "intermediate_path": ["running", "running"],
+      "guard_predicates": ["G-RESET-01"]
+    },
+    {
+      "current_state": "paused",
+      "requested_transition": "resume",
+      "allowed": true,
+      "intermediate_path": ["paused", "running"],
+      "alternate_path": ["paused", "paused"],
+      "guard_predicates": ["G-RESUME-01"]
+    },
+    {
+      "current_state": "paused",
+      "requested_transition": "reset",
+      "allowed": true,
+      "intermediate_path": ["paused", "running"],
+      "guard_predicates": ["G-RESET-01"]
+    },
+    {
+      "current_state": "paused",
+      "requested_transition": "stop",
+      "allowed": true,
+      "intermediate_path": ["paused", "stopping", "stopped"],
+      "guard_predicates": ["G-STOP-01"]
+    },
+    {
+      "current_state": "suspended",
+      "requested_transition": "restore_resume",
+      "allowed": true,
+      "intermediate_path": ["suspended", "running"],
+      "alternate_path": ["suspended", "paused"],
+      "guard_predicates": ["G-RESTORE-01", "G-RESUME-02"]
+    },
+    {
+      "current_state": "suspended",
+      "requested_transition": "stop",
+      "allowed": true,
+      "intermediate_path": ["suspended", "stopping", "stopped"],
+      "guard_predicates": ["G-STOP-01"]
+    },
+    {
+      "current_state": "faulted",
+      "requested_transition": "stop",
+      "allowed": true,
+      "intermediate_path": ["faulted", "stopped"],
+      "guard_predicates": ["G-STOP-01"]
+    },
+    {
+      "current_state": "faulted",
+      "requested_transition": "reset",
+      "allowed": false,
+      "intermediate_path": [],
+      "guard_predicates": ["G-COMMON-01"]
+    },
+    {
+      "current_state": "stopping",
+      "requested_transition": "any_control_transition",
+      "allowed": false,
+      "intermediate_path": [],
+      "guard_predicates": ["G-COMMON-01"]
+    }
+  ],
+  "guard_predicates": {
+    "G-COMMON-01": "Reject control transitions when current state is starting or stopping",
+    "G-START-01": "Start allowed only when no active session exists (state=stopped)",
+    "G-START-02": "Start requires machine, profile, and rom_id",
+    "G-PAUSE-01": "Pause allowed only from running",
+    "G-RESUME-01": "Resume allowed only from paused or suspended",
+    "G-RESUME-02": "resume_mode=paused must result paused; otherwise running",
+    "G-RESET-01": "Reset allowed only from running or paused",
+    "G-SUSPEND-01": "Suspend-save allowed only from running",
+    "G-RESTORE-01": "Restore-resume allowed only from suspended and requires snapshot compatibility",
+    "G-STOP-01": "Stop allowed from running, paused, suspended, or faulted"
+  },
+  "guard_error_mapping": [
+    {"guard_id": "G-COMMON-01", "failure_class": "transitional_state", "error_code": "INVALID_SESSION_STATE", "error_category": "engine", "retryable": false},
+    {"guard_id": "G-START-01", "failure_class": "duplicate_start", "error_code": "ENGINE_ALREADY_RUNNING", "error_category": "engine", "retryable": false},
+    {"guard_id": "G-START-02", "failure_class": "missing_required_fields", "error_code": "BAD_REQUEST", "error_category": "request", "retryable": false},
+    {"guard_id": "G-PAUSE-01", "failure_class": "invalid_state", "error_code": "INVALID_SESSION_STATE", "error_category": "engine", "retryable": false},
+    {"guard_id": "G-RESUME-01", "failure_class": "invalid_state", "error_code": "INVALID_SESSION_STATE", "error_category": "engine", "retryable": false},
+    {"guard_id": "G-RESUME-02", "failure_class": "invalid_resume_mode", "error_code": "BAD_REQUEST", "error_category": "request", "retryable": false},
+    {"guard_id": "G-RESET-01", "failure_class": "invalid_state", "error_code": "INVALID_SESSION_STATE", "error_category": "engine", "retryable": false},
+    {"guard_id": "G-SUSPEND-01", "failure_class": "invalid_state", "error_code": "INVALID_SESSION_STATE", "error_category": "engine", "retryable": false},
+    {"guard_id": "G-RESTORE-01", "failure_class": "snapshot_prerequisite", "error_code": "SNAPSHOT_NOT_FOUND|SNAPSHOT_INCOMPATIBLE", "error_category": "snapshot", "retryable": false},
+    {"guard_id": "G-STOP-01", "failure_class": "invalid_state", "error_code": "INVALID_SESSION_STATE", "error_category": "engine", "retryable": false}
+  ],
+  "validator_contract": {
+    "required_error_details": ["guard_id", "endpoint"],
+    "engine_failures_category": "engine",
+    "snapshot_failures_category": "snapshot"
+  },
+  "cross_links": {
+    "api_spec": "docs/EMU_ENGINE_V2_API_SPEC.md",
+    "api_spec_sections": ["6", "12"],
+    "task": "T-054"
+  }
+}

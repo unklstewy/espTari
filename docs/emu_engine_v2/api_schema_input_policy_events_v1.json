@@ -1,0 +1,119 @@
+{
+  "schema_bundle": "espTari-v2-input-policy-events",
+  "schema_version": "1.0.0",
+  "api_version": "v2",
+  "stream": {
+    "name": "input_stream",
+    "event_type": "input_policy_changed"
+  },
+  "state_model_ref": "docs/emu_engine_v2/api_schema_input_policy_v1.json",
+  "endpoint_refs": [
+    "/api/v2/input/policy/enabled",
+    "/api/v2/input/capture/config",
+    "/api/v2/input/capture/release"
+  ],
+  "payload": {
+    "required": [
+      "type",
+      "schema_version",
+      "session_id",
+      "browser_session_id",
+      "event_seq",
+      "event_timestamp_us",
+      "source",
+      "prior_state",
+      "new_state",
+      "reason",
+      "request_action",
+      "requested_enabled",
+      "transition_result"
+    ],
+    "types": {
+      "type": "const(input_policy_changed)",
+      "schema_version": "uint32",
+      "session_id": "string",
+      "browser_session_id": "string",
+      "event_seq": "uint64",
+      "event_timestamp_us": "uint64",
+      "source": "enum(user_request|system_guard|lifecycle_transition)",
+      "prior_state": "enum(disabled|enabled_idle|enabled_captured)",
+      "new_state": "enum(disabled|enabled_idle|enabled_captured)",
+      "reason": "string",
+      "request_action": "string",
+      "requested_enabled": "boolean",
+      "transition_result": "enum(applied|no_op)"
+    }
+  },
+  "ordering_rules": [
+    "event_seq is strictly monotonic per (session_id, browser_session_id), incrementing by 1 for each emitted input_policy_changed event",
+    "event_timestamp_us is monotonic non-decreasing per stream connection",
+    "client ordering source of truth is event_seq; event_timestamp_us is informational"
+  ],
+  "consistency_rules": [
+    "input_policy_changed is emitted for every accepted policy mutation request, including idempotent no-op requests",
+    "transition_result=no_op requires prior_state == new_state",
+    "transition_result=applied requires (prior_state, new_state) to be an allowed transition pair from the policy state model"
+  ],
+  "allowed_transition_pairs": [
+    {"prior_state": "disabled", "new_state": "enabled_idle", "result": "applied"},
+    {"prior_state": "enabled_idle", "new_state": "enabled_captured", "result": "applied"},
+    {"prior_state": "enabled_captured", "new_state": "enabled_idle", "result": "applied"},
+    {"prior_state": "enabled_idle", "new_state": "disabled", "result": "applied"},
+    {"prior_state": "enabled_captured", "new_state": "disabled", "result": "applied"},
+    {"prior_state": "disabled", "new_state": "disabled", "result": "no_op"},
+    {"prior_state": "enabled_idle", "new_state": "enabled_idle", "result": "no_op"},
+    {"prior_state": "enabled_captured", "new_state": "enabled_captured", "result": "no_op"}
+  ],
+  "examples": {
+    "applied_user_enable": {
+      "type": "input_policy_changed",
+      "schema_version": 1,
+      "session_id": "ses_local",
+      "browser_session_id": "browser_local",
+      "event_seq": 901,
+      "event_timestamp_us": 1710002223450,
+      "source": "user_request",
+      "prior_state": "disabled",
+      "new_state": "enabled_idle",
+      "reason": "user_toggle",
+      "request_action": "set_enabled",
+      "requested_enabled": true,
+      "transition_result": "applied"
+    },
+    "no_op_idempotent_enable": {
+      "type": "input_policy_changed",
+      "schema_version": 1,
+      "session_id": "ses_local",
+      "browser_session_id": "browser_local",
+      "event_seq": 902,
+      "event_timestamp_us": 1710002223452,
+      "source": "user_request",
+      "prior_state": "enabled_idle",
+      "new_state": "enabled_idle",
+      "reason": "idempotent_enable",
+      "request_action": "set_enabled",
+      "requested_enabled": true,
+      "transition_result": "no_op"
+    },
+    "applied_mouse_over_enter": {
+      "type": "input_policy_changed",
+      "schema_version": 1,
+      "session_id": "ses_local",
+      "browser_session_id": "browser_local",
+      "event_seq": 903,
+      "event_timestamp_us": 1710002223460,
+      "source": "system_guard",
+      "prior_state": "enabled_idle",
+      "new_state": "enabled_captured",
+      "reason": "mouse_over_pointer_in",
+      "request_action": "pointer_enter_hook",
+      "requested_enabled": true,
+      "transition_result": "applied"
+    }
+  },
+  "cross_links": {
+    "api_spec": "docs/EMU_ENGINE_V2_API_SPEC.md",
+    "api_spec_sections": ["9.6.6", "9.6.8"],
+    "task": "T-053"
+  }
+}

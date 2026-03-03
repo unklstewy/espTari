@@ -4280,6 +4280,10 @@ Policy-change event example (`click_to_capture` focus regained no-op):
 
 Policy-change event contract and ordering rules:
 
+Machine-readable schema artifact:
+
+- `docs/emu_engine_v2/api_schema_input_policy_events_v1.json`
+
 - `input_policy_changed` is emitted for every accepted policy mutation request, including idempotent no-op requests.
 - Required fields: `source`, `prior_state`, `new_state`, `reason`, `event_timestamp_us`, `event_seq`, `transition_result`.
 - `source` must align with the policy metadata source model in section `9.6.6`.
@@ -6443,6 +6447,10 @@ Restore compatibility failure example (`SNAPSHOT_INCOMPATIBLE`):
 ---
 
 ## 12. State model
+
+Machine-readable schema artifact:
+
+- `docs/emu_engine_v2/api_schema_lifecycle_transition_matrix_v1.json`
 
 Contract binding:
 
