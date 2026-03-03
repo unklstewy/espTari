@@ -1,0 +1,15 @@
+# T-078 smoke 20260303_171720
+## wait for api readiness
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+## start session baseline
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Cannot start session from current lifecycle state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-SESSION","endpoint":"/api/v2/engine/session","esp_err":"ESP_ERR_INVALID_STATE"}}}
+## rom attach success
+{"ok":true,"data":{"session_id":"ses_local","rom_id":"rom.atari.st.01","catalog":"roms","local_path":"/sdcard/roms/st/TOS104.ROM","state":"attached","attached_at_us":102195357}}
+## rom attach missing rom_id
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"request","message":"rom_id is required","retryable":false}}
+## rom attach unknown rom_id
+{"ok":false,"error":{"code":"CATALOG_ENTRY_NOT_FOUND","category":"catalog","message":"Requested catalog entry was not found","retryable":false,"details":{"catalog":"roms","entry_id":"rom.missing.404","request_field":"rom_id"}}}
+## stop session
+{"ok":true}
+## rom attach invalid session state
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Media attach requires running or paused state","retryable":false}}
