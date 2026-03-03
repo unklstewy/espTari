@@ -1029,6 +1029,17 @@ static esp_err_t clock_mode_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
+    cJSON *session_id_item = cJSON_GetObjectItemCaseSensitive(root, "session_id");
+    if (!cJSON_IsString(session_id_item) || session_id_item->valuestring == NULL) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    if (strcmp(session_id_item->valuestring, "ses_local") != 0) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
+    }
+
     cJSON *mode_item = cJSON_GetObjectItemCaseSensitive(root, "mode");
     if (!cJSON_IsString(mode_item) || mode_item->valuestring == NULL) {
         cJSON_Delete(root);
