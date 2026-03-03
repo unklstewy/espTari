@@ -1,0 +1,5 @@
+# T-075 smoke 20260303_170103
+## stop for fail-fast test
+{"ok":true}
+## bad wiring profile start
+{"ok":false,"error":{"code":"EBIN_ABI_MISMATCH","details":{"validation_stage":"profile_wiring","profile":"st_520_pal_wiring_bad","module_key":"cpu","module_selector":"st.cpu.m68k@2.0.0","reason_token":"module_abi_incompatible"}}}

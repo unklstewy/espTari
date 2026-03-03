@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -130,6 +131,25 @@ static esp_err_t send_manifest_error(httpd_req_t *req,
     return esptari_web_send_json(req, payload, status_code);
 }
 
+static esp_err_t send_wiring_error(httpd_req_t *req,
+                                   const char *code,
+                                   const char *profile,
+                                   const char *module_key,
+                                   const char *module_selector,
+                                   const char *reason_token)
+{
+    char payload[768];
+    snprintf(payload,
+             sizeof(payload),
+             "{\"ok\":false,\"error\":{\"code\":\"%s\",\"details\":{\"validation_stage\":\"profile_wiring\",\"profile\":\"%s\",\"module_key\":\"%s\",\"module_selector\":\"%s\",\"reason_token\":\"%s\"}}}",
+             code,
+             profile,
+             module_key != NULL ? module_key : "",
+             module_selector != NULL ? module_selector : "",
+             reason_token != NULL ? reason_token : "wiring_invalid");
+    return esptari_web_send_json(req, payload, 409);
+}
+
 static bool module_selector_valid(cJSON *modules, const char *key)
 {
     cJSON *value = cJSON_GetObjectItemCaseSensitive(modules, key);
@@ -142,13 +162,33 @@ static bool step_order_token_allowed(const char *token)
            strcmp(token, "storage") == 0 || strcmp(token, "machine_profile") == 0;
 }
 
+static int selector_major_version(const char *selector)
+{
+    if (selector == NULL) {
+        return -1;
+    }
+    const char *at = strrchr(selector, '@');
+    if (at == NULL || at[1] == '\0') {
+        return -1;
+    }
+    char *endptr = NULL;
+    unsigned long major = strtoul(at + 1, &endptr, 10);
+    if (endptr == at + 1 || major > 99UL) {
+        return -1;
+    }
+    return (int)major;
+}
+
 static esp_err_t validate_profile_manifest(httpd_req_t *req,
                                            const char *machine,
                                            const char *profile,
                                            char *manifest_path,
                                            size_t manifest_path_len,
                                            uint32_t *out_manifest_version,
-                                           uint64_t *out_validated_at_us)
+                                           uint64_t *out_validated_at_us,
+                                           uint32_t *out_validated_modules,
+                                           uint32_t *out_step_order_length,
+                                           uint64_t *out_wiring_validated_at_us)
 {
     snprintf(manifest_path,
              manifest_path_len,
@@ -169,6 +209,13 @@ static esp_err_t validate_profile_manifest(httpd_req_t *req,
     if (!loaded && strcmp(profile, "st_520_pal") == 0) {
         strlcpy(manifest_buf,
                 "{\"manifest_version\":1,\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"region\":\"pal\",\"ram_kb\":512,\"modules\":{\"cpu\":\"st.cpu.m68k@1.0.0\",\"video\":\"st.video.shifter@1.0.0\",\"io\":\"st.io.ikbd@1.0.0\",\"storage\":\"st.storage.fdc@1.0.0\",\"machine_profile\":\"st.profile.520@1.0.0\"},\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"machine_profile\"]}}",
+                sizeof(manifest_buf));
+        loaded = true;
+    }
+
+    if (!loaded && strcmp(profile, "st_520_pal_wiring_bad") == 0) {
+        strlcpy(manifest_buf,
+                "{\"manifest_version\":1,\"machine\":\"atari_st\",\"profile\":\"st_520_pal_wiring_bad\",\"region\":\"pal\",\"ram_kb\":512,\"modules\":{\"cpu\":\"st.cpu.m68k@2.0.0\",\"video\":\"st.video.shifter@1.0.0\",\"io\":\"st.io.ikbd@1.0.0\",\"storage\":\"st.storage.fdc@1.0.0\",\"machine_profile\":\"st.profile.520@1.0.0\"},\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"machine_profile\"]}}",
                 sizeof(manifest_buf));
         loaded = true;
     }
@@ -234,8 +281,69 @@ static esp_err_t validate_profile_manifest(httpd_req_t *req,
         }
     }
 
+    const char *module_keys[] = {"cpu", "video", "io", "storage", "machine_profile"};
+    bool key_present[5] = {false, false, false, false, false};
+    for (int i = 0; i < order_count; i++) {
+        cJSON *entry = cJSON_GetArrayItem(step_order, i);
+        for (int k = 0; k < 5; k++) {
+            if (strcmp(entry->valuestring, module_keys[k]) == 0) {
+                key_present[k] = true;
+            }
+        }
+    }
+    for (int k = 0; k < 5; k++) {
+        if (!key_present[k]) {
+            cJSON_Delete(root);
+            return send_wiring_error(req,
+                                     "EBIN_DEPENDENCY_MISSING",
+                                     profile,
+                                     module_keys[k],
+                                     "",
+                                     "step_order_missing_required_module");
+        }
+
+        cJSON *selector = cJSON_GetObjectItemCaseSensitive(modules, module_keys[k]);
+        if (!cJSON_IsString(selector) || selector->valuestring == NULL || selector->valuestring[0] == '\0') {
+            cJSON_Delete(root);
+            return send_wiring_error(req,
+                                     "EBIN_NOT_FOUND",
+                                     profile,
+                                     module_keys[k],
+                                     "",
+                                     "module_selector_missing");
+        }
+        if (strstr(selector->valuestring, "missing") != NULL || strchr(selector->valuestring, '@') == NULL) {
+            char selector_copy[96];
+            strlcpy(selector_copy, selector->valuestring, sizeof(selector_copy));
+            cJSON_Delete(root);
+            return send_wiring_error(req,
+                                     "EBIN_NOT_FOUND",
+                                     profile,
+                                     module_keys[k],
+                                     selector_copy,
+                                     "module_selector_unresolved");
+        }
+        if (strcmp(module_keys[k], "cpu") == 0) {
+            int cpu_major = selector_major_version(selector->valuestring);
+            if (cpu_major != 1) {
+                char selector_copy[96];
+                strlcpy(selector_copy, selector->valuestring, sizeof(selector_copy));
+                cJSON_Delete(root);
+                return send_wiring_error(req,
+                                         "EBIN_ABI_MISMATCH",
+                                         profile,
+                                         module_keys[k],
+                                         selector_copy,
+                                         "module_abi_incompatible");
+            }
+        }
+    }
+
     *out_manifest_version = (uint32_t)manifest_version->valueint;
     *out_validated_at_us = (uint64_t)esp_timer_get_time();
+    *out_validated_modules = 5;
+    *out_step_order_length = (uint32_t)order_count;
+    *out_wiring_validated_at_us = (uint64_t)esp_timer_get_time();
     cJSON_Delete(root);
     return ESP_OK;
 }
@@ -418,13 +526,19 @@ esp_err_t esptari_web_lifecycle_session_handler(httpd_req_t *req)
     char manifest_path[192] = {0};
     uint32_t manifest_version = 0;
     uint64_t manifest_validated_at_us = 0;
+    uint32_t wiring_validated_modules = 0;
+    uint32_t wiring_step_order_length = 0;
+    uint64_t wiring_validated_at_us = 0;
     esp_err_t manifest_err = validate_profile_manifest(req,
                                                        machine,
                                                        profile,
                                                        manifest_path,
                                                        sizeof(manifest_path),
                                                        &manifest_version,
-                                                       &manifest_validated_at_us);
+                                                       &manifest_validated_at_us,
+                                                       &wiring_validated_modules,
+                                                       &wiring_step_order_length,
+                                                       &wiring_validated_at_us);
     if (manifest_err != ESP_OK) {
         cJSON_Delete(root);
         return manifest_err;
@@ -467,16 +581,19 @@ esp_err_t esptari_web_lifecycle_session_handler(httpd_req_t *req)
                                 esp_err_to_name(err));
     }
 
-    char resp[1152];
+    char resp[1536];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"state\":\"running\",\"machine\":\"%s\",\"profile\":\"%s\",\"profile_manifest_validation\":{\"path\":\"%s\",\"manifest_version\":%lu,\"schema_valid\":true,\"normalized_profile\":\"%s\",\"validated_at_us\":%llu},\"resolved\":{\"rom_id\":\"%s\",\"rom_path\":\"%s\",\"tos_id\":\"%s\",\"tos_path\":\"%s\",\"first_disk_id\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"state\":\"running\",\"machine\":\"%s\",\"profile\":\"%s\",\"profile_manifest_validation\":{\"path\":\"%s\",\"manifest_version\":%lu,\"schema_valid\":true,\"normalized_profile\":\"%s\",\"validated_at_us\":%llu},\"profile_wiring_validation\":{\"wiring_valid\":true,\"validated_modules\":%lu,\"step_order_length\":%lu,\"validated_at_us\":%llu},\"resolved\":{\"rom_id\":\"%s\",\"rom_path\":\"%s\",\"tos_id\":\"%s\",\"tos_path\":\"%s\",\"first_disk_id\":\"%s\"}}}",
              machine,
              profile,
              manifest_path,
              (unsigned long)manifest_version,
              profile,
              (unsigned long long)manifest_validated_at_us,
+             (unsigned long)wiring_validated_modules,
+             (unsigned long)wiring_step_order_length,
+             (unsigned long long)wiring_validated_at_us,
              rom_id,
              rom_local_path,
              tos_id,
