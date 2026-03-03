@@ -20,6 +20,8 @@ static bool backpressure_throttle_active;
 static uint64_t slo_alarm_seq;
 static bool slo_alarm_breached;
 
+static bool query_value(httpd_req_t *req, const char *key, char *out, size_t out_len);
+
 static char *alloc_json_buf(size_t size)
 {
     return (char *)malloc(size);
@@ -74,6 +76,42 @@ static esp_err_t status_handler(httpd_req_t *req)
              (unsigned long long)status.transition_count,
              (unsigned long long)status.last_transition_us);
     return send_json(req, buf, 200);
+}
+
+static esp_err_t session_state_handler(httpd_req_t *req)
+{
+    char session_id[64] = "ses_local";
+    char requested_session_id[64] = {0};
+    if (query_value(req, "session_id", requested_session_id, sizeof(requested_session_id))) {
+        if (requested_session_id[0] == '\0') {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+        strlcpy(session_id, requested_session_id, sizeof(session_id));
+    }
+
+    esptari_session_status_t status;
+    esptari_core_get_status(&status);
+
+    uint64_t now_us = (uint64_t)esp_timer_get_time();
+    uint64_t uptime_ms = 0;
+    if (status.state == ESPTARI_SESSION_RUNNING ||
+        status.state == ESPTARI_SESSION_PAUSED ||
+        status.state == ESPTARI_SESSION_SUSPENDED) {
+        if (now_us > status.last_transition_us) {
+            uptime_ms = (now_us - status.last_transition_us) / 1000ULL;
+        }
+    }
+
+    char resp[896];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"state\":\"%s\",\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"uptime_ms\":%llu,\"cycle_counter\":0,\"tick_counter\":0,\"loaded_modules\":[],\"stream_health\":{\"video\":{\"connected_clients\":0,\"dropped_packets\":%llu},\"audio\":{\"connected_clients\":0,\"dropped_packets\":%llu}}}}",
+             session_id,
+             esptari_core_state_to_string(status.state),
+             (unsigned long long)uptime_ms,
+             (unsigned long long)backpressure_overflow_total,
+             (unsigned long long)backpressure_overflow_total);
+    return send_json(req, resp, 200);
 }
 
 static esp_err_t read_request_body(httpd_req_t *req, char *out_buf, size_t out_buf_size)
@@ -980,6 +1018,7 @@ void esptari_web_init(uint16_t port)
     httpd_uri_t health = {.uri = "/api/v2/engine/health", .method = HTTP_GET, .handler = health_handler, .user_ctx = NULL};
     httpd_uri_t status = {.uri = "/api/v2/engine/status", .method = HTTP_GET, .handler = status_handler, .user_ctx = NULL};
     httpd_uri_t session = {.uri = "/api/v2/engine/session", .method = HTTP_POST, .handler = session_handler, .user_ctx = NULL};
+    httpd_uri_t session_state = {.uri = "/api/v2/engine/session", .method = HTTP_GET, .handler = session_state_handler, .user_ctx = NULL};
     httpd_uri_t pause = {.uri = "/api/v2/engine/session/pause", .method = HTTP_POST, .handler = pause_handler, .user_ctx = NULL};
     httpd_uri_t resume = {.uri = "/api/v2/engine/session/resume", .method = HTTP_POST, .handler = resume_handler, .user_ctx = NULL};
     httpd_uri_t stop = {.uri = "/api/v2/engine/session/stop", .method = HTTP_POST, .handler = stop_handler, .user_ctx = NULL};
@@ -1002,6 +1041,7 @@ void esptari_web_init(uint16_t port)
 
     httpd_register_uri_handler(server_handle, &health);
     httpd_register_uri_handler(server_handle, &status);
+    httpd_register_uri_handler(server_handle, &session_state);
     httpd_register_uri_handler(server_handle, &session);
     httpd_register_uri_handler(server_handle, &pause);
     httpd_register_uri_handler(server_handle, &resume);

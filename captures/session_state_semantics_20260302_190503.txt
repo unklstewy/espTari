@@ -1,0 +1,31 @@
+base=http://esptari.local
+--- stop baseline
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-STOP","endpoint":"/api/v2/engine/session/stop","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- get stopped
+{"ok":true,"data":{"session_id":"ses_local","state":"stopped","machine":"atari_st","profile":"st_520_pal","uptime_ms":0,"cycle_counter":0,"tick_counter":0,"loaded_modules":[],"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+HTTP_STATUS:200
+--- start
+Nothing matches the given URI
+HTTP_STATUS:404
+--- get running
+{"ok":true,"data":{"session_id":"ses_local","state":"stopped","machine":"atari_st","profile":"st_520_pal","uptime_ms":0,"cycle_counter":0,"tick_counter":0,"loaded_modules":[],"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+HTTP_STATUS:200
+--- pause
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-PAUSE","endpoint":"/api/v2/engine/session/pause","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- get paused
+{"ok":true,"data":{"session_id":"ses_local","state":"stopped","machine":"atari_st","profile":"st_520_pal","uptime_ms":0,"cycle_counter":0,"tick_counter":0,"loaded_modules":[],"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+HTTP_STATUS:200
+--- resume running
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-RESUME","endpoint":"/api/v2/engine/session/resume","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- get running again
+{"ok":true,"data":{"session_id":"ses_local","state":"stopped","machine":"atari_st","profile":"st_520_pal","uptime_ms":0,"cycle_counter":0,"tick_counter":0,"loaded_modules":[],"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+HTTP_STATUS:200
+--- reset warm
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- get after reset
+{"ok":true,"data":{"session_id":"ses_local","state":"stopped","machine":"atari_st","profile":"st_520_pal","uptime_ms":0,"cycle_counter":0,"tick_counter":0,"loaded_modules":[],"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+HTTP_STATUS:200
