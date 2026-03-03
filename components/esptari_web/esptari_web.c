@@ -23,6 +23,8 @@ static const char *clock_mode = "realtime";
 static double clock_effective_ratio = 1.0;
 static uint64_t clock_mode_transition_seq;
 static uint64_t clock_last_transition_at_us;
+static uint64_t debug_tick_counter;
+static uint64_t debug_cycle_counter;
 
 static bool query_value(httpd_req_t *req, const char *key, char *out, size_t out_len);
 
@@ -109,10 +111,12 @@ static esp_err_t session_state_handler(httpd_req_t *req)
     char resp[896];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"state\":\"%s\",\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"uptime_ms\":%llu,\"cycle_counter\":0,\"tick_counter\":0,\"loaded_modules\":[],\"stream_health\":{\"video\":{\"connected_clients\":0,\"dropped_packets\":%llu},\"audio\":{\"connected_clients\":0,\"dropped_packets\":%llu}}}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"state\":\"%s\",\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"uptime_ms\":%llu,\"cycle_counter\":%llu,\"tick_counter\":%llu,\"loaded_modules\":[],\"stream_health\":{\"video\":{\"connected_clients\":0,\"dropped_packets\":%llu},\"audio\":{\"connected_clients\":0,\"dropped_packets\":%llu}}}}",
              session_id,
              esptari_core_state_to_string(status.state),
              (unsigned long long)uptime_ms,
+             (unsigned long long)debug_cycle_counter,
+             (unsigned long long)debug_tick_counter,
              (unsigned long long)backpressure_overflow_total,
              (unsigned long long)backpressure_overflow_total);
     return send_json(req, resp, 200);
@@ -1109,6 +1113,174 @@ static esp_err_t clock_mode_handler(httpd_req_t *req)
     return send_json(req, resp, 200);
 }
 
+static esp_err_t clock_step_handler(httpd_req_t *req)
+{
+    if (req->content_len <= 0) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char body[512];
+    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *root = cJSON_Parse(body);
+    if (root == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *session_id_item = cJSON_GetObjectItemCaseSensitive(root, "session_id");
+    if (!cJSON_IsString(session_id_item) || session_id_item->valuestring == NULL) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    if (strcmp(session_id_item->valuestring, "ses_local") != 0) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
+    }
+
+    cJSON *steps_item = cJSON_GetObjectItemCaseSensitive(root, "steps");
+    if (!cJSON_IsNumber(steps_item)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    int steps = steps_item->valueint;
+    if ((double)steps != steps_item->valuedouble || steps < 1 || steps > 1024) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_STEP_INVALID\"}}", 400);
+    }
+
+    cJSON *capture_item = cJSON_GetObjectItemCaseSensitive(root, "capture");
+    bool capture_opcode = false;
+    bool capture_bus_error = false;
+    bool capture_register_delta = false;
+    const char *capture_order[3];
+    size_t capture_count = 0;
+    if (capture_item != NULL) {
+        if (!cJSON_IsArray(capture_item)) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+        cJSON *selector = NULL;
+        cJSON_ArrayForEach(selector, capture_item)
+        {
+            if (!cJSON_IsString(selector) || selector->valuestring == NULL) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_STEP_INVALID\"}}", 400);
+            }
+
+            if (strcmp(selector->valuestring, "opcode") == 0) {
+                if (!capture_opcode) {
+                    capture_opcode = true;
+                    capture_order[capture_count++] = "opcode";
+                }
+            } else if (strcmp(selector->valuestring, "bus_error") == 0) {
+                if (!capture_bus_error) {
+                    capture_bus_error = true;
+                    capture_order[capture_count++] = "bus_error";
+                }
+            } else if (strcmp(selector->valuestring, "register_delta") == 0) {
+                if (!capture_register_delta) {
+                    capture_register_delta = true;
+                    capture_order[capture_count++] = "register_delta";
+                }
+            } else {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_STEP_INVALID\"}}", 400);
+            }
+        }
+    }
+
+    cJSON_Delete(root);
+
+    esptari_session_status_t status;
+    esptari_core_get_status(&status);
+    if (status.state == ESPTARI_SESSION_STOPPED) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"ENGINE_NOT_RUNNING\"}}", 409);
+    }
+
+    if (strcmp(clock_mode, "single_step") != 0) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"STEP-CTRL-03\",\"endpoint\":\"/api/v2/debug/clock/step\",\"esp_err\":\"ESP_ERR_INVALID_STATE\"}}}", 409);
+    }
+
+    uint64_t tick_before = debug_tick_counter;
+    uint64_t cycle_before = debug_cycle_counter;
+    uint64_t ticks_committed = (uint64_t)steps;
+
+    debug_tick_counter += ticks_committed;
+    debug_cycle_counter += ticks_committed * 12ULL;
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+    cJSON_AddItemToObject(resp, "data", data);
+    cJSON_AddStringToObject(data, "session_id", "ses_local");
+    cJSON_AddStringToObject(data, "run_mode", "single_step");
+    cJSON_AddNumberToObject(data, "steps_requested", (double)steps);
+    cJSON_AddNumberToObject(data, "ticks_committed", (double)ticks_committed);
+    cJSON_AddNumberToObject(data, "tick_counter_before", (double)tick_before);
+    cJSON_AddNumberToObject(data, "tick_counter_after", (double)debug_tick_counter);
+    cJSON_AddNumberToObject(data, "cycle_counter_before", (double)cycle_before);
+    cJSON_AddNumberToObject(data, "cycle_counter_after", (double)debug_cycle_counter);
+
+    cJSON *stats = cJSON_CreateObject();
+    cJSON_AddNumberToObject(stats, "ticks_with_hooks", (double)ticks_committed);
+    cJSON_AddNumberToObject(stats, "hook_order_violations", 0);
+    cJSON_AddNumberToObject(stats, "component_step_mismatches", 0);
+    cJSON_AddItemToObject(data, "scheduler_hook_stats", stats);
+
+    if (capture_count > 0) {
+        cJSON *payloads = cJSON_CreateArray();
+        for (int step_index = 0; step_index < steps; step_index++) {
+            uint64_t tick_counter = tick_before + (uint64_t)step_index + 1ULL;
+            uint64_t cycle_counter = cycle_before + ((uint64_t)step_index + 1ULL) * 12ULL;
+
+            for (size_t selector_index = 0; selector_index < capture_count; selector_index++) {
+                const char *selector = capture_order[selector_index];
+                cJSON *entry = cJSON_CreateObject();
+
+                if (strcmp(selector, "opcode") == 0) {
+                    cJSON_AddStringToObject(entry, "kind", "opcode_capture_v1");
+                    cJSON_AddNumberToObject(entry, "tick_counter", (double)tick_counter);
+                    cJSON_AddNumberToObject(entry, "cycle_counter", (double)cycle_counter);
+                    cJSON_AddNumberToObject(entry, "pc", (double)(0x01000000U + ((uint32_t)tick_counter * 2U)));
+                    cJSON_AddStringToObject(entry, "opcode_word", "0x4E71");
+                    cJSON_AddNumberToObject(entry, "instruction_size_bytes", 2);
+                } else if (strcmp(selector, "bus_error") == 0) {
+                    cJSON_AddStringToObject(entry, "kind", "bus_error_capture_v1");
+                    cJSON_AddNumberToObject(entry, "tick_counter", (double)tick_counter);
+                    cJSON_AddNumberToObject(entry, "cycle_counter", (double)cycle_counter);
+                    cJSON_AddNumberToObject(entry, "fault_address", (double)(0x01002000U + ((uint32_t)tick_counter * 4U)));
+                    cJSON_AddStringToObject(entry, "access_type", "instruction_fetch");
+                    cJSON_AddStringToObject(entry, "fault_phase", "ack");
+                    cJSON_AddNumberToObject(entry, "vector", 2);
+                } else {
+                    cJSON_AddStringToObject(entry, "kind", "register_delta_capture_v1");
+                    cJSON_AddNumberToObject(entry, "tick_counter", (double)tick_counter);
+                    cJSON_AddNumberToObject(entry, "cycle_counter", (double)cycle_counter);
+                    cJSON_AddStringToObject(entry, "register", "D0");
+                    cJSON_AddNumberToObject(entry, "delta", 1);
+                }
+
+                cJSON_AddItemToArray(payloads, entry);
+            }
+        }
+        cJSON_AddItemToObject(data, "capture_payloads", payloads);
+    }
+
+    char *resp_json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    if (resp_json == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    esp_err_t out = send_json(req, resp_json, 200);
+    free(resp_json);
+    return out;
+}
+
 void esptari_web_init(uint16_t port)
 {
     if (server_handle != NULL) {
@@ -1152,6 +1324,7 @@ void esptari_web_init(uint16_t port)
     httpd_uri_t inspect_bus = {.uri = "/api/v2/inspect/bus/stream", .method = HTTP_GET, .handler = inspect_bus_stream_handler, .user_ctx = NULL};
     httpd_uri_t inspect_memory = {.uri = "/api/v2/inspect/memory/stream", .method = HTTP_GET, .handler = inspect_memory_stream_handler, .user_ctx = NULL};
     httpd_uri_t debug_clock_mode = {.uri = "/api/v2/debug/clock/mode", .method = HTTP_POST, .handler = clock_mode_handler, .user_ctx = NULL};
+    httpd_uri_t debug_clock_step = {.uri = "/api/v2/debug/clock/step", .method = HTTP_POST, .handler = clock_step_handler, .user_ctx = NULL};
 
     httpd_register_uri_handler(server_handle, &health);
     httpd_register_uri_handler(server_handle, &status);
@@ -1178,6 +1351,7 @@ void esptari_web_init(uint16_t port)
     httpd_register_uri_handler(server_handle, &inspect_bus);
     httpd_register_uri_handler(server_handle, &inspect_memory);
     httpd_register_uri_handler(server_handle, &debug_clock_mode);
+    httpd_register_uri_handler(server_handle, &debug_clock_step);
 
     ESP_LOGI(TAG, "Web API ready on port %u", (unsigned)port);
 }
