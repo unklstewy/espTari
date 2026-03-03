@@ -3529,6 +3529,10 @@ Response `data`:
 
 #### Input policy state model
 
+Machine-readable schema artifact:
+
+- `docs/emu_engine_v2/api_schema_input_policy_v1.json`
+
 Envelope binding:
 
 - Success uses the canonical envelope in section `4` with this section defining only policy payload semantics.

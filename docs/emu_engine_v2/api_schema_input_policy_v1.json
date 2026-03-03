@@ -1,0 +1,227 @@
+{
+  "schema_bundle": "espTari-v2-input-policy",
+  "schema_version": "1.0.0",
+  "api_version": "v2",
+  "base_path": "/api/v2/input",
+  "envelope_ref": "docs/emu_engine_v2/api_schema_envelope_v1.json",
+  "scope": "Browser input policy state model, deterministic transitions, and canonical policy error envelopes.",
+  "state_model": {
+    "policy_states": ["disabled", "enabled_idle", "enabled_captured"],
+    "policy_metadata": {
+      "state": "enum(disabled|enabled_idle|enabled_captured)",
+      "source": "enum(user_request|system_guard|lifecycle_transition)",
+      "reason": "string",
+      "changed_at_us": "uint64",
+      "event_seq": "uint64"
+    },
+    "capture_modes": ["mouse_over", "click_to_capture"],
+    "derived_rule": "capture_active = (input_enabled && ((capture_mode == mouse_over && pointer_over_canvas) || (capture_mode == click_to_capture && capture_active_internal)))"
+  },
+  "endpoints": {
+    "capture_state": {
+      "method": "GET",
+      "path": "/api/v2/input/capture/state",
+      "query": {
+        "required": ["session_id", "browser_session_id"],
+        "types": {
+          "session_id": "string",
+          "browser_session_id": "string"
+        }
+      },
+      "success_data": {
+        "required": ["session_id", "browser_session_id", "input_enabled", "capture_mode", "capture_active", "policy", "escape_release"],
+        "types": {
+          "session_id": "string",
+          "browser_session_id": "string",
+          "input_enabled": "boolean",
+          "capture_mode": "enum(mouse_over|click_to_capture)",
+          "capture_active": "boolean",
+          "policy": "object",
+          "escape_release": "object"
+        }
+      }
+    },
+    "policy_enabled": {
+      "method": "POST",
+      "path": "/api/v2/input/policy/enabled",
+      "request": {
+        "required": ["session_id", "browser_session_id", "enabled"],
+        "optional": ["reason"],
+        "types": {
+          "session_id": "string",
+          "browser_session_id": "string",
+          "enabled": "boolean",
+          "reason": "string"
+        }
+      },
+      "response_data": {
+        "required": ["session_id", "browser_session_id", "requested_enabled", "result", "previous_policy_state", "policy"],
+        "types": {
+          "requested_enabled": "boolean",
+          "result": "enum(applied|no_op)",
+          "previous_policy_state": "enum(disabled|enabled_idle|enabled_captured)",
+          "policy": "object"
+        }
+      },
+      "idempotency": {
+        "enabled_true_from_disabled": "applied",
+        "enabled_true_from_enabled": "no_op",
+        "enabled_false_from_enabled": "applied",
+        "enabled_false_from_disabled": "no_op"
+      }
+    },
+    "capture_config": {
+      "method": "POST",
+      "path": "/api/v2/input/capture/config",
+      "request": {
+        "required": ["session_id", "browser_session_id", "input_enabled", "capture_mode"],
+        "optional": ["escape_release", "request_action"],
+        "types": {
+          "session_id": "string",
+          "browser_session_id": "string",
+          "input_enabled": "boolean",
+          "capture_mode": "enum(mouse_over|click_to_capture)",
+          "request_action": "string"
+        }
+      },
+      "response_data": {
+        "required": ["session_id", "browser_session_id", "input_enabled", "capture_mode", "capture_active", "policy", "transition_result"],
+        "types": {
+          "transition_result": "enum(applied|no_op)",
+          "policy": "object"
+        }
+      }
+    },
+    "capture_release": {
+      "method": "POST",
+      "path": "/api/v2/input/capture/release",
+      "request": {
+        "required": ["session_id", "browser_session_id"],
+        "optional": ["reason"],
+        "types": {
+          "session_id": "string",
+          "browser_session_id": "string",
+          "reason": "string"
+        }
+      },
+      "response_data": {
+        "required": ["session_id", "browser_session_id", "result", "capture_active", "released_at_us", "policy"],
+        "types": {
+          "result": "enum(released|no_op)",
+          "capture_active": "boolean",
+          "released_at_us": "uint64",
+          "policy": "object"
+        }
+      }
+    }
+  },
+  "state_machines": {
+    "mouse_over": {
+      "guards": {
+        "MO-GUARD-01": "capture_mode must equal mouse_over for mouse-over specific hooks",
+        "MO-GUARD-02": "session_id and browser_session_id must refer to active owned context",
+        "MO-GUARD-03": "when input_enabled=false, capture_active forced false"
+      },
+      "transitions": [
+        {"current": "disabled", "trigger": "pointer_enter|pointer_leave", "next": "disabled", "result": "no_op"},
+        {"current": "enabled_idle", "trigger": "pointer_enter", "next": "enabled_captured", "result": "applied"},
+        {"current": "enabled_captured", "trigger": "pointer_leave", "next": "enabled_idle", "result": "applied"},
+        {"current": "enabled_idle", "trigger": "pointer_leave", "next": "enabled_idle", "result": "no_op"},
+        {"current": "enabled_captured", "trigger": "pointer_enter", "next": "enabled_captured", "result": "no_op"}
+      ],
+      "release_behavior": {
+        "explicit_release_endpoint": "accepted_no_op",
+        "reason_token": "mouse_over_release_no_op"
+      }
+    },
+    "click_to_capture": {
+      "guards": {
+        "CC-GUARD-01": "capture_mode must equal click_to_capture for click/focus actions",
+        "CC-GUARD-02": "session/browser ownership validation required",
+        "CC-GUARD-03": "release requires current state enabled_captured"
+      },
+      "transitions": [
+        {"current": "enabled_idle", "trigger": "click_acquire", "next": "enabled_captured", "result": "applied"},
+        {"current": "enabled_captured", "trigger": "click_acquire", "next": "enabled_captured", "result": "no_op"},
+        {"current": "enabled_captured", "trigger": "focus_lost", "next": "enabled_idle", "result": "applied"},
+        {"current": "enabled_idle", "trigger": "focus_lost", "next": "enabled_idle", "result": "no_op"},
+        {"current": "enabled_captured", "trigger": "explicit_release", "next": "enabled_idle", "result": "released"},
+        {"current": "enabled_idle", "trigger": "explicit_release", "next": "enabled_idle", "result": "error:INPUT_POLICY_INVALID_STATE"}
+      ]
+    }
+  },
+  "canonical_errors": [
+    "INPUT_POLICY_INVALID_STATE",
+    "INPUT_POLICY_VIOLATION",
+    "INPUT_POLICY_MODE_INVALID",
+    "INPUT_POLICY_SESSION_INVALID",
+    "INPUT_CAPTURE_DISABLED",
+    "INPUT_CAPTURE_NOT_ACTIVE",
+    "BAD_REQUEST"
+  ],
+  "error_envelopes": {
+    "policy_invalid_state": {
+      "ok": false,
+      "error": {
+        "code": "INPUT_POLICY_INVALID_STATE",
+        "category": "input",
+        "message": "Cannot release capture when policy state is enabled_idle",
+        "retryable": false,
+        "details": {
+          "session_id": "ses_local",
+          "browser_session_id": "browser_local",
+          "current_policy_state": "enabled_idle",
+          "requested_action": "capture_release",
+          "allowed_states": ["enabled_captured"]
+        }
+      }
+    },
+    "policy_violation": {
+      "ok": false,
+      "error": {
+        "code": "INPUT_POLICY_VIOLATION",
+        "category": "input",
+        "message": "Browser session does not own capture policy",
+        "retryable": false,
+        "details": {
+          "session_id": "ses_local",
+          "browser_session_id": "web_other",
+          "policy_owner_browser_session_id": "browser_local",
+          "requested_action": "capture_config_update"
+        }
+      }
+    },
+    "policy_mode_invalid": {
+      "ok": false,
+      "error": {
+        "code": "INPUT_POLICY_MODE_INVALID",
+        "category": "input",
+        "message": "Requested action is not valid for current capture_mode",
+        "retryable": false,
+        "details": {
+          "capture_mode": "click_to_capture",
+          "requested_action": "pointer_enter_hook"
+        }
+      }
+    },
+    "policy_session_invalid": {
+      "ok": false,
+      "error": {
+        "code": "INPUT_POLICY_SESSION_INVALID",
+        "category": "input",
+        "message": "Browser session is not active for requested engine session",
+        "retryable": false,
+        "details": {
+          "session_id": "ses_local",
+          "browser_session_id": "web_09H",
+          "requested_action": "set_enabled"
+        }
+      }
+    }
+  },
+  "cross_links": {
+    "api_spec": "docs/EMU_ENGINE_V2_API_SPEC.md",
+    "api_spec_sections": ["9.6.5", "9.6.6"],
+    "implementation_plan_section": "2.7"
+  }
+}
