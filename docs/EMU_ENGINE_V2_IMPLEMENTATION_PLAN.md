@@ -433,6 +433,7 @@ Browser input capture policy:
 - Input stream policy-change event contract (`input_policy_changed`) including required fields (`source`, `prior_state`, `new_state`, `reason`, `event_timestamp_us`, `event_seq`, `transition_result`), strict event ordering, and no-op observability is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `9.6.7`.
 - Input translation event payload + ordering contract (`input_translated` required fields including mapping snapshot identifiers, monotonic `event_seq` / `event_timestamp_us`, and `(tick, cycle)` ordering semantics) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `9.6.7`.
 - Input stream contract projection endpoint (`GET /api/v2/input/stream`) exposes deterministic `input_translated` payload fields plus ordering metadata (`source_of_truth=event_seq`, monotonic sequence/timestamp flags, and lexicographic tick-cycle ordering marker) for runtime verification.
+- Input stream emitter sequencing checks (`SEQ-CHECK-01..03`) and diagnostics projection (`input_diagnostics` with `sequencing_violations`, `last_sequence_error`, and `last_sequence_error_at_us`) are implemented in the runtime stream response for deterministic observability.
 - Input translation stream emitter + sequencing-check contract (deterministic emission pipeline, checks `SEQ-CHECK-01..03`, and diagnostics surfacing of sequence anomalies) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `9.6.7`.
 
 ## 6.5 Streaming APIs

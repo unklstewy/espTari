@@ -30,6 +30,15 @@ static char policy_reason[64] = "init";
 static uint64_t policy_changed_at_us;
 static uint64_t policy_event_seq;
 static uint64_t input_stream_event_seq;
+static uint64_t input_stream_emitted_events;
+static uint64_t input_stream_dropped_events;
+static uint64_t input_stream_last_event_seq;
+static uint64_t input_stream_last_event_timestamp_us;
+static uint64_t input_stream_last_tick;
+static uint64_t input_stream_last_cycle;
+static uint64_t input_stream_sequencing_violations;
+static uint64_t input_stream_last_sequence_error_at_us;
+static char input_stream_last_sequence_error[64];
 static char policy_owner_browser_session_id[64] = "browser_local";
 
 static void mapping_persistence_path(char *out_path, size_t out_path_len)
@@ -644,10 +653,43 @@ static esp_err_t input_stream_handler(httpd_req_t *req)
     uint64_t tick = event_seq;
     uint64_t cycle = event_seq * 4ULL;
 
-    char resp[1536];
+    if (input_stream_last_event_seq > 0 && event_seq != (input_stream_last_event_seq + 1ULL)) {
+        input_stream_sequencing_violations++;
+        input_stream_dropped_events++;
+        strlcpy(input_stream_last_sequence_error, "SEQ-CHECK-01:event_seq_gap", sizeof(input_stream_last_sequence_error));
+        input_stream_last_sequence_error_at_us = now_us;
+    }
+    if (input_stream_last_event_timestamp_us > 0 && now_us < input_stream_last_event_timestamp_us) {
+        input_stream_sequencing_violations++;
+        strlcpy(input_stream_last_sequence_error, "SEQ-CHECK-02:event_timestamp_us_regression", sizeof(input_stream_last_sequence_error));
+        input_stream_last_sequence_error_at_us = now_us;
+    }
+    if ((tick < input_stream_last_tick) || (tick == input_stream_last_tick && cycle < input_stream_last_cycle)) {
+        input_stream_sequencing_violations++;
+        strlcpy(input_stream_last_sequence_error, "SEQ-CHECK-03:tick_cycle_regression", sizeof(input_stream_last_sequence_error));
+        input_stream_last_sequence_error_at_us = now_us;
+    }
+
+    input_stream_emitted_events++;
+    input_stream_last_event_seq = event_seq;
+    input_stream_last_event_timestamp_us = now_us;
+    input_stream_last_tick = tick;
+    input_stream_last_cycle = cycle;
+
+    char last_sequence_error_json[96];
+    char last_sequence_error_at_json[48];
+    if (input_stream_last_sequence_error[0] == '\0') {
+        strlcpy(last_sequence_error_json, "null", sizeof(last_sequence_error_json));
+        strlcpy(last_sequence_error_at_json, "null", sizeof(last_sequence_error_at_json));
+    } else {
+        snprintf(last_sequence_error_json, sizeof(last_sequence_error_json), "\"%s\"", input_stream_last_sequence_error);
+        snprintf(last_sequence_error_at_json, sizeof(last_sequence_error_at_json), "%llu", (unsigned long long)input_stream_last_sequence_error_at_us);
+    }
+
+    char resp[2304];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"stream\":\"input\",\"input_enabled\":%s,\"capture_mode\":\"%s\",\"capture_active\":%s,\"policy_state\":\"%s\",\"event\":{\"type\":\"input_translated\",\"schema_version\":1,\"session_id\":\"%s\",\"browser_session_id\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"host_event_id\":\"evt_preview\",\"tick\":%llu,\"cycle\":%llu,\"mapping_profile_id\":\"%s\",\"mapping_revision\":%lu,\"host_event\":{\"device_id\":\"kbd_0\",\"type\":\"key_down\",\"code\":\"KeyA\"},\"virtual_event\":{\"target\":\"ikbd.key\",\"value\":\"ST_SC_A\",\"phase\":\"press\"}},\"ordering\":{\"source_of_truth\":\"event_seq\",\"event_seq_monotonic\":true,\"event_timestamp_us_monotonic\":true,\"tick_cycle_lexicographic\":true}}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"stream\":\"input\",\"input_enabled\":%s,\"capture_mode\":\"%s\",\"capture_active\":%s,\"policy_state\":\"%s\",\"event\":{\"type\":\"input_translated\",\"schema_version\":1,\"session_id\":\"%s\",\"browser_session_id\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"host_event_id\":\"evt_preview\",\"tick\":%llu,\"cycle\":%llu,\"mapping_profile_id\":\"%s\",\"mapping_revision\":%lu,\"host_event\":{\"device_id\":\"kbd_0\",\"type\":\"key_down\",\"code\":\"KeyA\"},\"virtual_event\":{\"target\":\"ikbd.key\",\"value\":\"ST_SC_A\",\"phase\":\"press\"}},\"ordering\":{\"source_of_truth\":\"event_seq\",\"event_seq_monotonic\":true,\"event_timestamp_us_monotonic\":true,\"tick_cycle_lexicographic\":true},\"diagnostics\":{\"type\":\"input_diagnostics\",\"schema_version\":1,\"session_id\":\"%s\",\"browser_session_id\":\"%s\",\"last_emitted_event_seq\":%llu,\"emitted_events\":%llu,\"queue_depth\":0,\"queue_capacity\":128,\"dropped_events\":%llu,\"mapping_profile_id\":\"%s\",\"sequencing_violations\":%llu,\"last_sequence_error\":%s,\"last_sequence_error_at_us\":%s}}}",
              session_id,
              input_enabled ? "true" : "false",
              input_capture_mode,
@@ -660,7 +702,16 @@ static esp_err_t input_stream_handler(httpd_req_t *req)
              (unsigned long long)tick,
              (unsigned long long)cycle,
              active_mapping_id,
-             (unsigned long)active_mapping_revision);
+             (unsigned long)active_mapping_revision,
+             session_id,
+             policy_owner_browser_session_id,
+             (unsigned long long)input_stream_last_event_seq,
+             (unsigned long long)input_stream_emitted_events,
+             (unsigned long long)input_stream_dropped_events,
+             active_mapping_id,
+             (unsigned long long)input_stream_sequencing_violations,
+             last_sequence_error_json,
+             last_sequence_error_at_json);
     return send_json(req, resp, 200);
 }
 
