@@ -749,6 +749,10 @@ Response `data`:
 
 ## 6.6B Engine status
 
+Machine-readable schema artifact:
+
+- `docs/emu_engine_v2/api_schema_engine_status_v1.json`
+
 Envelope binding:
 
 - Success uses the canonical envelope in section `4` with this section defining only `data`.
@@ -840,6 +844,10 @@ Error example (inactive session):
 ```
 
 ## 6.6A Engine health
+
+Machine-readable schema artifact:
+
+- `docs/emu_engine_v2/api_schema_engine_health_v1.json`
 
 Envelope binding:
 
@@ -4944,6 +4952,10 @@ Backpressure telemetry API example (response `data`):
 ```
 
 ## 10.8 Engine status/health event stream
+
+Machine-readable schema artifact:
+
+- `docs/emu_engine_v2/api_schema_engine_stream_status_health_v1.json`
 
 - `GET /api/v2/engine/stream`
 

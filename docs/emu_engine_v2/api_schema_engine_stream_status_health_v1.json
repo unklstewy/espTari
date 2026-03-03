@@ -1,0 +1,109 @@
+{
+  "schema_bundle": "espTari-v2-engine-stream-status-health",
+  "schema_version": "1.0.0",
+  "api_version": "v2",
+  "endpoint": {
+    "method": "GET",
+    "path": "/api/v2/engine/stream"
+  },
+  "event_types": [
+    "engine_status_update",
+    "engine_health_update",
+    "engine_stream_delivery",
+    "stream_backpressure_telemetry"
+  ],
+  "event_common": {
+    "required": ["type", "schema_version", "session_id", "event_seq", "event_timestamp_us"],
+    "types": {
+      "type": "string",
+      "schema_version": "uint32",
+      "session_id": "string",
+      "event_seq": "uint64",
+      "event_timestamp_us": "uint64"
+    }
+  },
+  "payload_contracts": {
+    "engine_status_update": {
+      "payload_field": "status",
+      "payload_ref": "docs/emu_engine_v2/api_schema_engine_status_v1.json"
+    },
+    "engine_health_update": {
+      "payload_field": "health",
+      "payload_ref": "docs/emu_engine_v2/api_schema_engine_health_v1.json"
+    },
+    "engine_stream_delivery": {
+      "required": ["state", "severity"],
+      "state_enum": ["normal", "degraded", "recovering"],
+      "severity_enum": ["info", "warning", "error"]
+    },
+    "stream_backpressure_telemetry": {
+      "required": ["stream", "metrics"],
+      "stream_enum": ["video", "audio", "engine", "registers", "bus", "memory"],
+      "metrics_ref": "section_10.7"
+    }
+  },
+  "delivery_contract": {
+    "required_for": ["engine_status_update", "engine_health_update"],
+    "fields": {
+      "degraded": "boolean",
+      "reason": "enum(none|queue_overflow|rate_limited|producer_lag|transport_backpressure)",
+      "dropped_events_since_last": "uint64",
+      "coalesced_updates": "uint64",
+      "throttle_active": "boolean"
+    }
+  },
+  "ordering_rules": [
+    "event_seq is strictly monotonic per stream connection and increments by 1 for each emitted event",
+    "event_timestamp_us is monotonic non-decreasing per stream connection",
+    "client ordering source of truth is event_seq",
+    "engine_status_update.status.snapshot_at_us <= event_timestamp_us",
+    "engine_health_update.health.generated_at_us <= event_timestamp_us"
+  ],
+  "degraded_signaling": {
+    "engine_stream_delivery_required_when": [
+      "delivery.degraded=true persists",
+      "delivery.degraded state transitions"
+    ],
+    "pre_close_error_signal": {
+      "required_when_possible": true,
+      "state": "degraded",
+      "severity": "error",
+      "error_code_non_empty": true
+    }
+  },
+  "examples": {
+    "engine_status_update_normal": {
+      "type": "engine_status_update",
+      "schema_version": 1,
+      "session_id": "ses_local",
+      "event_seq": 1042,
+      "event_timestamp_us": 1710000010450,
+      "delivery": {
+        "degraded": false,
+        "reason": "none",
+        "dropped_events_since_last": 0,
+        "coalesced_updates": 0,
+        "throttle_active": false
+      }
+    },
+    "engine_health_update_degraded": {
+      "type": "engine_health_update",
+      "schema_version": 1,
+      "session_id": "ses_local",
+      "event_seq": 2051,
+      "event_timestamp_us": 1710000011200,
+      "delivery": {
+        "degraded": true,
+        "reason": "queue_overflow",
+        "dropped_events_since_last": 2,
+        "coalesced_updates": 1,
+        "throttle_active": true
+      }
+    }
+  },
+  "cross_links": {
+    "api_spec": "docs/EMU_ENGINE_V2_API_SPEC.md",
+    "api_spec_section": "10.8",
+    "task": "T-050"
+  }
+}
