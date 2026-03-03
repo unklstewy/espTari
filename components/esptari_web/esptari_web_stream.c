@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -43,7 +44,9 @@ static uint64_t slo_alarm_seq;
 static bool slo_alarm_breached;
 static char stream_media_attach_events_json_buf[1536];
 static char stream_media_disk_state_events_json_buf[1536];
-static char stream_response_buf[6144];
+static char stream_video_contract_json_buf[1024];
+static char stream_video_meta_sample_json_buf[640];
+static char stream_response_buf[8192];
 static stream_backpressure_metrics_t stream_metrics[STREAM_KIND_COUNT] = {
     [STREAM_KIND_VIDEO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
     [STREAM_KIND_AUDIO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
@@ -203,6 +206,52 @@ static esp_err_t validate_inspect_filter(httpd_req_t *req)
     return ESP_OK;
 }
 
+static bool is_supported_video_pixel_format(const char *pixel_format)
+{
+    if (pixel_format == NULL) {
+        return false;
+    }
+    return strcmp(pixel_format, "RGB565") == 0 ||
+           strcmp(pixel_format, "XRGB8888") == 0 ||
+           strcmp(pixel_format, "RGB888") == 0;
+}
+
+static esp_err_t validate_video_metadata_contract(httpd_req_t *req)
+{
+    char value[32] = {0};
+
+    if (query_value(req, "metadata_schema_version", value, sizeof(value))) {
+        char *end = NULL;
+        unsigned long schema_version = strtoul(value, &end, 10);
+        if (end == value || *end != '\0') {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+        if (schema_version != 1UL) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"UNSUPPORTED_VERSION\"}}", 400);
+        }
+    }
+
+    if (query_value(req, "pixel_format", value, sizeof(value)) && !is_supported_video_pixel_format(value)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    const char *dimension_fields[] = {"width", "height", "payload_bytes"};
+    for (size_t i = 0; i < sizeof(dimension_fields) / sizeof(dimension_fields[0]); i++) {
+        memset(value, 0, sizeof(value));
+        if (!query_value(req, dimension_fields[i], value, sizeof(value))) {
+            continue;
+        }
+
+        char *end = NULL;
+        unsigned long parsed = strtoul(value, &end, 10);
+        if (end == value || *end != '\0' || parsed == 0UL) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    return ESP_OK;
+}
+
 static esp_err_t stream_guard_running(httpd_req_t *req)
 {
     esptari_session_status_t status;
@@ -223,6 +272,13 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     esp_err_t filter_err = validate_inspect_filter(req);
     if (filter_err != ESP_OK) {
         return filter_err;
+    }
+
+    if (stream == STREAM_KIND_VIDEO) {
+        esp_err_t video_contract_err = validate_video_metadata_contract(req);
+        if (video_contract_err != ESP_OK) {
+            return video_contract_err;
+        }
     }
 
     stream_event_seq++;
@@ -271,6 +327,18 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
 
     strlcpy(stream_media_attach_events_json_buf, "[]", sizeof(stream_media_attach_events_json_buf));
     strlcpy(stream_media_disk_state_events_json_buf, "[]", sizeof(stream_media_disk_state_events_json_buf));
+    strlcpy(stream_video_contract_json_buf, "null", sizeof(stream_video_contract_json_buf));
+    strlcpy(stream_video_meta_sample_json_buf, "null", sizeof(stream_video_meta_sample_json_buf));
+    if (stream == STREAM_KIND_VIDEO) {
+        snprintf(stream_video_contract_json_buf,
+                 sizeof(stream_video_contract_json_buf),
+                 "{\"channel\":\"video.metadata.v1\",\"schema\":\"video_frame_meta_v1\",\"required_fields\":[\"type\",\"schema_version\",\"channel\",\"session_id\",\"frame_id\",\"timestamp_us\",\"width\",\"height\",\"pixel_format\",\"payload_bytes\"],\"pixel_format_enum\":[\"RGB565\",\"XRGB8888\",\"RGB888\"],\"ordering\":\"frame_id_strictly_ascending\",\"payload_pairing\":\"frame_id_and_payload_bytes_must_match_following_binary_payload\"}");
+        snprintf(stream_video_meta_sample_json_buf,
+                 sizeof(stream_video_meta_sample_json_buf),
+                 "{\"type\":\"video_frame_meta\",\"schema_version\":1,\"channel\":\"video.metadata.v1\",\"session_id\":\"ses_local\",\"frame_id\":%llu,\"timestamp_us\":%llu,\"width\":640,\"height\":400,\"pixel_format\":\"RGB565\",\"payload_bytes\":512000}",
+                 (unsigned long long)stream_event_seq,
+                 (unsigned long long)timestamp_us);
+    }
     if (stream == STREAM_KIND_ENGINE) {
         const esptari_web_media_attach_event_t *events = NULL;
         size_t event_count = 0;
@@ -357,7 +425,7 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     }
 
     snprintf(stream_response_buf, sizeof(stream_response_buf),
-             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
              stream_name,
              (unsigned long long)stream_event_seq,
              (unsigned long long)timestamp_us,
@@ -389,6 +457,8 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
              (unsigned long long)metrics->overflow_events_total,
              (unsigned long long)metrics->throttle_transitions_total,
              (unsigned long long)metrics->sample_timestamp_us,
+             stream_video_contract_json_buf,
+             stream_video_meta_sample_json_buf,
              stream_media_attach_events_json_buf,
              stream_media_disk_state_events_json_buf,
              (unsigned long long)slo_alarm_seq,

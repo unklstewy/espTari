@@ -448,6 +448,8 @@ Browser input capture policy:
 - frame packet contains:
   - `frame_id`, `timestamp_us`, `width`, `height`, `pixel_format`, `payload`
 - Video metadata channel/schema contract (`video.metadata.v1`, `video_frame_meta_v1` required fields, ordering rules, and payload-pairing validation) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `10.2` and is the canonical source.
+- Runtime projection for contract verification is exposed on `GET /api/v2/stream/video` via `video_metadata_contract` and `video_frame_meta_sample` fields in stream probe responses.
+- Deterministic metadata guards are enforced on `GET /api/v2/stream/video` query validation: non-`1` `metadata_schema_version` returns `UNSUPPORTED_VERSION`; invalid `pixel_format` or non-positive `width`/`height`/`payload_bytes` return `BAD_REQUEST`.
 - Video payload stream emitter + pacing control contract (emitter checks `VID-EMIT-01..03`, `set_rate_limit` video pacing schema, and deterministic pacing/backpressure guard behavior) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `10.2` and is the canonical source.
 - optional debug mode:
   - scanline phase markers, border timing markers
