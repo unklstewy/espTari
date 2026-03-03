@@ -1,0 +1,55 @@
+### config_mouse_over
+POST /api/v2/input/capture/config
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","input_enabled":true,"capture_mode":"mouse_over","capture_active":false,"policy":{"state":"enabled_idle","source":"user_request","reason":"capture_config_applied","changed_at_us":32628634,"event_seq":9},"transition_result":"applied"}}
+
+### mouse_over_enter
+POST /api/v2/input/capture/config
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","input_enabled":true,"capture_mode":"mouse_over","capture_active":true,"policy":{"state":"enabled_captured","source":"system_guard","reason":"mouse_over_pointer_in","changed_at_us":32652651,"event_seq":10},"transition_result":"applied"}}
+
+### state_after_enter
+GET /api/v2/input/capture/state?session_id=ses_local&browser_session_id=browser_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","input_enabled":true,"capture_mode":"mouse_over","capture_active":true,"policy":{"state":"enabled_captured","source":"system_guard","reason":"mouse_over_pointer_in","changed_at_us":32652651,"event_seq":10},"escape_release":{"enabled":true,"sequence":["Escape","Escape"],"timeout_ms":600}}}
+
+### mouse_over_leave
+POST /api/v2/input/capture/config
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","input_enabled":true,"capture_mode":"mouse_over","capture_active":false,"policy":{"state":"enabled_idle","source":"system_guard","reason":"mouse_over_pointer_out","changed_at_us":32708656,"event_seq":11},"transition_result":"applied"}}
+
+### mouse_over_release_noop
+POST /api/v2/input/capture/release
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","result":"no_op","capture_active":false,"released_at_us":32738587,"policy":{"state":"enabled_idle","reason":"mouse_over_release_no_op"}}}
+
+### config_click_to_capture
+POST /api/v2/input/capture/config
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","input_enabled":true,"capture_mode":"click_to_capture","capture_active":false,"policy":{"state":"enabled_idle","source":"user_request","reason":"capture_config_applied","changed_at_us":32758619,"event_seq":13},"transition_result":"applied"}}
+
+### click_acquire_applied
+POST /api/v2/input/capture/config
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","input_enabled":true,"capture_mode":"click_to_capture","capture_active":true,"policy":{"state":"enabled_captured","source":"system_guard","reason":"click_to_capture_acquired","changed_at_us":32781649,"event_seq":14},"transition_result":"applied"}}
+
+### click_acquire_noop
+POST /api/v2/input/capture/config
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","input_enabled":true,"capture_mode":"click_to_capture","capture_active":true,"policy":{"state":"enabled_captured","source":"system_guard","reason":"click_to_capture_already_active","changed_at_us":32803654,"event_seq":15},"transition_result":"no_op"}}
+
+### inject_when_captured
+POST /api/v2/input/events/inject
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","accepted":1,"processed_at_us":32830667}}
+
+### click_release
+POST /api/v2/input/capture/release
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","result":"released","capture_active":false,"released_at_us":32850716,"policy":{"state":"enabled_idle","reason":"user_escape_sequence"}}}
+
+### inject_not_active
+POST /api/v2/input/events/inject
+HTTP 409
+{"ok":false,"error":{"code":"INPUT_CAPTURE_NOT_ACTIVE"}}
+
