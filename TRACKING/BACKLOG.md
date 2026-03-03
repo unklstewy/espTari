@@ -125,8 +125,8 @@ AI-speed policy:
 | T-107 | EPIC-07 | Implement interrupt wiring integration checks across subsystems | P0 | S | S3 | Backlog | T-106 |
 | T-108 | EPIC-07 | Define startup defaults and power-on register baseline table | P0 | XS | S3 | Backlog | T-107 |
 | T-109 | EPIC-07 | Implement reset/startup sequence executor and verification checks | P0 | S | S3 | Backlog | T-108 |
-| T-110 | EPIC-07 | Build subsystem conformance test scaffold and fixture model | P0 | S | S4 | Backlog | T-109 |
-| T-111 | EPIC-07 | Implement per-subsystem acceptance suites and reporting output | P0 | S | S4 | Backlog | T-110 |
+| T-110 | EPIC-07 | Build subsystem conformance test scaffold and fixture model | P0 | S | S4 | Ready | T-109 |
+| T-111 | EPIC-07 | Implement per-subsystem acceptance suites and reporting output | P0 | S | S4 | Ready | T-110 |
 | T-112 | EPIC-01 | Implement suspend-save request contract wiring and transition checks | P0 | S | S4 | Backlog | T-055, T-093 |
 | T-113 | EPIC-01 | Implement restore-resume transition guards and error semantics | P0 | S | S4 | Backlog | T-112 |
 | T-114 | EPIC-05 | Define restore compatibility rule matrix (schema/abi/profile) | P0 | XS | S4 | Backlog | T-044 |
