@@ -19,6 +19,10 @@ static uint64_t backpressure_throttle_transitions_total;
 static bool backpressure_throttle_active;
 static uint64_t slo_alarm_seq;
 static bool slo_alarm_breached;
+static const char *clock_mode = "realtime";
+static double clock_effective_ratio = 1.0;
+static uint64_t clock_mode_transition_seq;
+static uint64_t clock_last_transition_at_us;
 
 static bool query_value(httpd_req_t *req, const char *key, char *out, size_t out_len);
 
@@ -1005,6 +1009,106 @@ static esp_err_t reset_handler(httpd_req_t *req)
     return send_json(req, resp, 200);
 }
 
+static esp_err_t clock_mode_handler(httpd_req_t *req)
+{
+    if (req->content_len <= 0) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char body[256];
+    if (read_request_body(req, body, sizeof(body)) != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *root = cJSON_Parse(body);
+    if (root == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *mode_item = cJSON_GetObjectItemCaseSensitive(root, "mode");
+    if (!cJSON_IsString(mode_item) || mode_item->valuestring == NULL) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    const char *target_mode = mode_item->valuestring;
+    cJSON *ratio_item = cJSON_GetObjectItemCaseSensitive(root, "ratio");
+    bool has_ratio = ratio_item != NULL;
+    double target_ratio = 1.0;
+
+    if (strcmp(target_mode, "realtime") == 0) {
+        if (has_ratio) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_CLOCK_INVALID\"}}", 400);
+        }
+        target_ratio = 1.0;
+    } else if (strcmp(target_mode, "slow_motion") == 0) {
+        if (!has_ratio || !cJSON_IsNumber(ratio_item)) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_CLOCK_INVALID\"}}", 400);
+        }
+        target_ratio = ratio_item->valuedouble;
+        if (!(target_ratio > 0.0 && target_ratio <= 1.0)) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_CLOCK_INVALID\"}}", 400);
+        }
+    } else if (strcmp(target_mode, "single_step") == 0) {
+        if (has_ratio) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_CLOCK_INVALID\"}}", 400);
+        }
+        target_ratio = 1.0;
+    } else {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"DEBUG_CLOCK_INVALID\"}}", 400);
+    }
+
+    cJSON_Delete(root);
+
+    esptari_session_status_t status;
+    esptari_core_get_status(&status);
+    if (status.state == ESPTARI_SESSION_STOPPED) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"CLOCK-TRANS-STATE\",\"endpoint\":\"/api/v2/debug/clock/mode\",\"esp_err\":\"ESP_ERR_INVALID_STATE\"}}}", 409);
+    }
+
+    bool idempotent = strcmp(clock_mode, target_mode) == 0;
+    if (idempotent && strcmp(target_mode, "slow_motion") == 0) {
+        idempotent = clock_effective_ratio == target_ratio;
+    }
+
+    const char *from_mode = clock_mode;
+    if (!idempotent) {
+        clock_mode = strcmp(target_mode, "realtime") == 0
+                         ? "realtime"
+                         : (strcmp(target_mode, "slow_motion") == 0 ? "slow_motion" : "single_step");
+        clock_effective_ratio = target_ratio;
+        clock_mode_transition_seq++;
+        clock_last_transition_at_us = (uint64_t)esp_timer_get_time();
+    }
+
+    char resp[512];
+    if (!idempotent) {
+        snprintf(resp,
+                 sizeof(resp),
+                 "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"transition_applied\":true,\"mode_transition_seq\":%llu,\"from_mode\":\"%s\",\"to_mode\":\"%s\",\"effective_ratio\":%.6f,\"last_transition_at_us\":%llu}}",
+                 (unsigned long long)clock_mode_transition_seq,
+                 from_mode,
+                 clock_mode,
+                 clock_effective_ratio,
+                 (unsigned long long)clock_last_transition_at_us);
+    } else {
+        snprintf(resp,
+                 sizeof(resp),
+                 "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"transition_applied\":false,\"mode_transition_seq\":%llu,\"from_mode\":\"%s\",\"to_mode\":\"%s\",\"effective_ratio\":%.6f,\"reason\":\"already_in_target_mode\"}}",
+                 (unsigned long long)clock_mode_transition_seq,
+                 clock_mode,
+                 clock_mode,
+                 clock_effective_ratio);
+    }
+
+    return send_json(req, resp, 200);
+}
+
 void esptari_web_init(uint16_t port)
 {
     if (server_handle != NULL) {
@@ -1014,7 +1118,7 @@ void esptari_web_init(uint16_t port)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = port;
     config.uri_match_fn = httpd_uri_match_wildcard;
-    config.max_uri_handlers = 24;
+    config.max_uri_handlers = 32;
     config.stack_size = 10240;
 
     if (httpd_start(&server_handle, &config) != ESP_OK) {
@@ -1047,6 +1151,7 @@ void esptari_web_init(uint16_t port)
     httpd_uri_t inspect_registers = {.uri = "/api/v2/inspect/registers/stream", .method = HTTP_GET, .handler = inspect_registers_stream_handler, .user_ctx = NULL};
     httpd_uri_t inspect_bus = {.uri = "/api/v2/inspect/bus/stream", .method = HTTP_GET, .handler = inspect_bus_stream_handler, .user_ctx = NULL};
     httpd_uri_t inspect_memory = {.uri = "/api/v2/inspect/memory/stream", .method = HTTP_GET, .handler = inspect_memory_stream_handler, .user_ctx = NULL};
+    httpd_uri_t debug_clock_mode = {.uri = "/api/v2/debug/clock/mode", .method = HTTP_POST, .handler = clock_mode_handler, .user_ctx = NULL};
 
     httpd_register_uri_handler(server_handle, &health);
     httpd_register_uri_handler(server_handle, &status);
@@ -1072,6 +1177,7 @@ void esptari_web_init(uint16_t port)
     httpd_register_uri_handler(server_handle, &inspect_registers);
     httpd_register_uri_handler(server_handle, &inspect_bus);
     httpd_register_uri_handler(server_handle, &inspect_memory);
+    httpd_register_uri_handler(server_handle, &debug_clock_mode);
 
     ESP_LOGI(TAG, "Web API ready on port %u", (unsigned)port);
 }

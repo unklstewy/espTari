@@ -1,0 +1,25 @@
+base=http://esptari.local
+--- stop baseline
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-STOP","endpoint":"/api/v2/engine/session/stop","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- clock mode from stopped (expect 409)
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"CLOCK-TRANS-STATE","endpoint":"/api/v2/debug/clock/mode","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- start
+{"ok":true}
+HTTP_STATUS:200
+--- mode slow_motion ratio 0.5
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":true,"mode_transition_seq":1,"from_mode":"realtime","to_mode":"slow_motion","effective_ratio":0.500000,"last_transition_at_us":14773534}}
+HTTP_STATUS:200
+--- mode slow_motion idempotent
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":false,"mode_transition_seq":1,"from_mode":"slow_motion","to_mode":"slow_motion","effective_ratio":0.500000,"reason":"already_in_target_mode"}}
+HTTP_STATUS:200
+--- mode realtime with invalid ratio (expect 400)
+{"ok":false,"error":{"code":"DEBUG_CLOCK_INVALID"}}
+HTTP_STATUS:400
+--- mode realtime valid
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":true,"mode_transition_seq":2,"from_mode":"slow_motion","to_mode":"realtime","effective_ratio":1.000000,"last_transition_at_us":14862396}}
+HTTP_STATUS:200
+--- mode slow_motion missing ratio (expect 400)
+{"ok":false,"error":{"code":"DEBUG_CLOCK_INVALID"}}
+HTTP_STATUS:400
