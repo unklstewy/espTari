@@ -107,10 +107,10 @@ AI-speed policy:
 | T-089 | EPIC-05 | Implement filtered bus/memory stream and load validation run | P1 | S | S4 | Backlog | T-088 |
 | T-090 | EPIC-05 | Implement stream backpressure counters and watermark metrics | P1 | XS | S4 | Backlog | T-083, T-085, T-089 |
 | T-091 | EPIC-05 | Expose backpressure telemetry via API and event streams | P1 | S | S4 | Backlog | T-090 |
-| T-092 | EPIC-06 | Build conformance harness scaffold and test manifest loader | P1 | S | S4 | Backlog | T-075, T-083, T-085 |
-| T-093 | EPIC-06 | Implement evidence artifact collection and report packaging flow | P1 | S | S4 | Backlog | T-092 |
-| T-094 | EPIC-06 | Implement acceptance checklist execution runner | P0 | S | S4 | Backlog | T-093 |
-| T-095 | EPIC-06 | Implement review pack generation and signoff bundle assembly | P0 | XS | S4 | Backlog | T-094 |
+| T-092 | EPIC-06 | Build conformance harness scaffold and test manifest loader | P1 | S | S4 | In Progress | T-075, T-083, T-085 |
+| T-093 | EPIC-06 | Implement evidence artifact collection and report packaging flow | P1 | S | S4 | In Progress | T-092 |
+| T-094 | EPIC-06 | Implement acceptance checklist execution runner | P0 | S | S4 | Ready | T-093 |
+| T-095 | EPIC-06 | Implement review pack generation and signoff bundle assembly | P0 | XS | S4 | Ready | T-094 |
 | T-096 | EPIC-07 | Implement GLUE/MMU/SHIFTER register and memory window model | P0 | S | S2 | Backlog | T-077 |
 | T-097 | EPIC-07 | Implement GLUE/MMU/SHIFTER arbitration and timing integration checks | P0 | S | S2 | Backlog | T-096 |
 | T-098 | EPIC-07 | Implement MFP register and timer model contracts | P0 | S | S2 | Backlog | T-077 |

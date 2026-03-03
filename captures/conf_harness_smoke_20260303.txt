@@ -1,0 +1,23 @@
+# Conformance Harness Smoke Scaffold (P0-3)
+
+Date: 2026-03-03
+Scope: Initial evidence scaffold only (no full runtime conformance execution claimed)
+
+## Smoke checklist
+
+- [x] Execution plan artifact created: TRACKING/CONFORMANCE_RUNTIME/CONF_HARNESS_EXEC_PLAN_2026-03-03.md
+- [x] Artifact schema created: TRACKING/CONFORMANCE_RUNTIME/CONF_ARTIFACT_SCHEMA_2026-03-03.md
+- [x] Backlog status updates applied for T-092/T-093/T-094/T-095
+- [x] Kanban state reflects P0-3 activation
+
+## Placeholder run context
+
+run_id: conf-smoke-20260303-0001
+unlock_mode: unlock_with_conditions
+manifest_id: pending
+firmware_rev: pending
+profile_id: pending
+
+## Notes
+
+This file is a scaffolding evidence marker for P0-3 activation and does not represent full conformance harness runtime execution results.
