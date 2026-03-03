@@ -164,6 +164,11 @@ static esp_err_t stream_audio_handler(httpd_req_t *req)
     return emit_stream_probe(req, "audio");
 }
 
+static esp_err_t stream_engine_handler(httpd_req_t *req)
+{
+    return emit_stream_probe(req, "engine");
+}
+
 static esp_err_t inspect_registers_stream_handler(httpd_req_t *req)
 {
     return emit_stream_probe(req, "registers");
@@ -238,6 +243,7 @@ void esptari_web_stream_register_routes(httpd_handle_t server_handle)
 {
     httpd_uri_t stream_video = {.uri = "/api/v2/stream/video", .method = HTTP_GET, .handler = stream_video_handler, .user_ctx = NULL};
     httpd_uri_t stream_audio = {.uri = "/api/v2/stream/audio", .method = HTTP_GET, .handler = stream_audio_handler, .user_ctx = NULL};
+    httpd_uri_t stream_engine = {.uri = "/api/v2/engine/stream", .method = HTTP_GET, .handler = stream_engine_handler, .user_ctx = NULL};
     httpd_uri_t stream_backpressure = {.uri = "/api/v2/stream/telemetry/backpressure", .method = HTTP_GET, .handler = stream_backpressure_telemetry_handler, .user_ctx = NULL};
     httpd_uri_t inspect_registers = {.uri = "/api/v2/inspect/registers/stream", .method = HTTP_GET, .handler = inspect_registers_stream_handler, .user_ctx = NULL};
     httpd_uri_t inspect_bus = {.uri = "/api/v2/inspect/bus/stream", .method = HTTP_GET, .handler = inspect_bus_stream_handler, .user_ctx = NULL};
@@ -245,6 +251,7 @@ void esptari_web_stream_register_routes(httpd_handle_t server_handle)
 
     httpd_register_uri_handler(server_handle, &stream_video);
     httpd_register_uri_handler(server_handle, &stream_audio);
+    httpd_register_uri_handler(server_handle, &stream_engine);
     httpd_register_uri_handler(server_handle, &stream_backpressure);
     httpd_register_uri_handler(server_handle, &inspect_registers);
     httpd_register_uri_handler(server_handle, &inspect_bus);

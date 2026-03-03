@@ -1,9 +1,11 @@
 #include "esptari_web.h"
 
 #include "esp_log.h"
+#include "esptari_web_catalog_sync.h"
 #include "esptari_web_catalog.h"
 #include "esptari_web_core_status.h"
 #include "esptari_web_debug.h"
+#include "esptari_web_files.h"
 #include "esptari_web_lifecycle.h"
 #include "esptari_web_media.h"
 #include "esptari_web_input.h"
@@ -25,7 +27,7 @@ void esptari_web_init(uint16_t port)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = port;
     config.uri_match_fn = httpd_uri_match_wildcard;
-    config.max_uri_handlers = 48;
+    config.max_uri_handlers = 96;
     config.stack_size = 10240;
 
     if (httpd_start(&server_handle, &config) != ESP_OK) {
@@ -45,6 +47,8 @@ void esptari_web_init(uint16_t port)
     esptari_web_persistence_register_routes(server_handle);
     esptari_web_snapshot_register_routes(server_handle);
     esptari_web_catalog_register_routes(server_handle);
+    esptari_web_files_register_routes(server_handle);
+    esptari_web_catalog_sync_register_routes(server_handle);
 
     ESP_LOGI(TAG, "Web API ready on port %u", (unsigned)port);
 }

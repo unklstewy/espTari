@@ -26,6 +26,7 @@ EXPECTED_ROUTES = {
     ("POST", "/api/v2/engine/state/save"),
     ("POST", "/api/v2/engine/state/restore"),
     ("GET", "/api/v2/engine/state/list"),
+    ("GET", "/api/v2/engine/stream"),
     ("POST", "/api/v2/media/rom/attach"),
     ("POST", "/api/v2/media/disk/attach"),
     ("POST", "/api/v2/media/disk/eject"),
@@ -70,6 +71,24 @@ EXPECTED_ROUTES = {
     ("GET", "/api/v2/catalogs/list"),
     ("GET", "/api/v2/catalogs/*"),
     ("POST", "/api/v2/catalogs/*"),
+    ("GET", "/api/v2/files/list"),
+    ("POST", "/api/v2/files/upload"),
+    ("POST", "/api/v2/files/move"),
+    ("POST", "/api/v2/files/delete"),
+    ("GET", "/api/v2/files/download"),
+    ("POST", "/api/v2/files/mkdir"),
+    ("GET", "/api/v2/files/stat"),
+    ("POST", "/api/v2/catalog-sync/jobs/run"),
+    ("GET", "/api/v2/catalog-sync/jobs"),
+    ("GET", "/api/v2/catalog-sync/jobs/*"),
+    ("POST", "/api/v2/catalog-sync/schedules"),
+    ("GET", "/api/v2/catalog-sync/schedules"),
+    ("DELETE", "/api/v2/catalog-sync/schedules/*"),
+    ("GET", "/api/v2/ebins/catalog"),
+    ("POST", "/api/v2/ebins/rescan"),
+    ("POST", "/api/v2/ebins/validate"),
+    ("POST", "/api/v2/ebins/load"),
+    ("POST", "/api/v2/ebins/unload"),
 }
 
 RE_ROUTE_DEF = re.compile(
@@ -244,6 +263,8 @@ def main() -> int:
         "esptari_web_persistence_register_routes",
         "esptari_web_snapshot_register_routes",
         "esptari_web_catalog_register_routes",
+        "esptari_web_files_register_routes",
+        "esptari_web_catalog_sync_register_routes",
     }
     missing_registrars = sorted(required_registrars - route_call_names)
     if missing_registrars:

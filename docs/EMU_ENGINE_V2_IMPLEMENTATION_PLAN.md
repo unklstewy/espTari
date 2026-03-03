@@ -526,6 +526,33 @@ Browser input capture policy:
 - Single-step execution-control API + scheduler-hook contract (`steps` bounds, checks `STEP-CTRL-01..04`, `scheduler_hook_stats`, and deterministic guard/error mapping for `/api/v2/debug/clock/step`) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `6.10B` and is the canonical source.
 - Opcode/bus-error capture path + diagnostic payload contract (`opcode_capture_v1`, `bus_error_capture_v1`, checks `CAP-DIAG-01..04`, and deterministic capture guard/error mapping) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `6.10C` and is the canonical source.
 
+### Section 6 completion map (2026-03-03)
+
+- **6.1 Lifecycle start/session bootstrap**: COMPLETE
+  - Implemented: `GET /api/v2/engine/health`, `GET /api/v2/engine/status`, `GET /api/v2/engine/session`, `POST /api/v2/engine/session`, `POST /api/v2/engine/session/start`
+- **6.2 SD-card file manager + catalog/scheduler/ebin admin**: COMPLETE
+  - Implemented: `GET /api/v2/files/list`, `POST /api/v2/files/upload`, `POST /api/v2/files/move`, `POST /api/v2/files/delete`, `GET /api/v2/files/download`, `POST /api/v2/files/mkdir`, `GET /api/v2/files/stat`
+  - Implemented: `GET /api/v2/catalogs/list`, `GET /api/v2/catalogs/*`, `POST /api/v2/catalogs/*`
+  - Implemented: `POST /api/v2/catalog-sync/jobs/run`, `GET /api/v2/catalog-sync/jobs`, `GET /api/v2/catalog-sync/jobs/*`, `POST /api/v2/catalog-sync/schedules`, `GET /api/v2/catalog-sync/schedules`, `DELETE /api/v2/catalog-sync/schedules/*`
+  - Implemented: `GET /api/v2/ebins/catalog`, `POST /api/v2/ebins/rescan`, `POST /api/v2/ebins/validate`, `POST /api/v2/ebins/load`, `POST /api/v2/ebins/unload`
+- **6.3 Media APIs**: COMPLETE
+  - Implemented: `POST /api/v2/media/rom/attach`, `POST /api/v2/media/disk/attach`, `POST /api/v2/media/disk/eject`, `POST /api/v2/media/cartridge/attach`, `POST /api/v2/media/cartridge/eject`
+- **6.4 Input APIs**: COMPLETE
+  - Implemented: `GET /api/v2/input/devices`, `POST /api/v2/input/events/inject`, `GET /api/v2/input/capture/state`, `POST /api/v2/input/policy/enabled`, `POST /api/v2/input/capture/config`, `POST /api/v2/input/capture/release`, `POST /api/v2/input/mappings/load`, `GET /api/v2/input/mappings/active`, `POST /api/v2/input/mappings/update`, `GET /api/v2/input/stream`
+  - Implemented CRUD/apply support: `POST /api/v2/input/mappings`, `GET/PATCH/DELETE /api/v2/input/mappings/*`, `POST /api/v2/input/mappings/apply`
+- **6.5 Streaming APIs**: COMPLETE
+  - Implemented: `GET /api/v2/stream/video`, `GET /api/v2/stream/audio`, `GET /api/v2/engine/stream`, `GET /api/v2/inspect/registers/stream`, `GET /api/v2/inspect/bus/stream`, `GET /api/v2/inspect/memory/stream`, `GET /api/v2/stream/telemetry/backpressure`
+- **6.6 Snapshot APIs**: COMPLETE
+  - Implemented: `GET /api/v2/inspect/registers/snapshot`, `GET /api/v2/inspect/bus/snapshot`, `GET /api/v2/inspect/memory/snapshot`, `POST /api/v2/engine/checkpoint/create`, `POST /api/v2/engine/checkpoint/load`
+- **6.7 Machine state persistence APIs**: COMPLETE
+  - Implemented: `POST /api/v2/engine/state/save`, `POST /api/v2/engine/state/restore`, `GET /api/v2/engine/state/list`
+- **6.8 Performance metrics APIs**: COMPLETE
+  - Implemented: `GET /api/v2/metrics/performance`, `GET /api/v2/metrics/performance/history`, `POST /api/v2/metrics/performance/collectors/config`, `GET /api/v2/metrics/performance/samples`, `GET /api/v2/metrics/performance/thresholds`, `GET /api/v2/metrics/performance/alarms`
+- **6.9 Debug clock-control APIs**: COMPLETE
+  - Implemented: `POST /api/v2/debug/clock/mode`, `POST /api/v2/debug/clock/step`, `GET /api/v2/debug/clock/state`
+
+- Verification gate status: `tools/verify_api_v2_routes.py` passes with 78 tracked/registered API V2 routes, including all Section 6 surfaces above.
+
 ---
 
 ## 7. Introspection and observability design
