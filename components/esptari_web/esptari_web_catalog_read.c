@@ -199,18 +199,57 @@ static esp_err_t catalog_entry_get_handler(httpd_req_t *req)
     const catalog_entry_t *match = &def->entries[(size_t)entry_index];
     const char *projected_state = esptari_web_catalog_entry_state(def, (size_t)entry_index);
     const char *projected_local_path = esptari_web_catalog_entry_local_path_projected(def, (size_t)entry_index);
+    catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, (size_t)entry_index);
 
-    char resp[640];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"id\":\"%s\",\"local_path\":\"%s\",\"hosted_url\":\"%s\",\"availability_state\":\"%s\",\"availability_checked_at\":\"%s\",\"download_fail_count\":%lu}}",
-             match->id,
-             projected_local_path,
-             match->hosted_url,
-             projected_state,
-             match->availability_checked_at,
-             (unsigned long)match->download_fail_count);
-    return send_json(req, resp, 200);
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(resp, "data", data);
+    cJSON_AddStringToObject(data, "id", match->id);
+    cJSON_AddStringToObject(data, "local_path", projected_local_path);
+    cJSON_AddStringToObject(data, "hosted_url", match->hosted_url);
+    cJSON_AddStringToObject(data, "availability_state", projected_state);
+    cJSON_AddStringToObject(data, "availability_checked_at", match->availability_checked_at);
+    cJSON_AddNumberToObject(data,
+                            "download_fail_count",
+                            (double)esptari_web_catalog_entry_download_fail_count(def, (size_t)entry_index));
+
+    cJSON_AddBoolToObject(data, "dead_marked", runtime != NULL ? runtime->dead_marked : false);
+    cJSON_AddStringToObject(data,
+                            "dead_source",
+                            runtime != NULL && runtime->dead_source[0] != '\0' ? runtime->dead_source : "");
+    cJSON_AddStringToObject(data,
+                            "last_dead_reason",
+                            runtime != NULL && runtime->last_dead_reason[0] != '\0' ? runtime->last_dead_reason : "");
+    cJSON_AddNumberToObject(data,
+                            "last_dead_marked_at_us",
+                            (double)(runtime != NULL ? runtime->last_dead_marked_at_us : 0));
+    cJSON_AddNumberToObject(data,
+                            "dead_retry_attempts",
+                            (double)(runtime != NULL ? runtime->dead_retry_attempts : 0));
+    cJSON_AddNumberToObject(data,
+                            "dead_retry_successes",
+                            (double)(runtime != NULL ? runtime->dead_retry_successes : 0));
+    cJSON_AddNumberToObject(data,
+                            "dead_retry_failures",
+                            (double)(runtime != NULL ? runtime->dead_retry_failures : 0));
+    if (runtime != NULL && runtime->last_dead_retry_at_us != 0) {
+        cJSON_AddNumberToObject(data, "last_dead_retry_at_us", (double)runtime->last_dead_retry_at_us);
+    } else {
+        cJSON_AddNullToObject(data, "last_dead_retry_at_us");
+    }
+    cJSON_AddStringToObject(data,
+                            "last_dead_retry_result",
+                            runtime != NULL && runtime->last_dead_retry_result[0] != '\0' ? runtime->last_dead_retry_result : "none");
+
+    char *resp_json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    if (resp_json == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+    esp_err_t out = send_json(req, resp_json, 200);
+    free(resp_json);
+    return out;
 }
 
 static esp_err_t catalog_missing_report_handler(httpd_req_t *req)

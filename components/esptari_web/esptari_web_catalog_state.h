@@ -37,6 +37,7 @@ typedef struct {
     uint32_t dead_retry_failures;
     uint64_t last_dead_retry_at_us;
     char last_dead_retry_result[16];
+    uint32_t download_fail_count;
     uint64_t first_missing_at_us;
 } catalog_entry_runtime_t;
 
@@ -55,6 +56,7 @@ catalog_entry_runtime_t *esptari_web_catalog_runtime_at(const catalog_def_t *def
 const char *esptari_web_catalog_entry_state(const catalog_def_t *def, size_t index);
 bool esptari_web_catalog_entry_local_present(const catalog_def_t *def, size_t index);
 const char *esptari_web_catalog_entry_local_path_projected(const catalog_def_t *def, size_t index);
+uint32_t esptari_web_catalog_entry_download_fail_count(const catalog_def_t *def, size_t index);
 int esptari_web_catalog_find_entry_index(const catalog_def_t *def, const char *entry_id);
 
 uint64_t esptari_web_catalog_next_download_seq(void);

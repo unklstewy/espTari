@@ -169,21 +169,38 @@ esp_err_t esptari_web_catalog_mark_dead_handler(httpd_req_t *req)
     runtime->last_dead_marked_at_us = now_us;
     cJSON_Delete(root);
 
-    char resp[768];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"entry_id\":\"%s\",\"state_before\":\"%s\",\"state_after\":\"dead\",\"dead_marked\":true,\"dead_source\":\"manual\",\"last_dead_reason\":\"%s\",\"last_dead_marked_at_us\":%llu,\"dead_retry_attempts\":%lu,\"dead_retry_successes\":%lu,\"dead_retry_failures\":%lu,\"last_dead_retry_at_us\":%s,\"last_dead_retry_result\":\"%s\"}}",
-             def->name,
-             def->entries[(size_t)entry_index].id,
-             state_before,
-             runtime->last_dead_reason,
-             (unsigned long long)now_us,
-             (unsigned long)runtime->dead_retry_attempts,
-             (unsigned long)runtime->dead_retry_successes,
-             (unsigned long)runtime->dead_retry_failures,
-             runtime->last_dead_retry_at_us == 0 ? "null" : "0",
-             runtime->last_dead_retry_result[0] == '\0' ? "none" : runtime->last_dead_retry_result);
-    return send_json(req, resp, 200);
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(resp, "data", data);
+    cJSON_AddStringToObject(data, "catalog", def->name);
+    cJSON_AddStringToObject(data, "entry_id", def->entries[(size_t)entry_index].id);
+    cJSON_AddStringToObject(data, "state_before", state_before);
+    cJSON_AddStringToObject(data, "state_after", "dead");
+    cJSON_AddBoolToObject(data, "dead_marked", true);
+    cJSON_AddStringToObject(data, "dead_source", "manual");
+    cJSON_AddStringToObject(data, "last_dead_reason", runtime->last_dead_reason);
+    cJSON_AddNumberToObject(data, "last_dead_marked_at_us", (double)now_us);
+    cJSON_AddNumberToObject(data, "dead_retry_attempts", (double)runtime->dead_retry_attempts);
+    cJSON_AddNumberToObject(data, "dead_retry_successes", (double)runtime->dead_retry_successes);
+    cJSON_AddNumberToObject(data, "dead_retry_failures", (double)runtime->dead_retry_failures);
+    if (runtime->last_dead_retry_at_us == 0) {
+        cJSON_AddNullToObject(data, "last_dead_retry_at_us");
+    } else {
+        cJSON_AddNumberToObject(data, "last_dead_retry_at_us", (double)runtime->last_dead_retry_at_us);
+    }
+    cJSON_AddStringToObject(data,
+                            "last_dead_retry_result",
+                            runtime->last_dead_retry_result[0] == '\0' ? "none" : runtime->last_dead_retry_result);
+
+    char *resp_json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    if (resp_json == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+    esp_err_t out = send_json(req, resp_json, 200);
+    free(resp_json);
+    return out;
 }
 
 esp_err_t esptari_web_catalog_rescan_local_handler(httpd_req_t *req)

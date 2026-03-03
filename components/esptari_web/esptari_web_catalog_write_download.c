@@ -71,6 +71,48 @@ static esp_err_t parse_optional_bool(cJSON *root, const char *field, bool defaul
     return ESP_OK;
 }
 
+static void dead_retry_begin(catalog_entry_runtime_t *runtime, uint64_t now_us)
+{
+    if (runtime == NULL) {
+        return;
+    }
+    runtime->dead_retry_attempts++;
+    runtime->last_dead_retry_at_us = now_us;
+    snprintf(runtime->last_dead_retry_result, sizeof(runtime->last_dead_retry_result), "%s", "blocked");
+}
+
+static void dead_retry_mark_success(catalog_entry_runtime_t *runtime)
+{
+    if (runtime == NULL) {
+        return;
+    }
+    runtime->dead_retry_successes++;
+    snprintf(runtime->last_dead_retry_result, sizeof(runtime->last_dead_retry_result), "%s", "success");
+    runtime->state_override = true;
+    snprintf(runtime->availability_state, sizeof(runtime->availability_state), "%s", "online");
+    runtime->dead_marked = false;
+    runtime->dead_source[0] = '\0';
+    runtime->last_dead_reason[0] = '\0';
+    runtime->probe_fail_streak = 0;
+    runtime->download_fail_count = 0;
+}
+
+static void dead_retry_mark_failure(catalog_entry_runtime_t *runtime, const char *result)
+{
+    if (runtime == NULL) {
+        return;
+    }
+    runtime->dead_retry_failures++;
+    snprintf(runtime->last_dead_retry_result,
+             sizeof(runtime->last_dead_retry_result),
+             "%s",
+             (result != NULL && result[0] != '\0') ? result : "failure");
+    runtime->state_override = true;
+    snprintf(runtime->availability_state, sizeof(runtime->availability_state), "%s", "dead");
+    runtime->dead_marked = true;
+    runtime->download_fail_count++;
+}
+
 static esp_err_t send_probe_links_response(httpd_req_t *req,
                                            const catalog_def_t *def,
                                            uint64_t probe_seq,
@@ -187,12 +229,14 @@ esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
     const catalog_entry_t *entry = &def->entries[(size_t)entry_index];
     catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, (size_t)entry_index);
     const char *state = esptari_web_catalog_entry_state(def, (size_t)entry_index);
+    bool dead_entry = strcmp(state, "dead") == 0;
+    bool dead_retry_requested = dead_entry && allow_dead_retry;
 
     if (entry->hosted_url == NULL || entry->hosted_url[0] == '\0') {
         cJSON_Delete(root);
         return send_download_error(req, 400, "BAD_REQUEST", "Catalog entry has no hosted source URL");
     }
-    if (strcmp(state, "dead") == 0 && !allow_dead_retry) {
+    if (dead_entry && !allow_dead_retry) {
         cJSON_Delete(root);
         return send_download_error(req, 409, "CATALOG_LINK_DEAD", "Catalog entry is marked dead and retry is not allowed");
     }
@@ -217,10 +261,8 @@ esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
         last_queued_seq = download_seq;
     }
 
-    if (runtime != NULL && strcmp(state, "dead") == 0 && allow_dead_retry) {
-        runtime->dead_retry_attempts++;
-        runtime->last_dead_retry_at_us = now_us;
-        snprintf(runtime->last_dead_retry_result, sizeof(runtime->last_dead_retry_result), "%s", "queued");
+    if (dead_retry_requested) {
+        dead_retry_begin(runtime, now_us);
     }
 
     char staging_path[160];
@@ -229,17 +271,26 @@ esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
     uint64_t bytes_downloaded = projected_download_size_bytes(def, (size_t)entry_index);
 
     if (simulate_truncated) {
+        if (dead_retry_requested) {
+            dead_retry_mark_failure(runtime, "blocked");
+        }
         cJSON_Delete(root);
         return send_download_error(req, 409, "UPLOAD_INCOMPLETE", "Staging artifact missing or truncated before verification");
     }
 
     const char *sha256_actual = projected_sha_actual(entry, verify_sha256, simulate_hash_mismatch);
     if (verify_sha256 && simulate_hash_mismatch) {
+        if (dead_retry_requested) {
+            dead_retry_mark_failure(runtime, "failure");
+        }
         cJSON_Delete(root);
         return send_download_error(req, 409, "CATALOG_SYNC_FAILED", "Integrity verification failed for staged download");
     }
 
     if (simulate_commit_failure) {
+        if (dead_retry_requested) {
+            dead_retry_mark_failure(runtime, "failure");
+        }
         cJSON_Delete(root);
         return send_download_error(req, 409, "CATALOG_SYNC_FAILED", "Atomic commit failed while finalizing staged download");
     }
@@ -252,33 +303,69 @@ esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
         runtime->last_indexed_at_us = committed_at_us;
         runtime->first_missing_at_us = 0;
     }
-
-    char sha256_expected_json[160];
-    if (entry->sha256_expected != NULL && entry->sha256_expected[0] != '\0') {
-        snprintf(sha256_expected_json, sizeof(sha256_expected_json), "\"%s\"", entry->sha256_expected);
-    } else {
-        snprintf(sha256_expected_json, sizeof(sha256_expected_json), "null");
+    if (dead_retry_requested) {
+        dead_retry_mark_success(runtime);
     }
 
-    char resp[1400];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"entry_id\":\"%s\",\"job_id\":\"dl_%06llu\",\"queue_state\":\"%s\",\"priority\":\"%s\",\"enqueued_at_us\":%llu,\"stage_state\":\"committed\",\"staging_path\":\"%s\",\"final_path\":\"%s\",\"bytes_downloaded\":%llu,\"sha256_expected\":%s,\"sha256_actual\":\"%s\",\"verified\":%s,\"committed_at_us\":%llu}}",
-             def->name,
-             entry->id,
-             (unsigned long long)download_seq,
-             queue_state,
-             priority,
-             (unsigned long long)now_us,
-             staging_path,
-             final_path,
-             (unsigned long long)bytes_downloaded,
-             sha256_expected_json,
-             sha256_actual,
-             verify_sha256 ? "true" : "false",
-             (unsigned long long)committed_at_us);
     cJSON_Delete(root);
-    return send_json(req, resp, 200);
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(resp, "data", data);
+    char job_id[32];
+    snprintf(job_id, sizeof(job_id), "dl_%06llu", (unsigned long long)download_seq);
+    cJSON_AddStringToObject(data, "catalog", def->name);
+    cJSON_AddStringToObject(data, "entry_id", entry->id);
+    cJSON_AddStringToObject(data, "job_id", job_id);
+    cJSON_AddStringToObject(data, "queue_state", queue_state);
+    cJSON_AddStringToObject(data, "priority", priority);
+    cJSON_AddNumberToObject(data, "enqueued_at_us", (double)now_us);
+    cJSON_AddStringToObject(data, "stage_state", "committed");
+    cJSON_AddStringToObject(data, "staging_path", staging_path);
+    cJSON_AddStringToObject(data, "final_path", final_path);
+    cJSON_AddNumberToObject(data, "bytes_downloaded", (double)bytes_downloaded);
+    if (entry->sha256_expected != NULL && entry->sha256_expected[0] != '\0') {
+        cJSON_AddStringToObject(data, "sha256_expected", entry->sha256_expected);
+    } else {
+        cJSON_AddNullToObject(data, "sha256_expected");
+    }
+    cJSON_AddStringToObject(data, "sha256_actual", sha256_actual);
+    cJSON_AddBoolToObject(data, "verified", verify_sha256);
+    cJSON_AddNumberToObject(data, "committed_at_us", (double)committed_at_us);
+
+    const char *state_after = esptari_web_catalog_entry_state(def, (size_t)entry_index);
+    cJSON_AddStringToObject(data, "availability_state", state_after);
+    cJSON_AddBoolToObject(data, "dead_marked", runtime != NULL ? runtime->dead_marked : false);
+    cJSON_AddNumberToObject(data,
+                            "dead_retry_attempts",
+                            (double)(runtime != NULL ? runtime->dead_retry_attempts : 0));
+    cJSON_AddNumberToObject(data,
+                            "dead_retry_successes",
+                            (double)(runtime != NULL ? runtime->dead_retry_successes : 0));
+    cJSON_AddNumberToObject(data,
+                            "dead_retry_failures",
+                            (double)(runtime != NULL ? runtime->dead_retry_failures : 0));
+    if (runtime != NULL && runtime->last_dead_retry_at_us != 0) {
+        cJSON_AddNumberToObject(data, "last_dead_retry_at_us", (double)runtime->last_dead_retry_at_us);
+    } else {
+        cJSON_AddNullToObject(data, "last_dead_retry_at_us");
+    }
+    cJSON_AddStringToObject(data,
+                            "last_dead_retry_result",
+                            runtime != NULL && runtime->last_dead_retry_result[0] != '\0' ? runtime->last_dead_retry_result : "none");
+    cJSON_AddNumberToObject(data,
+                            "download_fail_count",
+                            (double)esptari_web_catalog_entry_download_fail_count(def, (size_t)entry_index));
+
+    char *resp_json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    if (resp_json == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+    esp_err_t out = send_json(req, resp_json, 200);
+    free(resp_json);
+    return out;
 }
 
 esp_err_t esptari_web_catalog_download_missing_handler(httpd_req_t *req)
@@ -396,6 +483,7 @@ esp_err_t esptari_web_catalog_probe_links_handler(httpd_req_t *req)
 
             if (probe_timed_out) {
                 runtime->probe_fail_streak++;
+                runtime->download_fail_count++;
             } else {
                 runtime->probe_fail_streak = 0;
             }

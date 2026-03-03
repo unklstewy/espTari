@@ -1,0 +1,13 @@
+== reset system ==
+== mark-dead idempotent telemetry ==
+{"ok":true,"data":{"catalog":"floppies","entry_id":"disk.demos.dead_entry","state_before":"dead","state_after":"dead","dead_marked":true,"dead_source":"manual","last_dead_reason":"HTTP 404 repeated 3 times","last_dead_marked_at_us":20878235,"dead_retry_attempts":0,"dead_retry_successes":0,"dead_retry_failures":0,"last_dead_retry_at_us":null,"last_dead_retry_result":"none"}}
+== dead entry without allow_dead_retry -> CATALOG_LINK_DEAD ==
+{"ok":false,"error":{"code":"CATALOG_LINK_DEAD","category":"catalog","message":"Catalog entry is marked dead and retry is not allowed","retryable":false}}
+== dead retry with simulated commit failure -> failure telemetry increments ==
+{"ok":false,"error":{"code":"CATALOG_SYNC_FAILED","category":"catalog","message":"Atomic commit failed while finalizing staged download","retryable":false}}
+== entry projection after retry failure ==
+{"ok":true,"data":{"id":"disk.demos.dead_entry","local_path":"","hosted_url":"http://ataristdb.sidecartridge.com/DEMOS/DEAD.ST","availability_state":"dead","availability_checked_at":"2026-03-01T15:22:11Z","download_fail_count":4,"dead_marked":true,"dead_source":"manual","last_dead_reason":"HTTP 404 repeated 3 times","last_dead_marked_at_us":20878235,"dead_retry_attempts":1,"dead_retry_successes":0,"dead_retry_failures":1,"last_dead_retry_at_us":20926639,"last_dead_retry_result":"failure"}}
+== dead retry successful commit -> dead->online and fail_count reset ==
+{"ok":true,"data":{"catalog":"floppies","entry_id":"disk.demos.dead_entry","job_id":"dl_000001","queue_state":"already_queued","priority":"normal","enqueued_at_us":20976846,"stage_state":"committed","staging_path":"/sdcard/.staging/catalog_downloads/dl_000001.part","final_path":"/sdcard/downloads/catalog_asset.bin","bytes_downloaded":737280,"sha256_expected":null,"sha256_actual":"sha256:synthetic","verified":false,"committed_at_us":20978846,"availability_state":"online","dead_marked":false,"dead_retry_attempts":2,"dead_retry_successes":1,"dead_retry_failures":1,"last_dead_retry_at_us":20976846,"last_dead_retry_result":"success","download_fail_count":0}}
+== entry projection after retry success ==
+{"ok":true,"data":{"id":"disk.demos.dead_entry","local_path":"","hosted_url":"http://ataristdb.sidecartridge.com/DEMOS/DEAD.ST","availability_state":"online","availability_checked_at":"2026-03-01T15:22:11Z","download_fail_count":0,"dead_marked":false,"dead_source":"","last_dead_reason":"","last_dead_marked_at_us":20878235,"dead_retry_attempts":2,"dead_retry_successes":1,"dead_retry_failures":1,"last_dead_retry_at_us":20976846,"last_dead_retry_result":"success"}}

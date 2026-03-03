@@ -25,18 +25,18 @@ static const catalog_entry_t tos_catalog_entries[] = {
 };
 
 static catalog_entry_runtime_t rom_catalog_runtime[] = {
-    {.state_override = false, .local_present = true, .dead_marked = false, .last_dead_retry_result = "none", .first_missing_at_us = 0},
-    {.state_override = false, .local_present = false, .dead_marked = false, .last_dead_retry_result = "none", .first_missing_at_us = 1710002100000ULL},
+    {.state_override = false, .local_present = true, .dead_marked = false, .last_dead_retry_result = "none", .download_fail_count = 0, .first_missing_at_us = 0},
+    {.state_override = false, .local_present = false, .dead_marked = false, .last_dead_retry_result = "none", .download_fail_count = 0, .first_missing_at_us = 1710002100000ULL},
 };
 
 static catalog_entry_runtime_t floppy_catalog_runtime[] = {
-    {.state_override = false, .local_present = true, .dead_marked = false, .last_dead_retry_result = "none", .first_missing_at_us = 0},
-    {.state_override = true, .availability_state = "dead", .local_present = false, .dead_marked = true, .dead_source = "probe_threshold", .last_dead_reason = "probe failure threshold reached", .last_dead_marked_at_us = 1710002200000ULL, .last_dead_retry_result = "none", .first_missing_at_us = 1710002200000ULL},
+    {.state_override = false, .local_present = true, .dead_marked = false, .last_dead_retry_result = "none", .download_fail_count = 0, .first_missing_at_us = 0},
+    {.state_override = true, .availability_state = "dead", .local_present = false, .dead_marked = true, .dead_source = "probe_threshold", .last_dead_reason = "probe failure threshold reached", .last_dead_marked_at_us = 1710002200000ULL, .last_dead_retry_result = "none", .download_fail_count = 3, .first_missing_at_us = 1710002200000ULL},
 };
 
 static catalog_entry_runtime_t tos_catalog_runtime[] = {
-    {.state_override = false, .local_present = true, .dead_marked = false, .last_dead_retry_result = "none", .first_missing_at_us = 0},
-    {.state_override = false, .local_present = false, .dead_marked = false, .last_dead_retry_result = "none", .first_missing_at_us = 1710002300000ULL},
+    {.state_override = false, .local_present = true, .dead_marked = false, .last_dead_retry_result = "none", .download_fail_count = 0, .first_missing_at_us = 0},
+    {.state_override = false, .local_present = false, .dead_marked = false, .last_dead_retry_result = "none", .download_fail_count = 1, .first_missing_at_us = 1710002300000ULL},
 };
 
 static const catalog_def_t catalog_defs[] = {
@@ -114,6 +114,16 @@ const char *esptari_web_catalog_entry_local_path_projected(const catalog_def_t *
         return "";
     }
     return def->entries[index].local_path;
+}
+
+uint32_t esptari_web_catalog_entry_download_fail_count(const catalog_def_t *def, size_t index)
+{
+    const catalog_entry_t *entry = &def->entries[index];
+    catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, index);
+    if (runtime != NULL) {
+        return runtime->download_fail_count;
+    }
+    return entry->download_fail_count;
 }
 
 int esptari_web_catalog_find_entry_index(const catalog_def_t *def, const char *entry_id)
