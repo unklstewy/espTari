@@ -26,6 +26,11 @@ export default defineConfig({
         target: 'ws://esptari.local',
         ws: true,
       },
+      '/tracking-api': {
+        target: 'http://127.0.0.1:8765',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/tracking-api/, ''),
+      },
     },
   },
 })

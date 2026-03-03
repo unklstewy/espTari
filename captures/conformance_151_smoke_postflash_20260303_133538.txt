@@ -1,0 +1,35 @@
+### engine_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### engine_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"stopped","transition_count":0,"last_transition_us":15344998}}
+
+### engine_start
+POST /api/v2/engine/session/start
+HTTP 200
+{"ok":true}
+
+### conformance_manifest_load
+POST /api/v2/conformance/manifests/load
+HTTP 200
+{"ok":true,"data":{"manifest_id":"mf_smoke_001","loaded":true,"checks_total":1,"checks_enabled":1,"loaded_at_us":31056473}}
+
+### conformance_harness_session
+POST /api/v2/conformance/harness/session
+HTTP 200
+{"ok":true,"data":{"harness_session_id":"chs_000001","session_id":"ses_local","manifest_id":"mf_smoke_001","state":"running","created_at_us":31102973,"checks_total":1,"checks_enabled":1}}
+
+### conformance_evidence_collect
+POST /api/v2/conformance/harness/evidence/collect
+HTTP 200
+{"ok":true,"data":{"collection_id":"col_000001","harness_session_id":"chs_000001","state":"completed","artifacts":[{"type":"logs","uri":"sdcard/conformance/chs_000001/logs.ndjson","bytes":120334},{"type":"metrics","uri":"sdcard/conformance/chs_000001/metrics.json","bytes":4421}],"started_at_us":31168028,"completed_at_us":31169228}}
+
+### conformance_report_package
+POST /api/v2/conformance/harness/report/package
+HTTP 200
+{"ok":true,"data":{"package_id":"pkg_000001","harness_session_id":"chs_000001","collection_id":"col_000001","state":"ready","report_uri":"sdcard/conformance/chs_000001/report_pkg_000001.json","sha256":"9f2f52be6f7d11f8f0a6f7bc62bf4b6c6e5ac6f4c91dc2a82bf32f4c0c55f2a1"}}
+

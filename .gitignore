@@ -41,3 +41,8 @@ tools/mcp_tracking_docs_server_node/tools/
 # Local VS Code workspace settings
 .vscode/c_cpp_properties.json
 .vscode/launch.json
+
+# Generated tracking database artifacts
+TRACKING/tracking.db
+TRACKING/tracking.db-shm
+TRACKING/tracking.db-wal

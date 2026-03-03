@@ -10,6 +10,7 @@ const navItems = [
   { path: '/files', label: 'Files', icon: '📁' },
   { path: '/network', label: 'Network', icon: '📡' },
   { path: '/update', label: 'Update', icon: '🔄' },
+  { path: '/tracking', label: 'Tracking', icon: '🗂️' },
 ]
 </script>
 

@@ -9,6 +9,7 @@ import ConfigPage from './pages/ConfigPage.vue'
 import FilesPage from './pages/FilesPage.vue'
 import NetworkPage from './pages/NetworkPage.vue'
 import UpdatePage from './pages/UpdatePage.vue'
+import TrackingPage from './pages/TrackingPage.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -19,6 +20,7 @@ const router = createRouter({
     { path: '/files', name: 'files', component: FilesPage },
     { path: '/network', name: 'network', component: NetworkPage },
     { path: '/update', name: 'update', component: UpdatePage },
+    { path: '/tracking', name: 'tracking', component: TrackingPage },
   ],
 })
 

@@ -1,0 +1,42 @@
+### engine_health
+GET /api/v2/engine/health
+CURL_RC 0
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### engine_status
+GET /api/v2/engine/status
+CURL_RC 0
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":31013697}}
+
+### engine_start
+POST /api/v2/engine/session/start
+CURL_RC 0
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### conformance_manifest_load
+POST /api/v2/conformance/manifests/load
+CURL_RC 0
+HTTP 200
+{"ok":true,"data":{"manifest_id":"mf_smoke_001","loaded":true,"checks_total":1,"checks_enabled":1,"loaded_at_us":53462287}}
+
+### conformance_harness_session
+POST /api/v2/conformance/harness/session
+CURL_RC 0
+HTTP 200
+{"ok":true,"data":{"harness_session_id":"chs_000002","session_id":"ses_local","manifest_id":"mf_smoke_001","state":"running","created_at_us":53502689,"checks_total":1,"checks_enabled":1}}
+
+### conformance_evidence_collect
+POST /api/v2/conformance/harness/evidence/collect
+CURL_RC 0
+HTTP 200
+{"ok":true,"data":{"collection_id":"col_000002","harness_session_id":"chs_000002","state":"completed","artifacts":[{"type":"logs","uri":"sdcard/conformance/chs_000002/logs.ndjson","bytes":120334},{"type":"metrics","uri":"sdcard/conformance/chs_000002/metrics.json","bytes":4421}],"started_at_us":53569118,"completed_at_us":53570318}}
+
+### conformance_report_package
+POST /api/v2/conformance/harness/report/package
+CURL_RC 0
+HTTP 200
+{"ok":true,"data":{"package_id":"pkg_000002","harness_session_id":"chs_000002","collection_id":"col_000002","state":"ready","report_uri":"sdcard/conformance/chs_000002/report_pkg_000002.json","sha256":"9f2f52be6f7d11f8f0a6f7bc62bf4b6c6e5ac6f4c91dc2a82bf32f4c0c55f2a1"}}
+
