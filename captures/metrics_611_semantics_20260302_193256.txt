@@ -1,0 +1,28 @@
+base=http://esptari.local
+--- GET performance missing session_id (expect 400)
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+HTTP_STATUS:400
+--- GET performance unknown session_id (expect 409 ENGINE_NOT_RUNNING)
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}
+HTTP_STATUS:409
+--- GET samples before config (expect 409 INVALID_SESSION_STATE)
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE"}}
+HTTP_STATUS:409
+--- start session
+{"ok":true}
+HTTP_STATUS:200
+--- POST collectors config valid
+{"ok":true,"data":{"session_id":"ses_local","collector_revision":"slo_col_rev_02","sampling_interval_ms":500,"window_ms":5000,"state":"active","emit_history":true,"applied_at_us":15717306}}
+HTTP_STATUS:200
+--- GET performance
+{"ok":true,"data":{"session_id":"ses_local","window_ms":5000,"window_end_us":15753566,"input_latency_ms":{"p50":18,"p95":41.0,"max":49,"target_max":50.0,"status":"ok"},"jitter_ms":{"p50":7,"p95":21.0,"max":28,"target_max":30.0,"status":"ok"},"dropped_frame_percent":{"value":0.4,"target_max":1.0,"status":"ok"}}}
+HTTP_STATUS:200
+--- GET samples limit=2
+{"ok":true,"data":{"session_id":"ses_local","samples":[{"sample_seq":1,"window_start_us":10783721,"window_end_us":15783721,"input_latency_ms_p95":41,"jitter_ms_p95":21,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_02","timestamp_us":15783722},{"sample_seq":2,"window_start_us":15783721,"window_end_us":20783721,"input_latency_ms_p95":41,"jitter_ms_p95":21,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_02","timestamp_us":20783722}]}}
+HTTP_STATUS:200
+--- GET thresholds
+{"ok":true,"data":{"session_id":"ses_local","thresholds":{"input_latency_ms_p95_max":50.0,"jitter_ms_p95_max":30.0,"dropped_frame_percent_max":1.0},"evaluation_window_ms":5000,"active_revision":"slo_thr_rev_02"}}
+HTTP_STATUS:200
+--- GET alarms limit=2
+{"ok":true,"data":{"session_id":"ses_local","alarms":[{"alarm_seq":1,"metric":"jitter_ms_p95","threshold":30,"observed":24,"severity":"warning","state":"recovered","window_start_us":15832696,"window_end_us":20832696,"timestamp_us":20832697},{"alarm_seq":2,"metric":"jitter_ms_p95","threshold":30,"observed":24,"severity":"warning","state":"recovered","window_start_us":20832696,"window_end_us":25832696,"timestamp_us":25832697}]}}
+HTTP_STATUS:200
