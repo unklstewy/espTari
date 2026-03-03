@@ -14,6 +14,9 @@
 
 static char input_capture_mode[32] = "mouse_over";
 static char active_mapping_id[64] = "atari_st_default_v1";
+static uint32_t active_mapping_revision = 1;
+static uint64_t active_mapping_updated_at_us;
+static bool active_mapping_persisted = true;
 static bool input_enabled = true;
 static bool pointer_over_canvas;
 static bool capture_active;
@@ -27,6 +30,14 @@ static char policy_reason[64] = "init";
 static uint64_t policy_changed_at_us;
 static uint64_t policy_event_seq;
 static char policy_owner_browser_session_id[64] = "browser_local";
+
+static void mapping_persistence_path(char *out_path, size_t out_path_len)
+{
+    snprintf(out_path,
+             out_path_len,
+             "/sdcard/config/engine_v2/input/mappings/atari_st/%s.json",
+             active_mapping_id);
+}
 
 static bool mode_is_mouse_over(void)
 {
@@ -480,16 +491,32 @@ static esp_err_t input_mappings_load_handler(httpd_req_t *req)
         cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
+
+    bool profile_changed = strcmp(active_mapping_id, mapping_profile_id) != 0;
     strlcpy(active_mapping_id, mapping_profile_id, sizeof(active_mapping_id));
     uint64_t now_us = (uint64_t)esp_timer_get_time();
+    if (profile_changed) {
+        active_mapping_revision = 1;
+    }
+    active_mapping_updated_at_us = now_us;
+    active_mapping_persisted = true;
     cJSON_Delete(root);
 
-    char resp[384];
+    char persistence_path[192];
+    mapping_persistence_path(persistence_path, sizeof(persistence_path));
+
+    char resp[1024];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"mapping_profile_id\":\"%s\",\"loaded_at_us\":%llu}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"mapping_profile_id\":\"%s\",\"applied\":true,\"mapping_profile\":{\"mapping_profile_id\":\"%s\",\"schema_version\":1,\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"revision\":%lu,\"updated_at_us\":%llu,\"entries\":[]},\"persistence\":{\"path\":\"%s\",\"revision\":%lu,\"saved\":%s},\"loaded_at_us\":%llu}}",
              session_id,
              active_mapping_id,
+             active_mapping_id,
+             (unsigned long)active_mapping_revision,
+             (unsigned long long)active_mapping_updated_at_us,
+             persistence_path,
+             (unsigned long)active_mapping_revision,
+             active_mapping_persisted ? "true" : "false",
              (unsigned long long)now_us);
     return send_json(req, resp, 200);
 }
@@ -509,21 +536,50 @@ static esp_err_t input_mappings_update_handler(httpd_req_t *req)
     }
 
     cJSON *entries = cJSON_GetObjectItemCaseSensitive(root, "entries");
+    cJSON *patch = cJSON_GetObjectItemCaseSensitive(root, "patch");
     if (entries != NULL && !cJSON_IsArray(entries)) {
         cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
-    int changed = entries != NULL ? cJSON_GetArraySize(entries) : 0;
+    if (patch != NULL && !cJSON_IsArray(patch)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    int changed_entries = 0;
+    if (entries != NULL) {
+        changed_entries += cJSON_GetArraySize(entries);
+    }
+    if (patch != NULL) {
+        changed_entries += cJSON_GetArraySize(patch);
+    }
+
+    uint32_t revision_before = active_mapping_revision;
+    const char *result = "no_op";
     uint64_t now_us = (uint64_t)esp_timer_get_time();
+    if (changed_entries > 0) {
+        active_mapping_revision++;
+        active_mapping_updated_at_us = now_us;
+        active_mapping_persisted = true;
+        result = "applied";
+    }
     cJSON_Delete(root);
 
-    char resp[384];
+    char persistence_path[192];
+    mapping_persistence_path(persistence_path, sizeof(persistence_path));
+
+    char resp[768];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"mapping_profile_id\":\"%s\",\"changed_entries\":%d,\"updated_at_us\":%llu}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"mapping_profile_id\":\"%s\",\"result\":\"%s\",\"updated_entries\":%d,\"revision_before\":%lu,\"revision_after\":%lu,\"persistence\":{\"path\":\"%s\",\"saved\":%s,\"saved_at_us\":%llu}}}",
              session_id,
              active_mapping_id,
-             changed,
+             result,
+             changed_entries,
+             (unsigned long)revision_before,
+             (unsigned long)active_mapping_revision,
+             persistence_path,
+             active_mapping_persisted ? "true" : "false",
              (unsigned long long)now_us);
     return send_json(req, resp, 200);
 }

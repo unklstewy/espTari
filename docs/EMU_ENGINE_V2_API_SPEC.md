@@ -3218,6 +3218,10 @@ Response `data`:
 
 ### 9.6.2 Load mapping profile
 
+Machine-readable schema artifact:
+
+- `docs/emu_engine_v2/api_schema_input_mappings_persistence_v1.json`
+
 - `POST /api/v2/input/mappings/load`
 
 ```json

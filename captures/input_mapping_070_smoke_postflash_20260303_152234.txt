@@ -1,0 +1,6 @@
+== mappings/load ==
+{"ok":true,"data":{"session_id":"ses_local","mapping_profile_id":"atari_st_custom_gamepad_v1","applied":true,"mapping_profile":{"mapping_profile_id":"atari_st_custom_gamepad_v1","schema_version":1,"machine":"atari_st","profile":"st_520_pal","revision":1,"updated_at_us":17221055,"entries":[]},"persistence":{"path":"/sdcard/config/engine_v2/input/mappings/atari_st/atari_st_custom_gamepad_v1.json","revision":1,"saved":true},"loaded_at_us":17221055}}
+== mappings/update applied ==
+{"ok":true,"data":{"session_id":"ses_local","mapping_profile_id":"atari_st_custom_gamepad_v1","result":"applied","updated_entries":1,"revision_before":1,"revision_after":2,"persistence":{"path":"/sdcard/config/engine_v2/input/mappings/atari_st/atari_st_custom_gamepad_v1.json","saved":true,"saved_at_us":17262995}}}
+== mappings/update no_op ==
+{"ok":true,"data":{"session_id":"ses_local","mapping_profile_id":"atari_st_custom_gamepad_v1","result":"no_op","updated_entries":0,"revision_before":2,"revision_after":2,"persistence":{"path":"/sdcard/config/engine_v2/input/mappings/atari_st/atari_st_custom_gamepad_v1.json","saved":true,"saved_at_us":17286344}}}

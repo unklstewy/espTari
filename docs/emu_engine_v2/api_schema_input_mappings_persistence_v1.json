@@ -1,0 +1,87 @@
+{
+  "schema_bundle": "espTari-v2-input-mappings-persistence",
+  "schema_version": "1.0.0",
+  "api_version": "v2",
+  "scope": "Input mapping profile schema and persistence/update model",
+  "mapping_profile": {
+    "required": ["mapping_profile_id", "schema_version", "machine", "profile", "revision", "updated_at_us", "entries"],
+    "types": {
+      "mapping_profile_id": "string",
+      "schema_version": "uint32",
+      "machine": "string",
+      "profile": "string",
+      "revision": "uint32",
+      "updated_at_us": "uint64",
+      "entries": "array"
+    }
+  },
+  "persistence_model": {
+    "path_template": "/sdcard/config/engine_v2/input/mappings/<machine>/<mapping_profile_id>.json",
+    "revision_rules": [
+      "revision increments by 1 for each successful persisted update",
+      "revision remains unchanged for semantic no-op update"
+    ],
+    "updated_at_us_rule": "updated_at_us reflects committed profile snapshot time"
+  },
+  "endpoints": {
+    "load": {
+      "method": "POST",
+      "path": "/api/v2/input/mappings/load",
+      "request_required": ["session_id", "mapping_profile_id"],
+      "response_required": ["session_id", "mapping_profile_id", "applied", "mapping_profile", "persistence"]
+    },
+    "update": {
+      "method": "POST",
+      "path": "/api/v2/input/mappings/update",
+      "request_required": ["session_id"],
+      "request_optional": ["entries", "patch"],
+      "response_required": ["session_id", "mapping_profile_id", "result", "updated_entries", "revision_before", "revision_after", "persistence"],
+      "result_enum": ["applied", "no_op"]
+    }
+  },
+  "deterministic_blockers": [
+    {"condition": "unknown mapping_profile_id", "error_code": "INPUT_MAPPING_NOT_FOUND"},
+    {"condition": "invalid mapping payload shape", "error_code": "BAD_REQUEST"},
+    {"condition": "session not running/invalid", "error_code": "ENGINE_NOT_RUNNING"},
+    {"condition": "duplicate mapping create", "error_code": "CONFLICT"}
+  ],
+  "examples": {
+    "load_success": {
+      "session_id": "ses_local",
+      "mapping_profile_id": "atari_st_default_v1",
+      "applied": true,
+      "mapping_profile": {
+        "mapping_profile_id": "atari_st_default_v1",
+        "schema_version": 1,
+        "machine": "atari_st",
+        "profile": "st_520_pal",
+        "revision": 1,
+        "updated_at_us": 1710002224000,
+        "entries": []
+      },
+      "persistence": {
+        "path": "/sdcard/config/engine_v2/input/mappings/atari_st/atari_st_default_v1.json",
+        "revision": 1,
+        "saved": true
+      }
+    },
+    "update_applied": {
+      "session_id": "ses_local",
+      "mapping_profile_id": "atari_st_default_v1",
+      "result": "applied",
+      "updated_entries": 2,
+      "revision_before": 1,
+      "revision_after": 2,
+      "persistence": {
+        "path": "/sdcard/config/engine_v2/input/mappings/atari_st/atari_st_default_v1.json",
+        "saved": true,
+        "saved_at_us": 1710002224100
+      }
+    }
+  },
+  "cross_links": {
+    "api_spec": "docs/EMU_ENGINE_V2_API_SPEC.md",
+    "api_spec_sections": ["9.6.2", "9.6.4"],
+    "task": "T-070"
+  }
+}
