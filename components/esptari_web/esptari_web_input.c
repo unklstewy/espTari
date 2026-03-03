@@ -29,6 +29,7 @@ static char policy_source[24] = "user_request";
 static char policy_reason[64] = "init";
 static uint64_t policy_changed_at_us;
 static uint64_t policy_event_seq;
+static uint64_t input_stream_event_seq;
 static char policy_owner_browser_session_id[64] = "browser_local";
 
 static void mapping_persistence_path(char *out_path, size_t out_path_len)
@@ -638,17 +639,28 @@ static esp_err_t input_stream_handler(httpd_req_t *req)
     }
 
     uint64_t now_us = (uint64_t)esp_timer_get_time();
-    char resp[448];
+    input_stream_event_seq++;
+    uint64_t event_seq = input_stream_event_seq;
+    uint64_t tick = event_seq;
+    uint64_t cycle = event_seq * 4ULL;
+
+    char resp[1536];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"stream\":\"input\",\"input_enabled\":%s,\"capture_mode\":\"%s\",\"capture_active\":%s,\"policy_state\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"stream\":\"input\",\"input_enabled\":%s,\"capture_mode\":\"%s\",\"capture_active\":%s,\"policy_state\":\"%s\",\"event\":{\"type\":\"input_translated\",\"schema_version\":1,\"session_id\":\"%s\",\"browser_session_id\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"host_event_id\":\"evt_preview\",\"tick\":%llu,\"cycle\":%llu,\"mapping_profile_id\":\"%s\",\"mapping_revision\":%lu,\"host_event\":{\"device_id\":\"kbd_0\",\"type\":\"key_down\",\"code\":\"KeyA\"},\"virtual_event\":{\"target\":\"ikbd.key\",\"value\":\"ST_SC_A\",\"phase\":\"press\"}},\"ordering\":{\"source_of_truth\":\"event_seq\",\"event_seq_monotonic\":true,\"event_timestamp_us_monotonic\":true,\"tick_cycle_lexicographic\":true}}}",
              session_id,
              input_enabled ? "true" : "false",
              input_capture_mode,
              capture_active ? "true" : "false",
              policy_state,
-             (unsigned long long)(policy_event_seq > 0 ? policy_event_seq : 1),
-             (unsigned long long)now_us);
+             session_id,
+             policy_owner_browser_session_id,
+             (unsigned long long)event_seq,
+             (unsigned long long)now_us,
+             (unsigned long long)tick,
+             (unsigned long long)cycle,
+             active_mapping_id,
+             (unsigned long)active_mapping_revision);
     return send_json(req, resp, 200);
 }
 
