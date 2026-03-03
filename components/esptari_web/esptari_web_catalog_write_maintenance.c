@@ -3,7 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "cJSON.h"
 #include "esp_err.h"
@@ -15,36 +17,85 @@
 #define send_json esptari_web_send_json
 #define json_get_string esptari_web_json_get_string
 
+static bool read_file_index_info(const char *path, uint64_t *file_size, uint64_t *mtime_us)
+{
+    if (path == NULL || path[0] == '\0') {
+        return false;
+    }
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        return false;
+    }
+    if (!S_ISREG(st.st_mode)) {
+        return false;
+    }
+    *file_size = (uint64_t)st.st_size;
+    *mtime_us = (uint64_t)st.st_mtim.tv_sec * 1000000ULL + (uint64_t)st.st_mtim.tv_nsec / 1000ULL;
+    return true;
+}
+
 static esp_err_t send_rescan_local_response(httpd_req_t *req,
                                             const catalog_def_t *def,
                                             uint64_t now_us,
                                             uint32_t present,
-                                            uint32_t missing)
+                                            uint32_t missing,
+                                            uint32_t changed,
+                                            uint32_t unchanged)
 {
-    char resp[2048];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"scan_id\":\"%s\",\"indexed_at_us\":%llu,\"stats\":{\"entries_total\":%lu,\"entries_present\":%lu,\"entries_missing\":%lu,\"entries_changed\":0,\"entries_unchanged\":%lu},\"presence_index\":[{\"entry_id\":\"%s\",\"catalog\":\"%s\",\"local_present\":%s,\"local_path\":\"%s\",\"file_size\":%s,\"mtime_us\":%s,\"sha256\":null,\"indexed_at_us\":%llu},{\"entry_id\":\"%s\",\"catalog\":\"%s\",\"local_present\":%s,\"local_path\":%s,\"file_size\":null,\"mtime_us\":null,\"sha256\":null,\"indexed_at_us\":%llu}]}}",
-             def->name,
-             esptari_web_catalog_last_scan_id(),
-             (unsigned long long)now_us,
-             (unsigned long)def->entry_count,
-             (unsigned long)present,
-             (unsigned long)missing,
-             (unsigned long)def->entry_count,
-             def->entries[0].id,
-             def->name,
-             esptari_web_catalog_entry_local_present(def, 0) ? "true" : "false",
-             esptari_web_catalog_entry_local_path_projected(def, 0),
-             esptari_web_catalog_entry_local_present(def, 0) ? "737280" : "null",
-             esptari_web_catalog_entry_local_present(def, 0) ? "1710002500000" : "null",
-             (unsigned long long)now_us,
-             def->entries[def->entry_count > 1 ? 1 : 0].id,
-             def->name,
-             esptari_web_catalog_entry_local_present(def, def->entry_count > 1 ? 1 : 0) ? "true" : "false",
-             esptari_web_catalog_entry_local_present(def, def->entry_count > 1 ? 1 : 0) ? "\"/sdcard/present\"" : "null",
-             (unsigned long long)now_us);
-    return send_json(req, resp, 200);
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(resp, "data", data);
+    cJSON_AddStringToObject(data, "catalog", def->name);
+    cJSON_AddStringToObject(data, "scan_id", esptari_web_catalog_last_scan_id());
+    cJSON_AddNumberToObject(data, "indexed_at_us", (double)now_us);
+
+    cJSON *stats = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "stats", stats);
+    cJSON_AddNumberToObject(stats, "entries_total", (double)def->entry_count);
+    cJSON_AddNumberToObject(stats, "entries_present", (double)present);
+    cJSON_AddNumberToObject(stats, "entries_missing", (double)missing);
+    cJSON_AddNumberToObject(stats, "entries_changed", (double)changed);
+    cJSON_AddNumberToObject(stats, "entries_unchanged", (double)unchanged);
+
+    cJSON *presence_index = cJSON_CreateArray();
+    cJSON_AddItemToObject(data, "presence_index", presence_index);
+
+    for (size_t i = 0; i < def->entry_count; i++) {
+        const catalog_entry_t *entry = &def->entries[i];
+        catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, i);
+        bool local_present = runtime != NULL ? runtime->local_present : (entry->local_path != NULL && entry->local_path[0] != '\0');
+
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "entry_id", entry->id);
+        cJSON_AddStringToObject(item, "catalog", def->name);
+        cJSON_AddBoolToObject(item, "local_present", local_present);
+        if (local_present && entry->local_path != NULL && entry->local_path[0] != '\0') {
+            cJSON_AddStringToObject(item, "local_path", entry->local_path);
+        } else {
+            cJSON_AddNullToObject(item, "local_path");
+        }
+        if (local_present && runtime != NULL) {
+            cJSON_AddNumberToObject(item, "file_size", (double)runtime->indexed_file_size_bytes);
+            cJSON_AddNumberToObject(item, "mtime_us", (double)runtime->indexed_mtime_us);
+        } else {
+            cJSON_AddNullToObject(item, "file_size");
+            cJSON_AddNullToObject(item, "mtime_us");
+        }
+        cJSON_AddNullToObject(item, "sha256");
+        cJSON_AddNumberToObject(item, "indexed_at_us", (double)now_us);
+        cJSON_AddItemToArray(presence_index, item);
+    }
+
+    char *resp_json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    if (resp_json == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+    esp_err_t out = send_json(req, resp_json, 200);
+    free(resp_json);
+    return out;
 }
 
 static bool is_allowed_scan_root(const char *root)
@@ -176,10 +227,35 @@ esp_err_t esptari_web_catalog_rescan_local_handler(httpd_req_t *req)
 
     uint32_t present = 0;
     uint32_t missing = 0;
+    uint32_t changed = 0;
+    uint32_t unchanged = 0;
     for (size_t i = 0; i < def->entry_count; i++) {
+        const catalog_entry_t *entry = &def->entries[i];
         catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, i);
-        if (esptari_web_catalog_entry_local_present(def, i)) {
+
+        bool was_present = runtime != NULL ? runtime->local_present : (entry->local_path != NULL && entry->local_path[0] != '\0');
+        uint64_t file_size = 0;
+        uint64_t mtime_us = 0;
+        bool is_present = read_file_index_info(entry->local_path, &file_size, &mtime_us);
+
+        if (runtime != NULL) {
+            runtime->local_present = is_present;
+            runtime->last_indexed_at_us = now_us;
+            runtime->indexed_file_size_bytes = is_present ? file_size : 0;
+            runtime->indexed_mtime_us = is_present ? mtime_us : 0;
+        }
+
+        if (was_present != is_present) {
+            changed++;
+        } else {
+            unchanged++;
+        }
+
+        if (is_present) {
             present++;
+            if (runtime != NULL) {
+                runtime->first_missing_at_us = 0;
+            }
         } else {
             missing++;
             if (runtime != NULL && runtime->first_missing_at_us == 0) {
@@ -188,5 +264,5 @@ esp_err_t esptari_web_catalog_rescan_local_handler(httpd_req_t *req)
         }
     }
 
-    return send_rescan_local_response(req, def, now_us, present, missing);
+    return send_rescan_local_response(req, def, now_us, present, missing, changed, unchanged);
 }
