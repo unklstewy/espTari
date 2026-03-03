@@ -15,6 +15,38 @@
 #define send_json esptari_web_send_json
 #define json_get_string esptari_web_json_get_string
 
+static char last_queued_catalog[32];
+static char last_queued_entry_id[128];
+static uint64_t last_queued_seq;
+
+static esp_err_t send_download_error(httpd_req_t *req,
+                                     int status_code,
+                                     const char *code,
+                                     const char *message)
+{
+    char resp[320];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":false,\"error\":{\"code\":\"%s\",\"category\":\"catalog\",\"message\":\"%s\",\"retryable\":false}}",
+             code,
+             message);
+    return send_json(req, resp, status_code);
+}
+
+static esp_err_t parse_optional_bool(cJSON *root, const char *field, bool default_value, bool *out_value)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(root, field);
+    if (item == NULL) {
+        *out_value = default_value;
+        return ESP_OK;
+    }
+    if (!cJSON_IsBool(item)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    *out_value = cJSON_IsTrue(item);
+    return ESP_OK;
+}
+
 static esp_err_t send_probe_links_response(httpd_req_t *req,
                                            const catalog_def_t *def,
                                            uint64_t probe_seq,
@@ -68,9 +100,29 @@ esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
         return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
     }
 
-    bool overwrite = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "overwrite"));
-    bool verify_sha256 = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "verify_sha256"));
-    bool allow_dead_retry = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "allow_dead_retry"));
+    bool overwrite = false;
+    bool verify_sha256 = false;
+    bool allow_dead_retry = false;
+    if (parse_optional_bool(root, "overwrite", false, &overwrite) != ESP_OK ||
+        parse_optional_bool(root, "verify_sha256", false, &verify_sha256) != ESP_OK ||
+        parse_optional_bool(root, "allow_dead_retry", false, &allow_dead_retry) != ESP_OK) {
+        cJSON_Delete(root);
+        return send_download_error(req, 400, "BAD_REQUEST", "Boolean request fields must be true/false values");
+    }
+
+    const char *priority = "normal";
+    cJSON *priority_item = cJSON_GetObjectItemCaseSensitive(root, "priority");
+    if (priority_item != NULL) {
+        if (!cJSON_IsString(priority_item) || priority_item->valuestring == NULL) {
+            cJSON_Delete(root);
+            return send_download_error(req, 400, "BAD_REQUEST", "priority must be a string");
+        }
+        if (strcmp(priority_item->valuestring, "normal") != 0 && strcmp(priority_item->valuestring, "high") != 0) {
+            cJSON_Delete(root);
+            return send_download_error(req, 400, "BAD_REQUEST", "priority must be normal or high");
+        }
+        priority = priority_item->valuestring;
+    }
 
     int entry_index = esptari_web_catalog_find_entry_index(def, entry_id);
     if (entry_index < 0) {
@@ -84,23 +136,33 @@ esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
 
     if (entry->hosted_url == NULL || entry->hosted_url[0] == '\0') {
         cJSON_Delete(root);
-        return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
+        return send_download_error(req, 400, "BAD_REQUEST", "Catalog entry has no hosted source URL");
     }
     if (strcmp(state, "dead") == 0 && !allow_dead_retry) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CATALOG_LINK_DEAD\"}}", 409);
+        return send_download_error(req, 409, "CATALOG_LINK_DEAD", "Catalog entry is marked dead and retry is not allowed");
     }
     if (!overwrite && esptari_web_catalog_entry_local_present(def, (size_t)entry_index)) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"CONFLICT\"}}", 409);
+        return send_download_error(req, 409, "CONFLICT", "Local asset already exists and overwrite=false");
     }
     if (verify_sha256 && (entry->sha256_expected == NULL || entry->sha256_expected[0] == '\0')) {
         cJSON_Delete(root);
-        return esptari_web_catalog_error(req, "BAD_REQUEST", 400);
+        return send_download_error(req, 400, "BAD_REQUEST", "verify_sha256=true requires checksum metadata");
     }
 
     uint64_t now_us = (uint64_t)esp_timer_get_time();
+    const char *queue_state = "queued";
     uint64_t download_seq = esptari_web_catalog_next_download_seq();
+    if (strcmp(last_queued_catalog, def->name) == 0 && strcmp(last_queued_entry_id, entry->id) == 0) {
+        queue_state = "already_queued";
+        download_seq = last_queued_seq;
+    } else {
+        snprintf(last_queued_catalog, sizeof(last_queued_catalog), "%s", def->name);
+        snprintf(last_queued_entry_id, sizeof(last_queued_entry_id), "%s", entry->id);
+        last_queued_seq = download_seq;
+    }
+
     if (runtime != NULL && strcmp(state, "dead") == 0 && allow_dead_retry) {
         runtime->dead_retry_attempts++;
         runtime->last_dead_retry_at_us = now_us;
@@ -110,10 +172,12 @@ esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
     char resp[512];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"entry_id\":\"%s\",\"job_id\":\"dl_%06llu\",\"queue_state\":\"queued\",\"priority\":\"normal\",\"enqueued_at_us\":%llu}}",
+             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"entry_id\":\"%s\",\"job_id\":\"dl_%06llu\",\"queue_state\":\"%s\",\"priority\":\"%s\",\"enqueued_at_us\":%llu}}",
              def->name,
              entry->id,
              (unsigned long long)download_seq,
+             queue_state,
+             priority,
              (unsigned long long)now_us);
     cJSON_Delete(root);
     return send_json(req, resp, 200);

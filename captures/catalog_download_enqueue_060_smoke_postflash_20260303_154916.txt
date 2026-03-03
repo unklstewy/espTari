@@ -1,0 +1,8 @@
+== download-entry invalid bool type -> BAD_REQUEST ==
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"catalog","message":"Boolean request fields must be true/false values","retryable":false}}
+== download-entry dead link without allow_dead_retry -> CATALOG_LINK_DEAD ==
+{"ok":false,"error":{"code":"CATALOG_LINK_DEAD","category":"catalog","message":"Catalog entry is marked dead and retry is not allowed","retryable":false}}
+== download-entry dead link with allow_dead_retry + high priority ==
+{"ok":true,"data":{"catalog":"floppies","entry_id":"disk.demos.dead_entry","job_id":"dl_000001","queue_state":"queued","priority":"high","enqueued_at_us":17544022}}
+== download-entry same entry again -> already_queued ==
+{"ok":true,"data":{"catalog":"floppies","entry_id":"disk.demos.dead_entry","job_id":"dl_000001","queue_state":"already_queued","priority":"high","enqueued_at_us":17566734}}
