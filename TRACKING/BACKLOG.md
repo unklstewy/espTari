@@ -142,28 +142,28 @@ AI-speed policy:
 
 | ID | Epic | Task | Priority | Size | Sprint Target | Status | Dependencies |
 |---|---|---|---|---|---|---|---|
-| CRT-001 | EPIC-06 | Prepare lifecycle transition and guard implementation-readiness pack | P0 | S | S5 | In Progress | T-054, T-055 |
-| CRT-002 | EPIC-06 | Prepare input mapping CRUD/apply implementation-readiness pack | P0 | S | S5 | In Progress | CRT-001 |
-| CRT-003 | EPIC-06 | Prepare save/restore compatibility implementation-readiness pack | P0 | S | S5 | In Progress | CRT-002 |
-| CRT-004 | EPIC-06 | Prepare observability stream/telemetry implementation-readiness pack | P1 | S | S5 | In Progress | CRT-003 |
-| CRT-005 | EPIC-06 | Assemble CRT readiness handoff pack for runtime phase gate | P0 | S | S5 | In Progress | CRT-004 |
+| CRT-001 | EPIC-06 | Prepare lifecycle transition and guard implementation-readiness pack | P0 | S | S5 | In Review | T-054, T-055 |
+| CRT-002 | EPIC-06 | Prepare input mapping CRUD/apply implementation-readiness pack | P0 | S | S5 | In Review | CRT-001 |
+| CRT-003 | EPIC-06 | Prepare save/restore compatibility implementation-readiness pack | P0 | S | S5 | In Review | CRT-002 |
+| CRT-004 | EPIC-06 | Prepare observability stream/telemetry implementation-readiness pack | P1 | S | S5 | In Review | CRT-003 |
+| CRT-005 | EPIC-06 | Assemble CRT readiness handoff pack for runtime phase gate | P0 | S | S5 | Acceptance | CRT-004 |
 
 Phase Gate note:
 - CRT tasks in this tranche are planning/documentation tasks only.
-- Runtime/API verification (curl/HTTP probes) is blocked until core API/runtime implementation exists and the phase gate in `TRACKING/CONTRACT_TO_RUNTIME_VERIFICATION_TASKS.md` is explicitly unlocked.
+- Section 6 API prerequisite closure is complete; runtime/API verification now follows current CRT unlock decision state and conditions.
 
 ## S5 runtime unlock prerequisite tasks (PRQ)
 
 | ID | Epic | Task | Priority | Size | Sprint Target | Status | Dependencies |
 |---|---|---|---|---|---|---|---|
-| PRQ-001 | EPIC-06 | Close prerequisite for core lifecycle/input/save-restore/observability runtime code paths | P0 | S | S5 | In Review | CRT-005 |
-| PRQ-002 | EPIC-06 | Deliver deterministic fixture/scenario package for CRT vectors | P0 | S | S5 | In Review | PRQ-001 |
-| PRQ-003 | EPIC-06 | Produce reproducible firmware/app deployment workflow documentation | P0 | S | S5 | In Review | PRQ-002 |
-| PRQ-004 | EPIC-06 | Assemble unlock review packet and decision-ready PO package | P0 | XS | S5 | Acceptance | PRQ-003 |
+| PRQ-001 | EPIC-06 | Close prerequisite for core lifecycle/input/save-restore/observability runtime code paths | P0 | S | S5 | Done | CRT-005 |
+| PRQ-002 | EPIC-06 | Deliver deterministic fixture/scenario package for CRT vectors | P0 | S | S5 | Done | PRQ-001 |
+| PRQ-003 | EPIC-06 | Produce reproducible firmware/app deployment workflow documentation | P0 | S | S5 | Done | PRQ-002 |
+| PRQ-004 | EPIC-06 | Assemble unlock review packet and decision-ready PO package | P0 | XS | S5 | Done | PRQ-003 |
 
 PRQ phase note:
-- PRQ tasks are prerequisite-closure documentation/design/code-ready tasks only.
-- Runtime/API/build/flash/test execution remains blocked until explicit unlock decision.
+- PRQ prerequisite chain `PRQ-001` through `PRQ-004` is closed and accepted with evidence.
+- Runtime/API execution state now follows current CRT/phase-gate decisions rather than PRQ closure status.
 
 ## Decomposition queue (required before pull)
 

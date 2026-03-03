@@ -1,14 +1,14 @@
 # S5 CRT Handoff Summary (PO / Acceptance Review)
 
-Date: 2026-03-02
-Phase: Pre-code planning only (runtime validation blocked)
+Date: 2026-03-03
+Phase: Post-Section-6 closure decision refresh
 Scope: Consolidated review package for CRT-001 through CRT-005
 
 ## 1) Purpose
 
 This summary consolidates the CRT readiness wave into one decision-oriented handoff artifact for Product Owner / Acceptance Master review.
 
-This document does not claim runtime execution. It summarizes planning completeness, traceability, known blockers, and runtime phase-unlock prerequisites.
+This document summarizes planning completeness, traceability, prior blockers, and current runtime phase-gate decision status.
 
 ## 2) Source Artifacts
 
@@ -31,11 +31,11 @@ This document does not claim runtime execution. It summarizes planning completen
 
 | Task | Objective (condensed) | Current Status | Acceptance State | Evidence Artifact |
 |---|---|---|---|---|
-| CRT-001 | Lifecycle transition + guard readiness pack | In Progress | Pending | `TRACKING/CRT_READINESS/CRT-001_READINESS.md` |
-| CRT-002 | Prepare input mapping CRUD/apply implementation-readiness pack | In Progress | Pending | `TRACKING/CRT_READINESS/CRT-002_READINESS.md` |
-| CRT-003 | Save/restore compatibility readiness pack | In Progress | Pending | `TRACKING/CRT_READINESS/CRT-003_READINESS.md` |
-| CRT-004 | Observability stream/telemetry readiness pack | In Progress | Pending | `TRACKING/CRT_READINESS/CRT-004_READINESS.md` |
-| CRT-005 | Final CRT handoff pack for runtime gate decision | In Progress | Pending | `TRACKING/CRT_READINESS/CRT-005_READINESS.md` |
+| CRT-001 | Lifecycle transition + guard readiness pack | In Review | Pending | `TRACKING/CRT_READINESS/CRT-001_READINESS.md` |
+| CRT-002 | Prepare input mapping CRUD/apply implementation-readiness pack | In Review | Pending | `TRACKING/CRT_READINESS/CRT-002_READINESS.md` |
+| CRT-003 | Save/restore compatibility readiness pack | In Review | Pending | `TRACKING/CRT_READINESS/CRT-003_READINESS.md` |
+| CRT-004 | Observability stream/telemetry readiness pack | In Review | Pending | `TRACKING/CRT_READINESS/CRT-004_READINESS.md` |
+| CRT-005 | Final CRT handoff pack for runtime gate decision | Acceptance | Pending | `TRACKING/CRT_READINESS/CRT-005_READINESS.md` |
 
 ## 4) Check-Family Coverage Consolidation
 
@@ -49,60 +49,59 @@ This document does not claim runtime execution. It summarizes planning completen
 
 ## 5) Runtime Phase Gate (Current State)
 
-Runtime/API validation remains blocked until all conditions are met:
+Runtime/API validation is now conditionally unlockable under decision controls:
 
 1. Core API/runtime code paths for targeted CRT behaviors exist.
 2. Firmware/app build and deployment workflow is available.
 3. Deterministic fixtures for planned CRT vectors are implemented and approved.
 4. Product Owner / Acceptance Master explicitly unlocks runtime validation.
 
-Current assessment: **Not Unlocked**.
+Current assessment: **Unlock With Conditions (active)**.
 
 ## 6) Residual Prerequisites and Owners
 
 | Prerequisite | Owner | Status | Unblock Condition |
 |---|---|---|---|
-| Core lifecycle/input/save-restore/observability runtime code paths | Engineering | In Progress | API/runtime implementation merged and review-approved |
-| Deterministic fixture/scenario inputs for CRT vectors | Engineering + QA | In Review | Fixture package available and validated for repeatability |
-| Firmware/app deployment workflow for CRT runtime checks | Engineering | In Review | Documented, reproducible deployment path verified |
-| Runtime validation authorization | Product Owner / Acceptance Master | Acceptance | Explicit phase-gate unlock decision recorded |
+| Core lifecycle/input/save-restore/observability runtime code paths | Engineering | Closed | Implemented and accepted with linked PRQ evidence |
+| Deterministic fixture/scenario inputs for CRT vectors | Engineering + QA | Closed | Fixture package accepted with deterministic evidence |
+| Firmware/app deployment workflow for CRT runtime checks | Engineering | Closed | Deployment workflow accepted with preflight evidence |
+| Runtime validation authorization | Product Owner / Acceptance Master | Granted (conditional) | Decision `unlock_with_conditions` recorded in PRQ-004 packet |
 
-## 7) PO Decision Record (Approved)
+## 7) PO Decision Record (Refreshed)
 
-- Decision Date: 2026-03-02
+- Decision Date: 2026-03-03
 - Decision Authority: Product Owner / Acceptance Master
 - Record Status: Approved
-- Decision: `hold`
+- Decision: `unlock_with_conditions`
 - Conditions (if any):
-	- Runtime validation remains blocked until all Section 6 prerequisites are closed.
-	- No runtime/API evidence may be claimed before explicit phase-gate unlock.
+	- Enforce deployment rollback procedure documented in PRQ-003 for rollout steps.
+	- Preserve readiness-gated startup verification before runtime API validation batches.
+	- Preserve deterministic fixture rerun evidence capture for regression reruns.
 - Required follow-up tasks:
-	- PRQ-001 (Engineering): close prerequisite for core lifecycle/input/save-restore/observability runtime code paths.
-	- PRQ-002 (Engineering + QA): deliver deterministic fixture/scenario package for CRT vectors.
-	- PRQ-003 (Engineering): produce reproducible firmware/app deployment workflow documentation.
-	- PRQ-004 (Product Owner / Acceptance Master): assemble and decide unlock review packet after prerequisite closure.
-- Re-review date (if hold/conditional): 2026-03-09
+	- Refresh CRT status/review artifacts and continue runtime verification under conditional controls.
+	- Attach subsequent runtime evidence artifacts to PRQ/CRT tracking package.
+- Re-review date (if hold/conditional): 2026-03-10
 
 ## 8) PRQ Execution Snapshot (Post-Hold)
 
 | Task | Objective (condensed) | Current Status | Dependency |
 |---|---|---|---|
-| PRQ-001 | Close prerequisite for core lifecycle/input/save-restore/observability runtime code paths | In Review | CRT-005 |
-| PRQ-002 | Deliver deterministic fixture/scenario package for CRT vectors | In Review | PRQ-001 |
-| PRQ-003 | Produce reproducible firmware/app deployment workflow documentation | In Review | PRQ-002 |
-| PRQ-004 | Assemble unlock review packet and decision-ready PO package | Acceptance | PRQ-003 |
+| PRQ-001 | Close prerequisite for core lifecycle/input/save-restore/observability runtime code paths | Done (Accepted) | CRT-005 |
+| PRQ-002 | Deliver deterministic fixture/scenario package for CRT vectors | Done (Accepted) | PRQ-001 |
+| PRQ-003 | Produce reproducible firmware/app deployment workflow documentation | Done (Accepted) | PRQ-002 |
+| PRQ-004 | Assemble unlock review packet and decision-ready PO package | Done (Accepted) | PRQ-003 |
 
 Sequencing note:
-- PRQ tasks are chained for unlock readiness: PRQ-001 → PRQ-002 → PRQ-003 → PRQ-004.
-- PRQ working artifacts are fully packaged; PRQ-004 is queued for PO unlock decision.
+- PRQ chain closure is complete with accepted evidence.
+- CRT reconciliation and runtime evidence continuation proceed under the active conditional unlock.
 
-## 9) Recommendation (Planning Phase)
+## 9) Recommendation (Current)
 
-- Keep CRT-001 through CRT-005 as planning-only evidence.
-- Complete owner assignment confirmation and prerequisite tracking updates.
-- Move to runtime validation only after explicit phase-gate unlock is recorded.
+- Keep CRT-001 through CRT-004 in In Review and CRT-005 in Acceptance until PO signoff finalizes this refresh.
+- Continue runtime validation/evidence collection under `unlock_with_conditions` guardrails.
+- Link all new runtime artifacts to `TRACKING/ACCEPTANCE_LOG.md` and CRT readiness docs.
 
 ## 10) Notes
 
-- This summary is aligned to current `S5` CRT tracking state.
-- No runtime API calls, build, flash, or test execution evidence is included in this document.
+- This summary supersedes the previous hold-based snapshot for operational tracking.
+- Runtime evidence claims must still be traceable and deterministic per conditional unlock controls.

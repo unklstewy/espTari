@@ -27,30 +27,30 @@ This board is the operational view for daily execution.
 
 ### In Progress
 
-- CRT-001 (implementation-readiness planning)
-- CRT-002 (implementation-readiness planning)
-- CRT-003 (implementation-readiness planning)
-- CRT-004 (implementation-readiness planning)
-- CRT-005 (implementation-readiness planning)
+- (none)
 
 ### In Review
 
-- PRQ-001 (core runtime code-path closure)
-- PRQ-002 (deterministic fixture/scenario package)
-- PRQ-003 (deployment workflow documentation)
+- CRT-001 (lifecycle transition/guard readiness pack)
+- CRT-002 (input mapping CRUD/apply readiness pack)
+- CRT-003 (save/restore compatibility readiness pack)
+- CRT-004 (observability stream/telemetry readiness pack)
 
 ### Acceptance
 
-- PRQ-004 (unlock review packet; PO decision pending)
+- CRT-005 (CRT handoff pack for runtime phase gate decision refresh)
 
 ### Done
 
 - T-054 through T-121
+- PRQ-001 (core runtime code-path closure)
+- PRQ-002 (deterministic fixture/scenario package)
+- PRQ-003 (deployment workflow documentation)
+- PRQ-004 (unlock review packet)
 
 ### Blocked
 
 - Runtime/API validation wave is blocked until CRT phase gate is unlocked (core API/runtime implementation required).
-- PRQ-001 closure remains blocked by missing runtime code-path implementation evidence.
 
 ## Daily standup fields
 
