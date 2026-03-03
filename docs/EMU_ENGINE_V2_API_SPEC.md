@@ -216,6 +216,7 @@ Bundle contents:
 - Canonical error taxonomy and deterministic codes: section `5`
 - Machine-readable envelope/error schema bundle: `docs/emu_engine_v2/api_schema_envelope_v1.json`
 - Machine-readable lifecycle endpoint schema set: `docs/emu_engine_v2/api_schema_lifecycle_v1.json`
+- Baseline schema bundle manifest with examples and cross-links: `docs/emu_engine_v2/api_schema_baseline_bundle_v1.json`
 - Lifecycle endpoint schemas and guard inputs: sections `6.1` through `6.6B`
 - Transition model and invalid-transition constraints: section `12`
 
