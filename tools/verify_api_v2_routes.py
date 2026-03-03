@@ -39,6 +39,11 @@ EXPECTED_ROUTES = {
     ("GET", "/api/v2/inspect/registers/stream"),
     ("GET", "/api/v2/inspect/bus/stream"),
     ("GET", "/api/v2/inspect/memory/stream"),
+    ("GET", "/api/v2/inspect/registers/snapshot"),
+    ("GET", "/api/v2/inspect/bus/snapshot"),
+    ("GET", "/api/v2/inspect/memory/snapshot"),
+    ("POST", "/api/v2/engine/checkpoint/create"),
+    ("POST", "/api/v2/engine/checkpoint/load"),
     ("GET", "/api/v2/metrics/performance"),
     ("GET", "/api/v2/metrics/performance/history"),
     ("POST", "/api/v2/metrics/performance/collectors/config"),
@@ -217,6 +222,7 @@ def main() -> int:
         "esptari_web_stream_register_routes",
         "esptari_web_debug_register_routes",
         "esptari_web_metrics_register_routes",
+        "esptari_web_snapshot_register_routes",
         "esptari_web_catalog_register_routes",
     }
     missing_registrars = sorted(required_registrars - route_call_names)
