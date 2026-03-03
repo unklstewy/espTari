@@ -1,0 +1,12 @@
+== set mouse_over mode enabled ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"set_enabled","input_enabled":true,"capture_mode":"mouse_over","capture_active":false,"policy":{"state":"enabled_idle","source":"user_request","reason":"set_enabled","changed_at_us":18316839,"event_seq":1},"transition_result":"applied"}}
+== pointer enter hook (applied) ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"pointer_enter_hook","input_enabled":true,"capture_mode":"mouse_over","capture_active":true,"policy":{"state":"enabled_captured","source":"system_guard","reason":"mouse_over_pointer_in","changed_at_us":18339293,"event_seq":2},"transition_result":"applied"}}
+== pointer enter hook again (no-op idempotent) ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"pointer_enter_hook","input_enabled":true,"capture_mode":"mouse_over","capture_active":true,"policy":{"state":"enabled_captured","source":"system_guard","reason":"mouse_over_pointer_in_no_op","changed_at_us":18366276,"event_seq":3},"transition_result":"no_op"}}
+== explicit release in mouse_over (deterministic no-op) ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"explicit_release","result":"no_op","capture_active":true,"released_at_us":18397261,"policy":{"state":"enabled_captured","reason":"mouse_over_release_no_op"}}}
+== pointer leave hook (implicit release applied) ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","request_action":"pointer_leave_hook","input_enabled":true,"capture_mode":"mouse_over","capture_active":false,"policy":{"state":"enabled_idle","source":"system_guard","reason":"mouse_over_pointer_out","changed_at_us":18434276,"event_seq":5},"transition_result":"applied"}}
+== state snapshot ==
+{"ok":true,"data":{"session_id":"ses_local","browser_session_id":"browser_local","input_enabled":true,"capture_mode":"mouse_over","capture_active":false,"policy":{"state":"enabled_idle","source":"system_guard","reason":"mouse_over_pointer_out","changed_at_us":18434276,"event_seq":5},"escape_release":{"enabled":true,"sequence":["Escape","Escape"],"timeout_ms":600}}}

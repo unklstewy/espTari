@@ -295,7 +295,7 @@ static esp_err_t input_capture_config_handler(httpd_req_t *req)
     char session_id[64] = {0};
     if (!extract_session_id(root, session_id, sizeof(session_id))) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INPUT_POLICY_SESSION_INVALID\"}}", 409);
     }
 
     cJSON *enabled_item = cJSON_GetObjectItemCaseSensitive(root, "input_enabled");
@@ -399,9 +399,10 @@ static esp_err_t input_capture_config_handler(httpd_req_t *req)
     char resp[720];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"browser_session_id\":\"%s\",\"input_enabled\":%s,\"capture_mode\":\"%s\",\"capture_active\":%s,\"policy\":{\"state\":\"%s\",\"source\":\"%s\",\"reason\":\"%s\",\"changed_at_us\":%llu,\"event_seq\":%llu},\"transition_result\":\"%s\"}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"browser_session_id\":\"%s\",\"request_action\":\"%s\",\"input_enabled\":%s,\"capture_mode\":\"%s\",\"capture_active\":%s,\"policy\":{\"state\":\"%s\",\"source\":\"%s\",\"reason\":\"%s\",\"changed_at_us\":%llu,\"event_seq\":%llu},\"transition_result\":\"%s\"}}",
              session_id,
              browser_session_id,
+             action,
              input_enabled ? "true" : "false",
              input_capture_mode,
              capture_active ? "true" : "false",
@@ -425,7 +426,7 @@ static esp_err_t input_capture_release_handler(httpd_req_t *req)
     char session_id[64] = {0};
     if (!extract_session_id(root, session_id, sizeof(session_id))) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INPUT_POLICY_SESSION_INVALID\"}}", 409);
     }
 
     char browser_session_id[64] = {0};
@@ -461,7 +462,7 @@ static esp_err_t input_capture_release_handler(httpd_req_t *req)
     char resp[512];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"browser_session_id\":\"%s\",\"result\":\"%s\",\"capture_active\":%s,\"released_at_us\":%llu,\"policy\":{\"state\":\"%s\",\"reason\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"browser_session_id\":\"%s\",\"request_action\":\"explicit_release\",\"result\":\"%s\",\"capture_active\":%s,\"released_at_us\":%llu,\"policy\":{\"state\":\"%s\",\"reason\":\"%s\"}}}",
              session_id,
              browser_session_id,
              result,
