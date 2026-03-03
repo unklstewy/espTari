@@ -1,0 +1,10 @@
+== stop (pre) ==
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-STOP","endpoint":"/api/v2/engine/session/stop","esp_err":"ESP_ERR_INVALID_STATE"}}}
+== start session valid catalog-backed ids ==
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"st_520_pal","resolved":{"rom_id":"rom.atari.st.01","rom_path":"/sdcard/roms/st/TOS104.ROM","tos_id":"tos.eu.1.04","tos_path":"/sdcard/tos/TOS104.IMG","first_disk_id":"disk.automation.a_093"}}}
+== media/rom/attach valid rom_id ==
+{"ok":true,"data":{"session_id":"ses_local","rom_id":"rom.atari.st.01","catalog":"roms","local_path":"/sdcard/roms/st/TOS104.ROM","state":"attached","attached_at_us":16970588}}
+== media/disk/attach missing disk_id -> CATALOG_ENTRY_NOT_FOUND ==
+{"ok":false,"error":{"code":"CATALOG_ENTRY_NOT_FOUND","category":"catalog","message":"Requested catalog entry was not found","retryable":false,"details":{"catalog":"floppies","entry_id":"disk.missing.057","request_field":"disk_id"}}}
+== media/cartridge/attach catalog missing -> CATALOG_NOT_FOUND ==
+{"ok":false,"error":{"code":"CATALOG_NOT_FOUND","category":"catalog","message":"Requested catalog index is not available","retryable":false,"details":{"catalog":"cartridges","request_field":"cartridge_id"}}}
