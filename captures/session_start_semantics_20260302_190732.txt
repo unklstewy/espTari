@@ -1,0 +1,22 @@
+base=http://esptari.local
+--- pre state
+{"ok":true,"data":{"session_id":"ses_local","state":"stopped","machine":"atari_st","profile":"st_520_pal","uptime_ms":0,"cycle_counter":0,"tick_counter":0,"loaded_modules":[],"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+HTTP_STATUS:200
+--- start alias
+{"ok":true}
+HTTP_STATUS:200
+--- state after alias start
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"st_520_pal","uptime_ms":43,"cycle_counter":0,"tick_counter":0,"loaded_modules":[],"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+HTTP_STATUS:200
+--- start alias idempotency/guard
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+HTTP_STATUS:409
+--- stop
+{"ok":true}
+HTTP_STATUS:200
+--- legacy start (/session)
+{"ok":true}
+HTTP_STATUS:200
+--- final state
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"st_520_pal","uptime_ms":19,"cycle_counter":0,"tick_counter":0,"loaded_modules":[],"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+HTTP_STATUS:200

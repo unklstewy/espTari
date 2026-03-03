@@ -857,6 +857,14 @@ static esp_err_t session_handler(httpd_req_t *req)
                                "/api/v2/engine/session");
 }
 
+static esp_err_t start_handler(httpd_req_t *req)
+{
+    return handle_state_change(req,
+                               esptari_core_start,
+                               "G-LIFECYCLE-START",
+                               "/api/v2/engine/session/start");
+}
+
 static esp_err_t pause_handler(httpd_req_t *req)
 {
     return handle_state_change(req,
@@ -1018,6 +1026,7 @@ void esptari_web_init(uint16_t port)
     httpd_uri_t health = {.uri = "/api/v2/engine/health", .method = HTTP_GET, .handler = health_handler, .user_ctx = NULL};
     httpd_uri_t status = {.uri = "/api/v2/engine/status", .method = HTTP_GET, .handler = status_handler, .user_ctx = NULL};
     httpd_uri_t session = {.uri = "/api/v2/engine/session", .method = HTTP_POST, .handler = session_handler, .user_ctx = NULL};
+    httpd_uri_t start = {.uri = "/api/v2/engine/session/start", .method = HTTP_POST, .handler = start_handler, .user_ctx = NULL};
     httpd_uri_t session_state = {.uri = "/api/v2/engine/session", .method = HTTP_GET, .handler = session_state_handler, .user_ctx = NULL};
     httpd_uri_t pause = {.uri = "/api/v2/engine/session/pause", .method = HTTP_POST, .handler = pause_handler, .user_ctx = NULL};
     httpd_uri_t resume = {.uri = "/api/v2/engine/session/resume", .method = HTTP_POST, .handler = resume_handler, .user_ctx = NULL};
@@ -1043,6 +1052,7 @@ void esptari_web_init(uint16_t port)
     httpd_register_uri_handler(server_handle, &status);
     httpd_register_uri_handler(server_handle, &session_state);
     httpd_register_uri_handler(server_handle, &session);
+    httpd_register_uri_handler(server_handle, &start);
     httpd_register_uri_handler(server_handle, &pause);
     httpd_register_uri_handler(server_handle, &resume);
     httpd_register_uri_handler(server_handle, &stop);
