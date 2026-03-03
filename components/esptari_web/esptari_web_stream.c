@@ -7,6 +7,10 @@
 
 #include "esp_timer.h"
 #include "esptari_core.h"
+#include "esptari_web_http_utils.h"
+
+#define send_json esptari_web_send_json
+#define query_value esptari_web_query_value
 
 static uint64_t stream_event_seq;
 static uint64_t backpressure_overflow_total;
@@ -14,49 +18,6 @@ static uint64_t backpressure_throttle_transitions_total;
 static bool backpressure_throttle_active;
 static uint64_t slo_alarm_seq;
 static bool slo_alarm_breached;
-
-static esp_err_t send_json(httpd_req_t *req, const char *json, int status_code)
-{
-    httpd_resp_set_type(req, "application/json");
-    const char *status = "500 Internal Server Error";
-    switch (status_code) {
-    case 200:
-        status = "200 OK";
-        break;
-    case 201:
-        status = "201 Created";
-        break;
-    case 400:
-        status = "400 Bad Request";
-        break;
-    case 404:
-        status = "404 Not Found";
-        break;
-    case 409:
-        status = "409 Conflict";
-        break;
-    case 412:
-        status = "412 Precondition Failed";
-        break;
-    default:
-        break;
-    }
-    httpd_resp_set_status(req, status);
-    return httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
-}
-
-static bool query_value(httpd_req_t *req, const char *key, char *out, size_t out_len)
-{
-    if (httpd_req_get_url_query_len(req) <= 0) {
-        return false;
-    }
-
-    char query[256] = {0};
-    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK) {
-        return false;
-    }
-    return httpd_query_key_value(query, key, out, out_len) == ESP_OK;
-}
 
 static bool starts_with_unknown(const char *value)
 {
