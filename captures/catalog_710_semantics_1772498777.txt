@@ -1,0 +1,39 @@
+POST /api/v2/catalogs/floppies/download-entry -> 409
+{"ok":false,"error":{"code":"CONFLICT"}}
+
+POST /api/v2/catalogs/floppies/download-entry -> 200
+{"ok":true,"data":{"catalog":"floppies","entry_id":"disk.automation.a_093","job_id":"dl_000001","queue_state":"queued","priority":"normal","enqueued_at_us":18753272}}
+
+POST /api/v2/catalogs/floppies/download-entry -> 409
+{"ok":false,"error":{"code":"CATALOG_LINK_DEAD"}}
+
+POST /api/v2/catalogs/floppies/download-entry -> 200
+{"ok":true,"data":{"catalog":"floppies","entry_id":"disk.demos.dead_entry","job_id":"dl_000002","queue_state":"queued","priority":"normal","enqueued_at_us":18821274}}
+
+POST /api/v2/catalogs/floppies/download-missing -> 200
+{"ok":true,"data":{"catalog":"floppies","requested_limit":100,"queued_jobs":0,"queue_state":"queued"}}
+
+POST /api/v2/catalogs/floppies/probe-links -> 200
+{"ok":true,"data":{"catalog":"floppies","worker_id":"probe_000001","started_at_us":18897366,"completed_at_us":18899366,"policy":{"timeout_ms":8000,"mark_dead_after_failures":3,"concurrency":16},"summary":{"probed":2,"online":1,"offline":0,"dead":1,"timed_out":0},"results":[{"entry_id":"disk.automation.a_093","state_before":"online","state_after":"online","attempts":1,"timed_out":false,"latency_ms":11}]}}
+
+POST /api/v2/catalogs/floppies/probe-links -> 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+POST /api/v2/catalogs/floppies/mark-dead -> 200
+{"ok":true,"data":{"catalog":"floppies","entry_id":"disk.automation.a_093","state_before":"online","state_after":"dead","dead_marked":true,"dead_source":"manual","last_dead_reason":"HTTP 404 repeated 3 times","last_dead_marked_at_us":18953249,"dead_retry_attempts":0,"dead_retry_successes":0,"dead_retry_failures":0,"last_dead_retry_at_us":null,"last_dead_retry_result":"none"}}
+
+POST /api/v2/catalogs/floppies/mark-dead -> 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+POST /api/v2/catalogs/floppies/rescan-local -> 200
+{"ok":true,"data":{"catalog":"floppies","scan_id":"scan_000001","indexed_at_us":19028377,"stats":{"entries_total":2,"entries_present":1,"entries_missing":1,"entries_changed":0,"entries_unchanged":2},"presence_index":[{"entry_id":"disk.automation.a_093","catalog":"floppies","local_present":true,"local_path":"/sdcard/disks/st/AUTOMATION/A_093.ST","file_size":737280,"mtime_us":1710002500000,"sha256":null,"indexed_at_us":19028377},{"entry_id":"disk.demos.dead_entry","catalog":"floppies","local_present":false,"local_path":null,"file_size":null,"mtime_us":null,"sha256":null,"indexed_at_us":19028377}]}}
+
+POST /api/v2/catalogs/floppies/rescan-local -> 400
+{"ok":false,"error":{"code":"PATH_NOT_ALLOWED"}}
+
+GET /api/v2/catalogs/floppies/missing-report?limit=200&state=missing -> 200
+{"ok":true,"data":{"catalog":"floppies","scan_id":"scan_000001","base_scan_id":null,"summary":{"missing_total":1,"new_missing":0,"resolved_since_base":0,"unchanged_missing":1},"missing_assets":[{"entry_id":"disk.demos.dead_entry","catalog":"floppies","local_present":false,"expected_path":"/sdcard/disks/st/UNKNOWN.ST","availability_state":"dead","first_missing_at_us":1710002200000,"last_seen_scan_id":"scan_000001"}]}}
+
+GET /api/v2/catalogs/floppies/missing-report?since_scan_id=scan_nonexistent -> 409
+{"ok":false,"error":{"code":"CONFLICT","details":{"required_operation":"POST /api/v2/catalogs/floppies/rescan-local"}}}
+
