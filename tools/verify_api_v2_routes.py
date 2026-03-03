@@ -35,6 +35,7 @@ EXPECTED_ROUTES = {
     ("DELETE", "/api/v2/input/mappings/*"),
     ("GET", "/api/v2/stream/video"),
     ("GET", "/api/v2/stream/audio"),
+    ("GET", "/api/v2/stream/telemetry/backpressure"),
     ("GET", "/api/v2/inspect/registers/stream"),
     ("GET", "/api/v2/inspect/bus/stream"),
     ("GET", "/api/v2/inspect/memory/stream"),

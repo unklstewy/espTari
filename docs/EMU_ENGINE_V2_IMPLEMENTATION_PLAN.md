@@ -133,6 +133,7 @@ Current v2 HTTP routing is implemented in `components/esptari_web` with thin reg
 - Mapping routes: `esptari_web_mappings.c` (create/list + registration), `esptari_web_mappings_runtime.c` (active/apply), `esptari_web_mappings_item.c` (item GET/PATCH/DELETE).
 - Catalog routes: `esptari_web_catalog.c` (registration), `esptari_web_catalog_read.c` (GET routing), `esptari_web_catalog_write.c` (POST routing), with write concerns split into `esptari_web_catalog_write_download.c` and `esptari_web_catalog_write_maintenance.c`; shared catalog state/helpers live in `esptari_web_catalog_state.c` and `esptari_web_catalog_utils.c`.
 - Debug routes: `esptari_web_debug.c` now exposes `POST /api/v2/debug/clock/mode`, `POST /api/v2/debug/clock/step`, and `GET /api/v2/debug/clock/state`.
+- Stream routes: `esptari_web_stream.c` now exposes `GET /api/v2/stream/video`, `GET /api/v2/stream/audio`, `GET /api/v2/stream/telemetry/backpressure`, and inspect stream endpoints.
 
 This decomposition is the baseline structure for future atomic refactors in the web API component.
 

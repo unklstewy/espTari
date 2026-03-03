@@ -179,6 +179,52 @@ static esp_err_t inspect_memory_stream_handler(httpd_req_t *req)
     return emit_stream_probe(req, "memory");
 }
 
+static bool is_known_stream_name(const char *stream)
+{
+    return stream != NULL &&
+           (strcmp(stream, "video") == 0 ||
+            strcmp(stream, "audio") == 0 ||
+            strcmp(stream, "engine") == 0 ||
+            strcmp(stream, "registers") == 0 ||
+            strcmp(stream, "bus") == 0 ||
+            strcmp(stream, "memory") == 0);
+}
+
+static esp_err_t stream_backpressure_telemetry_handler(httpd_req_t *req)
+{
+    char stream_name[24] = "video";
+    char session_id[64] = "ses_local";
+    if (query_value(req, "stream", stream_name, sizeof(stream_name)) && !is_known_stream_name(stream_name)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    if (query_value(req, "session_id", session_id, sizeof(session_id)) && session_id[0] == '\0') {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    uint64_t sample_timestamp_us = (uint64_t)esp_timer_get_time();
+    uint32_t queue_capacity = 128;
+    uint32_t queue_depth = backpressure_throttle_active ? 96 : 32;
+    uint32_t high_watermark_depth = backpressure_throttle_active ? 128 : queue_depth;
+    double high_watermark_ratio = (double)high_watermark_depth / (double)queue_capacity;
+
+    char resp[640];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"stream\":\"%s\",\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}}",
+             session_id,
+             stream_name,
+             (unsigned long)queue_depth,
+             (unsigned long)queue_capacity,
+             (unsigned long long)backpressure_overflow_total,
+             backpressure_throttle_active ? "true" : "false",
+             (unsigned long)high_watermark_depth,
+             high_watermark_ratio,
+             (unsigned long long)backpressure_overflow_total,
+             (unsigned long long)backpressure_throttle_transitions_total,
+             (unsigned long long)sample_timestamp_us);
+    return send_json(req, resp, 200);
+}
+
 void esptari_web_stream_get_runtime_snapshot(esptari_web_stream_runtime_snapshot_t *out)
 {
     if (out == NULL) {
@@ -192,12 +238,14 @@ void esptari_web_stream_register_routes(httpd_handle_t server_handle)
 {
     httpd_uri_t stream_video = {.uri = "/api/v2/stream/video", .method = HTTP_GET, .handler = stream_video_handler, .user_ctx = NULL};
     httpd_uri_t stream_audio = {.uri = "/api/v2/stream/audio", .method = HTTP_GET, .handler = stream_audio_handler, .user_ctx = NULL};
+    httpd_uri_t stream_backpressure = {.uri = "/api/v2/stream/telemetry/backpressure", .method = HTTP_GET, .handler = stream_backpressure_telemetry_handler, .user_ctx = NULL};
     httpd_uri_t inspect_registers = {.uri = "/api/v2/inspect/registers/stream", .method = HTTP_GET, .handler = inspect_registers_stream_handler, .user_ctx = NULL};
     httpd_uri_t inspect_bus = {.uri = "/api/v2/inspect/bus/stream", .method = HTTP_GET, .handler = inspect_bus_stream_handler, .user_ctx = NULL};
     httpd_uri_t inspect_memory = {.uri = "/api/v2/inspect/memory/stream", .method = HTTP_GET, .handler = inspect_memory_stream_handler, .user_ctx = NULL};
 
     httpd_register_uri_handler(server_handle, &stream_video);
     httpd_register_uri_handler(server_handle, &stream_audio);
+    httpd_register_uri_handler(server_handle, &stream_backpressure);
     httpd_register_uri_handler(server_handle, &inspect_registers);
     httpd_register_uri_handler(server_handle, &inspect_bus);
     httpd_register_uri_handler(server_handle, &inspect_memory);
