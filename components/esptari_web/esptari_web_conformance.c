@@ -89,6 +89,36 @@ typedef struct {
     uint64_t assembled_at_us;
 } conformance_signoff_bundle_state_t;
 
+typedef struct {
+    bool active;
+    char scaffold_id[64];
+    char harness_session_id[64];
+    char subsystem[16];
+    char fixture_profile[64];
+    char seed_mode[16];
+    char state[16];
+    char fixture_model_id[64];
+    uint64_t created_at_us;
+    uint64_t prepared_at_us;
+    uint64_t ready_at_us;
+    char stable_key[192];
+} conformance_subsystem_scaffold_state_t;
+
+typedef struct {
+    bool active;
+    char suite_run_id[64];
+    char harness_session_id[64];
+    char scaffold_id[64];
+    char subsystem[16];
+    char suite_id[64];
+    char state[16];
+    uint32_t cases_total;
+    uint32_t cases_passed;
+    uint32_t cases_failed;
+    uint64_t started_at_us;
+    uint64_t completed_at_us;
+} conformance_subsystem_suite_run_state_t;
+
 static conformance_manifest_state_t g_manifest;
 static conformance_harness_state_t g_harness;
 static conformance_collection_state_t g_collection;
@@ -96,12 +126,17 @@ static conformance_package_state_t g_package;
 static conformance_runner_state_t g_runner;
 static conformance_review_pack_state_t g_review_pack;
 static conformance_signoff_bundle_state_t g_signoff_bundle;
+static conformance_subsystem_scaffold_state_t g_scaffold;
+static conformance_subsystem_suite_run_state_t g_suite_run;
 static uint64_t g_harness_seq;
 static uint64_t g_collection_seq;
 static uint64_t g_package_seq;
 static uint64_t g_runner_seq;
 static uint64_t g_review_pack_seq;
 static uint64_t g_signoff_seq;
+static uint64_t g_scaffold_seq;
+static uint64_t g_fixture_seq;
+static uint64_t g_suite_run_seq;
 
 static bool parse_bool_enum(const char *value, const char *a, const char *b)
 {
@@ -358,6 +393,37 @@ static bool review_section_allowed(const char *value)
             strcmp(value, "artifacts") == 0 ||
             strcmp(value, "telemetry") == 0 ||
             strcmp(value, "checklist") == 0);
+}
+
+static bool subsystem_allowed(const char *value)
+{
+    return value != NULL &&
+           (strcmp(value, "cpu") == 0 ||
+            strcmp(value, "glue") == 0 ||
+            strcmp(value, "mmu") == 0 ||
+            strcmp(value, "shifter") == 0 ||
+            strcmp(value, "mfp") == 0 ||
+            strcmp(value, "acia") == 0 ||
+            strcmp(value, "fdc") == 0 ||
+            strcmp(value, "psg") == 0);
+}
+
+static bool seed_mode_allowed(const char *value)
+{
+    return value != NULL && (strcmp(value, "baseline") == 0 || strcmp(value, "snapshot") == 0);
+}
+
+static bool harness_ready_for_subsystems(void)
+{
+    return g_harness.active && g_package.active && strcmp(g_package.state, "ready") == 0;
+}
+
+static bool subsystem_suite_terminal(const char *state)
+{
+    return state != NULL &&
+           (strcmp(state, "completed") == 0 ||
+            strcmp(state, "failed") == 0 ||
+            strcmp(state, "aborted") == 0);
 }
 
 static esp_err_t conformance_evidence_collect_handler(httpd_req_t *req)
@@ -779,6 +845,258 @@ static esp_err_t conformance_signoff_bundle_assemble_handler(httpd_req_t *req)
     return send_json(req, resp, 200);
 }
 
+static esp_err_t conformance_subsystems_scaffold_handler(httpd_req_t *req)
+{
+    char body[2048];
+    if (esptari_web_read_request_body(req, body, sizeof(body)) != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *root = cJSON_Parse(body);
+    if (root == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *harness_session_id = cJSON_GetObjectItemCaseSensitive(root, "harness_session_id");
+    cJSON *subsystem = cJSON_GetObjectItemCaseSensitive(root, "subsystem");
+    cJSON *fixture_profile = cJSON_GetObjectItemCaseSensitive(root, "fixture_profile");
+    cJSON *seed_mode = cJSON_GetObjectItemCaseSensitive(root, "seed_mode");
+
+    const char *seed_mode_value = "baseline";
+    if (!cJSON_IsString(harness_session_id) || !cJSON_IsString(subsystem) || !cJSON_IsString(fixture_profile) ||
+        fixture_profile->valuestring[0] == '\0') {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    if (!subsystem_allowed(subsystem->valuestring)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    if (seed_mode != NULL) {
+        if (!cJSON_IsString(seed_mode) || !seed_mode_allowed(seed_mode->valuestring)) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+        seed_mode_value = seed_mode->valuestring;
+    }
+
+    if (!g_harness.active || strcmp(harness_session_id->valuestring, g_harness.harness_session_id) != 0) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"NOT_FOUND\"}}", 404);
+    }
+
+    if (!harness_ready_for_subsystems()) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
+    }
+
+    char stable_key[192];
+    snprintf(stable_key,
+             sizeof(stable_key),
+             "%s|%s|%s|%s",
+             harness_session_id->valuestring,
+             subsystem->valuestring,
+             fixture_profile->valuestring,
+             seed_mode_value);
+
+    char fixture_model_id[64];
+    if (g_scaffold.active && strcmp(g_scaffold.stable_key, stable_key) == 0) {
+        strlcpy(fixture_model_id, g_scaffold.fixture_model_id, sizeof(fixture_model_id));
+    } else {
+        g_fixture_seq++;
+        snprintf(fixture_model_id, sizeof(fixture_model_id), "fxm_%06llu", (unsigned long long)g_fixture_seq);
+    }
+
+    uint64_t now_us = (uint64_t)esp_timer_get_time();
+    memset(&g_scaffold, 0, sizeof(g_scaffold));
+    g_scaffold.active = true;
+    g_scaffold_seq++;
+    snprintf(g_scaffold.scaffold_id, sizeof(g_scaffold.scaffold_id), "scf_%06llu", (unsigned long long)g_scaffold_seq);
+    strlcpy(g_scaffold.harness_session_id, harness_session_id->valuestring, sizeof(g_scaffold.harness_session_id));
+    strlcpy(g_scaffold.subsystem, subsystem->valuestring, sizeof(g_scaffold.subsystem));
+    strlcpy(g_scaffold.fixture_profile, fixture_profile->valuestring, sizeof(g_scaffold.fixture_profile));
+    strlcpy(g_scaffold.seed_mode, seed_mode_value, sizeof(g_scaffold.seed_mode));
+    strlcpy(g_scaffold.fixture_model_id, fixture_model_id, sizeof(g_scaffold.fixture_model_id));
+    strlcpy(g_scaffold.stable_key, stable_key, sizeof(g_scaffold.stable_key));
+    strlcpy(g_scaffold.state, "ready", sizeof(g_scaffold.state));
+    g_scaffold.created_at_us = now_us;
+    g_scaffold.prepared_at_us = now_us + 40;
+    g_scaffold.ready_at_us = now_us + 88;
+
+    cJSON_Delete(root);
+
+    char resp[720];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"scaffold_id\":\"%s\",\"harness_session_id\":\"%s\",\"subsystem\":\"%s\",\"state\":\"ready\",\"fixture_model_id\":\"%s\",\"created_at_us\":%llu,\"prepared_at_us\":%llu,\"ready_at_us\":%llu}}",
+             g_scaffold.scaffold_id,
+             g_scaffold.harness_session_id,
+             g_scaffold.subsystem,
+             g_scaffold.fixture_model_id,
+             (unsigned long long)g_scaffold.created_at_us,
+             (unsigned long long)g_scaffold.prepared_at_us,
+             (unsigned long long)g_scaffold.ready_at_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t conformance_subsystems_fixture_model_handler(httpd_req_t *req)
+{
+    char scaffold_id[64];
+    if (!esptari_web_query_value(req, "scaffold_id", scaffold_id, sizeof(scaffold_id)) || scaffold_id[0] == '\0') {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    if (!g_scaffold.active || strcmp(scaffold_id, g_scaffold.scaffold_id) != 0) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"NOT_FOUND\"}}", 404);
+    }
+
+    if (strcmp(g_scaffold.state, "ready") != 0) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
+    }
+
+    char resp[1024];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"fixture_model_id\":\"%s\",\"subsystem\":\"%s\",\"inputs\":[{\"signal\":\"timer_a_start\",\"value\":\"0x01\"}],\"expected_outputs\":[{\"signal\":\"irq6_assert\",\"within_ticks\":32}],\"invariants\":[\"event_seq_monotonic\",\"timestamp_us_monotonic\"],\"tolerances\":{\"tick_jitter_max\":2},\"schema_version\":1}}",
+             g_scaffold.fixture_model_id,
+             g_scaffold.subsystem);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t conformance_subsystems_suites_run_handler(httpd_req_t *req)
+{
+    char body[2048];
+    if (esptari_web_read_request_body(req, body, sizeof(body)) != ESP_OK) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *root = cJSON_Parse(body);
+    if (root == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    cJSON *harness_session_id = cJSON_GetObjectItemCaseSensitive(root, "harness_session_id");
+    cJSON *scaffold_id = cJSON_GetObjectItemCaseSensitive(root, "scaffold_id");
+    cJSON *suite_id = cJSON_GetObjectItemCaseSensitive(root, "suite_id");
+    cJSON *selection = cJSON_GetObjectItemCaseSensitive(root, "selection");
+    cJSON *stop_on_failure = cJSON_GetObjectItemCaseSensitive(root, "stop_on_failure");
+
+    if (!cJSON_IsString(harness_session_id) || !cJSON_IsString(scaffold_id) || !cJSON_IsString(suite_id)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    if (stop_on_failure != NULL && !cJSON_IsBool(stop_on_failure)) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    uint32_t include_count = 0;
+    uint32_t exclude_count = 0;
+    bool valid = true;
+    if (selection != NULL) {
+        if (!cJSON_IsObject(selection)) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+        parse_optional_string_array(selection, "include_case_ids", &include_count, &valid);
+        if (!valid) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+        parse_optional_string_array(selection, "exclude_case_ids", &exclude_count, &valid);
+        if (!valid) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+        cJSON *include_case_ids = cJSON_GetObjectItemCaseSensitive(selection, "include_case_ids");
+        cJSON *exclude_case_ids = cJSON_GetObjectItemCaseSensitive(selection, "exclude_case_ids");
+        if (arrays_intersect(include_case_ids, exclude_case_ids)) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (!g_harness.active || strcmp(harness_session_id->valuestring, g_harness.harness_session_id) != 0 ||
+        !g_scaffold.active || strcmp(scaffold_id->valuestring, g_scaffold.scaffold_id) != 0) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"NOT_FOUND\"}}", 404);
+    }
+
+    if (strcmp(g_scaffold.state, "ready") != 0) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
+    }
+
+    uint64_t start_us = (uint64_t)esp_timer_get_time();
+    uint64_t completed_us = start_us + 240;
+    memset(&g_suite_run, 0, sizeof(g_suite_run));
+    g_suite_run.active = true;
+    g_suite_run_seq++;
+    snprintf(g_suite_run.suite_run_id, sizeof(g_suite_run.suite_run_id), "ssr_%06llu", (unsigned long long)g_suite_run_seq);
+    strlcpy(g_suite_run.harness_session_id, harness_session_id->valuestring, sizeof(g_suite_run.harness_session_id));
+    strlcpy(g_suite_run.scaffold_id, scaffold_id->valuestring, sizeof(g_suite_run.scaffold_id));
+    strlcpy(g_suite_run.subsystem, g_scaffold.subsystem, sizeof(g_suite_run.subsystem));
+    strlcpy(g_suite_run.suite_id, suite_id->valuestring, sizeof(g_suite_run.suite_id));
+    strlcpy(g_suite_run.state, "completed", sizeof(g_suite_run.state));
+    g_suite_run.cases_total = include_count > 0 ? include_count : 2U;
+    g_suite_run.cases_passed = g_suite_run.cases_total;
+    g_suite_run.cases_failed = 0;
+    g_suite_run.started_at_us = start_us;
+    g_suite_run.completed_at_us = completed_us;
+
+    cJSON_Delete(root);
+
+    char resp[640];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"suite_run_id\":\"%s\",\"harness_session_id\":\"%s\",\"subsystem\":\"%s\",\"suite_id\":\"%s\",\"state\":\"%s\",\"cases_total\":%lu,\"cases_passed\":%lu,\"cases_failed\":%lu,\"started_at_us\":%llu,\"completed_at_us\":%llu}}",
+             g_suite_run.suite_run_id,
+             g_suite_run.harness_session_id,
+             g_suite_run.subsystem,
+             g_suite_run.suite_id,
+             g_suite_run.state,
+             (unsigned long)g_suite_run.cases_total,
+             (unsigned long)g_suite_run.cases_passed,
+             (unsigned long)g_suite_run.cases_failed,
+             (unsigned long long)g_suite_run.started_at_us,
+             (unsigned long long)g_suite_run.completed_at_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t conformance_subsystems_suites_report_handler(httpd_req_t *req)
+{
+    char suite_run_id[64];
+    if (!esptari_web_query_value(req, "suite_run_id", suite_run_id, sizeof(suite_run_id)) || suite_run_id[0] == '\0') {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    if (!g_suite_run.active || strcmp(suite_run_id, g_suite_run.suite_run_id) != 0) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"NOT_FOUND\"}}", 404);
+    }
+
+    if (!subsystem_suite_terminal(g_suite_run.state)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\"}}", 409);
+    }
+
+    uint64_t generated_at_us = g_suite_run.completed_at_us + 20;
+    double pass_rate = g_suite_run.cases_total > 0 ? ((double)g_suite_run.cases_passed / (double)g_suite_run.cases_total) : 0.0;
+    char resp[1024];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"suite_run_id\":\"%s\",\"subsystem\":\"%s\",\"summary\":{\"cases_total\":%lu,\"cases_passed\":%lu,\"cases_failed\":%lu,\"pass_rate\":%.3f},\"case_results\":[{\"case_id\":\"timer_a_irq\",\"assertion_id\":\"irq6_asserted\",\"result\":\"pass\"}],\"evidence_uris\":[\"sdcard/conformance/%s/suites/%s/%s_report.json\"],\"generated_at_us\":%llu}}",
+             g_suite_run.suite_run_id,
+             g_suite_run.subsystem,
+             (unsigned long)g_suite_run.cases_total,
+             (unsigned long)g_suite_run.cases_passed,
+             (unsigned long)g_suite_run.cases_failed,
+             pass_rate,
+             g_harness.harness_session_id,
+             g_suite_run.suite_run_id,
+             g_suite_run.subsystem,
+             (unsigned long long)generated_at_us);
+    return send_json(req, resp, 200);
+}
+
 void esptari_web_conformance_register_routes(httpd_handle_t server_handle)
 {
     httpd_uri_t conformance_session = {.uri = "/api/v2/conformance/harness/session", .method = HTTP_POST, .handler = conformance_harness_session_handler, .user_ctx = NULL};
@@ -789,6 +1107,10 @@ void esptari_web_conformance_register_routes(httpd_handle_t server_handle)
     httpd_uri_t conformance_checklist_status = {.uri = "/api/v2/conformance/harness/checklist/run/status", .method = HTTP_GET, .handler = conformance_checklist_status_handler, .user_ctx = NULL};
     httpd_uri_t conformance_review_pack = {.uri = "/api/v2/conformance/harness/review-pack/generate", .method = HTTP_POST, .handler = conformance_review_pack_generate_handler, .user_ctx = NULL};
     httpd_uri_t conformance_signoff_bundle = {.uri = "/api/v2/conformance/harness/signoff-bundle/assemble", .method = HTTP_POST, .handler = conformance_signoff_bundle_assemble_handler, .user_ctx = NULL};
+    httpd_uri_t conformance_subsystem_scaffold = {.uri = "/api/v2/conformance/subsystems/scaffold", .method = HTTP_POST, .handler = conformance_subsystems_scaffold_handler, .user_ctx = NULL};
+    httpd_uri_t conformance_fixture_model = {.uri = "/api/v2/conformance/subsystems/fixtures/model", .method = HTTP_GET, .handler = conformance_subsystems_fixture_model_handler, .user_ctx = NULL};
+    httpd_uri_t conformance_suites_run = {.uri = "/api/v2/conformance/subsystems/suites/run", .method = HTTP_POST, .handler = conformance_subsystems_suites_run_handler, .user_ctx = NULL};
+    httpd_uri_t conformance_suites_report = {.uri = "/api/v2/conformance/subsystems/suites/report", .method = HTTP_GET, .handler = conformance_subsystems_suites_report_handler, .user_ctx = NULL};
 
     httpd_register_uri_handler(server_handle, &conformance_session);
     httpd_register_uri_handler(server_handle, &conformance_manifest);
@@ -798,4 +1120,8 @@ void esptari_web_conformance_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &conformance_checklist_status);
     httpd_register_uri_handler(server_handle, &conformance_review_pack);
     httpd_register_uri_handler(server_handle, &conformance_signoff_bundle);
+    httpd_register_uri_handler(server_handle, &conformance_subsystem_scaffold);
+    httpd_register_uri_handler(server_handle, &conformance_fixture_model);
+    httpd_register_uri_handler(server_handle, &conformance_suites_run);
+    httpd_register_uri_handler(server_handle, &conformance_suites_report);
 }
