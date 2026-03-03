@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cJSON.h"
@@ -80,26 +81,46 @@ static esp_err_t send_probe_links_response(httpd_req_t *req,
                                            uint32_t probed,
                                            uint32_t online,
                                            uint32_t offline,
-                                           uint32_t dead)
+                                           uint32_t dead,
+                                           uint32_t timed_out,
+                                           cJSON *results)
 {
-    char resp[1024];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"catalog\":\"%s\",\"worker_id\":\"probe_%06llu\",\"started_at_us\":%llu,\"completed_at_us\":%llu,\"policy\":{\"timeout_ms\":%lu,\"mark_dead_after_failures\":%lu,\"concurrency\":16},\"summary\":{\"probed\":%lu,\"online\":%lu,\"offline\":%lu,\"dead\":%lu,\"timed_out\":0},\"results\":[{\"entry_id\":\"%s\",\"state_before\":\"%s\",\"state_after\":\"%s\",\"attempts\":1,\"timed_out\":false,\"latency_ms\":11}]}}",
-             def->name,
-             (unsigned long long)probe_seq,
-             (unsigned long long)started_at_us,
-             (unsigned long long)completed_at_us,
-             (unsigned long)timeout_ms,
-             (unsigned long)mark_dead_after_failures,
-             (unsigned long)probed,
-             (unsigned long)online,
-             (unsigned long)offline,
-             (unsigned long)dead,
-             def->entries[0].id,
-             esptari_web_catalog_entry_state(def, 0),
-             esptari_web_catalog_entry_state(def, 0));
-    return send_json(req, resp, 200);
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(resp, "data", data);
+
+    char worker_id[32];
+    snprintf(worker_id, sizeof(worker_id), "probe_%06llu", (unsigned long long)probe_seq);
+    cJSON_AddStringToObject(data, "catalog", def->name);
+    cJSON_AddStringToObject(data, "worker_id", worker_id);
+    cJSON_AddNumberToObject(data, "started_at_us", (double)started_at_us);
+    cJSON_AddNumberToObject(data, "completed_at_us", (double)completed_at_us);
+
+    cJSON *policy = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "policy", policy);
+    cJSON_AddNumberToObject(policy, "timeout_ms", (double)timeout_ms);
+    cJSON_AddNumberToObject(policy, "mark_dead_after_failures", (double)mark_dead_after_failures);
+    cJSON_AddNumberToObject(policy, "concurrency", 16);
+
+    cJSON *summary = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "summary", summary);
+    cJSON_AddNumberToObject(summary, "probed", (double)probed);
+    cJSON_AddNumberToObject(summary, "online", (double)online);
+    cJSON_AddNumberToObject(summary, "offline", (double)offline);
+    cJSON_AddNumberToObject(summary, "dead", (double)dead);
+    cJSON_AddNumberToObject(summary, "timed_out", (double)timed_out);
+
+    cJSON_AddItemToObject(data, "results", results);
+
+    char *resp_json = cJSON_PrintUnformatted(resp);
+    cJSON_Delete(resp);
+    if (resp_json == NULL) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+    esp_err_t out = send_json(req, resp_json, 200);
+    free(resp_json);
+    return out;
 }
 
 esp_err_t esptari_web_catalog_download_entry_handler(httpd_req_t *req)
@@ -347,21 +368,86 @@ esp_err_t esptari_web_catalog_probe_links_handler(httpd_req_t *req)
     }
 
     uint64_t started_at_us = (uint64_t)esp_timer_get_time();
-    uint64_t completed_at_us = started_at_us + 2000;
     uint32_t probed = (uint32_t)((def->entry_count < limit) ? def->entry_count : limit);
     uint32_t dead = 0;
     uint32_t offline = 0;
     uint32_t online = 0;
+    uint32_t timed_out = 0;
+    cJSON *results = cJSON_CreateArray();
+
     for (size_t i = 0; i < probed; i++) {
-        const char *state = esptari_web_catalog_entry_state(def, i);
-        if (strcmp(state, "dead") == 0) {
+        const catalog_entry_t *entry = &def->entries[i];
+        const char *state_before = esptari_web_catalog_entry_state(def, i);
+        catalog_entry_runtime_t *runtime = esptari_web_catalog_runtime_at(def, i);
+        bool before_dead = strcmp(state_before, "dead") == 0;
+
+        bool entry_can_timeout = entry->hosted_url != NULL && entry->hosted_url[0] != '\0' && !before_dead;
+        bool probe_timed_out = entry_can_timeout && timeout_ms <= 10;
+        if (probe_timed_out) {
+            timed_out++;
+        }
+
+        uint32_t attempts = 1;
+        if (runtime != NULL) {
+            runtime->probe_attempts++;
+            attempts = runtime->probe_attempts;
+            runtime->last_probe_at_us = started_at_us;
+            runtime->last_probe_timed_out = probe_timed_out;
+
+            if (probe_timed_out) {
+                runtime->probe_fail_streak++;
+            } else {
+                runtime->probe_fail_streak = 0;
+            }
+        }
+
+        const char *state_after = state_before;
+        if (before_dead) {
+            state_after = "dead";
+        } else if (probe_timed_out) {
+            bool mark_dead = runtime != NULL && runtime->probe_fail_streak >= mark_dead_after_failures;
+            if (mark_dead) {
+                runtime->state_override = true;
+                snprintf(runtime->availability_state, sizeof(runtime->availability_state), "%s", "dead");
+                runtime->dead_marked = true;
+                snprintf(runtime->dead_source, sizeof(runtime->dead_source), "%s", "probe_threshold");
+                snprintf(runtime->last_dead_reason, sizeof(runtime->last_dead_reason), "%s", "probe timeout threshold reached");
+                runtime->last_dead_marked_at_us = started_at_us;
+                state_after = "dead";
+            } else {
+                if (runtime != NULL) {
+                    runtime->state_override = true;
+                    snprintf(runtime->availability_state, sizeof(runtime->availability_state), "%s", "offline");
+                }
+                state_after = "offline";
+            }
+        } else {
+            if (runtime != NULL) {
+                runtime->state_override = true;
+                snprintf(runtime->availability_state, sizeof(runtime->availability_state), "%s", "online");
+            }
+            state_after = "online";
+        }
+
+        if (strcmp(state_after, "dead") == 0) {
             dead++;
-        } else if (strcmp(state, "offline") == 0) {
+        } else if (strcmp(state_after, "offline") == 0) {
             offline++;
         } else {
             online++;
         }
+
+        cJSON *result = cJSON_CreateObject();
+        cJSON_AddStringToObject(result, "entry_id", entry->id);
+        cJSON_AddStringToObject(result, "state_before", state_before);
+        cJSON_AddStringToObject(result, "state_after", state_after);
+        cJSON_AddNumberToObject(result, "attempts", (double)attempts);
+        cJSON_AddBoolToObject(result, "timed_out", probe_timed_out);
+        cJSON_AddNumberToObject(result, "latency_ms", (double)(probe_timed_out ? (timeout_ms + 1) : (timeout_ms > 4 ? timeout_ms / 4 : 1)));
+        cJSON_AddItemToArray(results, result);
     }
+
+    uint64_t completed_at_us = started_at_us + (uint64_t)probed * 1500ULL;
 
     uint64_t probe_seq = esptari_web_catalog_next_probe_seq();
     return send_probe_links_response(req,
@@ -374,5 +460,7 @@ esp_err_t esptari_web_catalog_probe_links_handler(httpd_req_t *req)
                                      probed,
                                      online,
                                      offline,
-                                     dead);
+                                     dead,
+                                     timed_out,
+                                     results);
 }

@@ -24,6 +24,10 @@ typedef struct {
     uint64_t indexed_file_size_bytes;
     uint64_t indexed_mtime_us;
     uint64_t last_indexed_at_us;
+    uint32_t probe_attempts;
+    uint32_t probe_fail_streak;
+    uint64_t last_probe_at_us;
+    bool last_probe_timed_out;
     bool dead_marked;
     char dead_source[24];
     char last_dead_reason[96];
