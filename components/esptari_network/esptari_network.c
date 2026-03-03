@@ -3,10 +3,12 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_sntp.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include <time.h>
 #include <string.h>
 
 static bool connected;
@@ -18,6 +20,13 @@ static int s_retry_num;
 
 static const int WIFI_CONNECTED_BIT = BIT0;
 static const int WIFI_FAIL_BIT = BIT1;
+
+static bool system_time_valid(void)
+{
+    time_t now = 0;
+    time(&now);
+    return now >= 1704067200;  // 2024-01-01T00:00:00Z
+}
 
 static void log_ip_address(void)
 {
@@ -221,4 +230,53 @@ bool esptari_net_is_connected(void)
 esp_err_t esptari_net_write_default_config(void)
 {
     return ESP_OK;
+}
+
+esp_err_t esptari_net_sync_time(uint32_t timeout_ms)
+{
+    if (!connected) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (system_time_valid()) {
+        ESP_LOGI(TAG, "System clock already valid; skipping SNTP sync");
+        return ESP_OK;
+    }
+
+    if (esp_sntp_enabled()) {
+        esp_sntp_stop();
+    }
+
+    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    esp_sntp_setservername(0, "0.pool.ntp.org");
+    esp_sntp_setservername(1, "1.pool.ntp.org");
+    esp_sntp_setservername(2, "2.pool.ntp.org");
+    esp_sntp_init();
+
+    const TickType_t step_ticks = pdMS_TO_TICKS(250);
+    const TickType_t timeout_ticks = pdMS_TO_TICKS(timeout_ms);
+    TickType_t elapsed_ticks = 0;
+
+    while (elapsed_ticks <= timeout_ticks) {
+        if (system_time_valid()) {
+            time_t now = 0;
+            time(&now);
+            struct tm utc_now = {0};
+            gmtime_r(&now, &utc_now);
+            ESP_LOGI(TAG,
+                     "SNTP sync complete: %04d-%02d-%02dT%02d:%02d:%02dZ",
+                     utc_now.tm_year + 1900,
+                     utc_now.tm_mon + 1,
+                     utc_now.tm_mday,
+                     utc_now.tm_hour,
+                     utc_now.tm_min,
+                     utc_now.tm_sec);
+            return ESP_OK;
+        }
+        vTaskDelay(step_ticks);
+        elapsed_ticks += step_ticks;
+    }
+
+    ESP_LOGW(TAG, "SNTP sync timed out after %lu ms", (unsigned long)timeout_ms);
+    return ESP_ERR_TIMEOUT;
 }

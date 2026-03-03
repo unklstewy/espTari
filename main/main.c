@@ -232,6 +232,10 @@ void app_main(void)
         if (ret == ESP_OK) {
             network_ready = true;
             ESP_LOGI(TAG, "Network connected");
+            ret = esptari_net_sync_time(10000);  // 10s timeout
+            if (ret != ESP_OK) {
+                ESP_LOGW(TAG, "NTP sync unavailable: %s", esp_err_to_name(ret));
+            }
         } else {
             ESP_LOGW(TAG, "Network not available — web interface disabled");
         }

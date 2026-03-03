@@ -14,3 +14,4 @@ void esptari_net_start(void);
 esp_err_t esptari_net_wait_connected(uint32_t timeout_ms);
 bool esptari_net_is_connected(void);
 esp_err_t esptari_net_write_default_config(void);
+esp_err_t esptari_net_sync_time(uint32_t timeout_ms);

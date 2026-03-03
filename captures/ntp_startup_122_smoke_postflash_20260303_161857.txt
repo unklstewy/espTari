@@ -1,0 +1,6 @@
+== trigger system reset ==
+== wait for health after startup ==
+health_check=ok
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+== web route still available post-ntp-bootstrap ==
+{"ok":true,"data":{"catalog":"floppies","entries":[{"id":"disk.automation.a_093","local_path":"/sdcard/disks/st/AUTOMATION/A_093.ST","hosted_url":"http://ataristdb.sidecartridge.com/AUTOMATION/A_093.ST","availability_state":"online"},{"id":"disk.demos.dead_entry","local_path":"","hosted_url":"http://ataristdb.sidecartridge.com/DEMOS/DEAD.ST","availability_state":"dead"}]}}
