@@ -1246,6 +1246,37 @@ static esp_err_t clock_step_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(stats, "component_step_mismatches", 0);
     cJSON_AddItemToObject(data, "scheduler_hook_stats", stats);
 
+    cJSON *hooks = cJSON_CreateArray();
+    for (int step_index = 0; step_index < steps; step_index++) {
+        uint64_t tick_counter = tick_before + (uint64_t)step_index + 1ULL;
+        uint64_t cycle_counter = cycle_before + ((uint64_t)step_index + 1ULL) * 12ULL;
+
+        cJSON *pre_hook = cJSON_CreateObject();
+        cJSON_AddNumberToObject(pre_hook, "tick_counter", (double)tick_counter);
+        cJSON_AddNumberToObject(pre_hook, "cycle_counter", (double)cycle_counter);
+        cJSON_AddStringToObject(pre_hook, "hook_phase", "arb_pre_tick");
+        cJSON_AddNumberToObject(pre_hook, "slot_index", 0);
+        cJSON_AddStringToObject(pre_hook, "component_id", "scheduler");
+        cJSON_AddItemToArray(hooks, pre_hook);
+
+        cJSON *component_hook = cJSON_CreateObject();
+        cJSON_AddNumberToObject(component_hook, "tick_counter", (double)tick_counter);
+        cJSON_AddNumberToObject(component_hook, "cycle_counter", (double)cycle_counter);
+        cJSON_AddStringToObject(component_hook, "hook_phase", "arb_component_step");
+        cJSON_AddNumberToObject(component_hook, "slot_index", 1);
+        cJSON_AddStringToObject(component_hook, "component_id", "m68000");
+        cJSON_AddItemToArray(hooks, component_hook);
+
+        cJSON *post_hook = cJSON_CreateObject();
+        cJSON_AddNumberToObject(post_hook, "tick_counter", (double)tick_counter);
+        cJSON_AddNumberToObject(post_hook, "cycle_counter", (double)cycle_counter);
+        cJSON_AddStringToObject(post_hook, "hook_phase", "arb_post_tick");
+        cJSON_AddNumberToObject(post_hook, "slot_index", 2);
+        cJSON_AddStringToObject(post_hook, "component_id", "scheduler");
+        cJSON_AddItemToArray(hooks, post_hook);
+    }
+    cJSON_AddItemToObject(data, "scheduler_hooks", hooks);
+
     if (capture_count > 0) {
         cJSON *payloads = cJSON_CreateArray();
         for (int step_index = 0; step_index < steps; step_index++) {

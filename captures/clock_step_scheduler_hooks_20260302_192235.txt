@@ -1,0 +1,13 @@
+base=http://esptari.local
+--- start
+{"ok":true}
+--- set single_step
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":true,"mode_transition_seq":1,"from_mode":"realtime","to_mode":"single_step","effective_ratio":1.000000,"last_transition_at_us":16659708}}
+--- step response
+{"ok":true,"data":{"session_id":"ses_local","run_mode":"single_step","steps_requested":2,"ticks_committed":2,"tick_counter_before":0,"tick_counter_after":2,"cycle_counter_before":0,"cycle_counter_after":24,"scheduler_hook_stats":{"ticks_with_hooks":2,"hook_order_violations":0,"component_step_mismatches":0},"scheduler_hooks":[{"tick_counter":1,"cycle_counter":12,"hook_phase":"arb_pre_tick","slot_index":0,"component_id":"scheduler"},{"tick_counter":1,"cycle_counter":12,"hook_phase":"arb_component_step","slot_index":1,"component_id":"m68000"},{"tick_counter":1,"cycle_counter":12,"hook_phase":"arb_post_tick","slot_index":2,"component_id":"scheduler"},{"tick_counter":2,"cycle_counter":24,"hook_phase":"arb_pre_tick","slot_index":0,"component_id":"scheduler"},{"tick_counter":2,"cycle_counter":24,"hook_phase":"arb_component_step","slot_index":1,"component_id":"m68000"},{"tick_counter":2,"cycle_counter":24,"hook_phase":"arb_post_tick","slot_index":2,"component_id":"scheduler"}],"capture_payloads":[{"kind":"opcode_capture_v1","tick_counter":1,"cycle_counter":12,"pc":16777218,"opcode_word":"0x4E71","instruction_size_bytes":2},{"kind":"opcode_capture_v1","tick_counter":2,"cycle_counter":24,"pc":16777220,"opcode_word":"0x4E71","instruction_size_bytes":2}]}}
+--- derived checks
+scheduler_hooks_count=6
+ticks_committed=2
+hooks_per_tick=3
+first_tick_phase_order=['arb_pre_tick', 'arb_component_step', 'arb_post_tick']
+first_tick_order_ok=True
