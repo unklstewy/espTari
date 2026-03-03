@@ -383,6 +383,7 @@ EBIN-specific endpoints:
 - ROM attach request validation + catalog binding check contract (`session_id`/`rom_id` validation, ROM-catalog binding enforcement, profile-compatibility checks, and deterministic blocker mapping) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `9.1`.
 - `POST /api/v2/media/rom/attach` enforces deterministic request validation and ROM catalog-binding checks (`BAD_REQUEST`, `CATALOG_ENTRY_NOT_FOUND`, `CONFLICT`, `INVALID_SESSION_STATE`) before attach projection.
 - ROM mount/apply flow and attach-status event contract (phase progression `validated -> mounted -> applied`, rollback-on-apply-failure behavior, and `media_attach_status` stream events with deterministic sequencing fields) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `9.1`.
+- ROM attach now projects deterministic mount/apply phase history in response data and exposes latest `media_attach_status` phase events on `GET /api/v2/engine/stream`.
 - Disk attach/eject request validation and binding-check contracts (`drive`/`disk_id` request validation, disk-catalog binding/format checks, deterministic no-op eject semantics, and deterministic blocker mapping) are defined in `docs/EMU_ENGINE_V2_API_SPEC.md` sections `9.2` and `9.3`.
 - Disk mount/eject runtime flow and disk state event contract (attach phase progression, rollback-on-activation-failure behavior, deterministic eject phase semantics, and `media_disk_state` stream events with sequence/timestamp fields) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` sections `9.2` and `9.3`.
 

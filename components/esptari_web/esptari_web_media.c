@@ -17,6 +17,54 @@
 static char attached_rom_id[64];
 static char attached_disk_id[64];
 static char attached_cartridge_id[64];
+static uint64_t media_attach_event_seq;
+static uint64_t media_runtime_generation;
+static esptari_web_media_attach_event_t last_rom_attach_events[4];
+static size_t last_rom_attach_event_count;
+
+static void clear_last_rom_attach_events(void)
+{
+    memset(last_rom_attach_events, 0, sizeof(last_rom_attach_events));
+    last_rom_attach_event_count = 0;
+}
+
+static void push_rom_attach_event(const char *rom_id,
+                                  const char *phase,
+                                  const char *result,
+                                  const char *request_id,
+                                  const char *error_code,
+                                  const char *error_message)
+{
+    if (last_rom_attach_event_count >= (sizeof(last_rom_attach_events) / sizeof(last_rom_attach_events[0]))) {
+        return;
+    }
+
+    esptari_web_media_attach_event_t *event = &last_rom_attach_events[last_rom_attach_event_count++];
+    media_attach_event_seq++;
+    event->event_seq = media_attach_event_seq;
+    event->event_timestamp_us = (uint64_t)esp_timer_get_time();
+    strlcpy(event->media_id, rom_id != NULL ? rom_id : "", sizeof(event->media_id));
+    strlcpy(event->phase, phase != NULL ? phase : "", sizeof(event->phase));
+    strlcpy(event->result, result != NULL ? result : "", sizeof(event->result));
+    strlcpy(event->request_id, request_id != NULL ? request_id : "", sizeof(event->request_id));
+
+    if (error_code != NULL && error_code[0] != '\0') {
+        event->has_error = true;
+        strlcpy(event->error_code, error_code, sizeof(event->error_code));
+        strlcpy(event->error_message, error_message != NULL ? error_message : "", sizeof(event->error_message));
+    }
+}
+
+void esptari_web_media_get_last_rom_attach_events(const esptari_web_media_attach_event_t **out_events,
+                                                  size_t *out_count)
+{
+    if (out_events != NULL) {
+        *out_events = last_rom_attach_events;
+    }
+    if (out_count != NULL) {
+        *out_count = last_rom_attach_event_count;
+    }
+}
 
 static esp_err_t send_media_error(httpd_req_t *req,
                                   int status_code,
@@ -166,17 +214,66 @@ static esp_err_t media_rom_attach_handler(httpd_req_t *req)
         return resolve_err;
     }
 
+    cJSON *force_apply_fail_item = cJSON_GetObjectItemCaseSensitive(root, "force_apply_fail");
+    bool force_apply_fail = cJSON_IsTrue(force_apply_fail_item);
+
+    char previous_rom_id[64] = {0};
+    strlcpy(previous_rom_id, attached_rom_id, sizeof(previous_rom_id));
+
+    char request_id[48];
+    snprintf(request_id,
+             sizeof(request_id),
+             "req_%llu",
+             (unsigned long long)esp_timer_get_time());
+
+    clear_last_rom_attach_events();
+    push_rom_attach_event(rom_id, "validated", "in_progress", request_id, NULL, NULL);
+    uint64_t mounted_at_us = (uint64_t)esp_timer_get_time();
+    push_rom_attach_event(rom_id, "mounted", "in_progress", request_id, NULL, NULL);
+
+    if (force_apply_fail) {
+        strlcpy(attached_rom_id, previous_rom_id, sizeof(attached_rom_id));
+        push_rom_attach_event(rom_id,
+                              "failed",
+                              "failed",
+                              request_id,
+                              "MEDIA_ATTACH_FAILED",
+                              "ROM apply phase failed; previous ROM restored");
+        cJSON_Delete(root);
+
+        char details[512];
+        snprintf(details,
+                 sizeof(details),
+                 "{\"session_id\":\"ses_local\",\"rom_id\":\"%s\",\"failed_phase\":\"applied\",\"request_id\":\"%s\",\"validation_stage\":\"rom_attach_apply\"}",
+                 rom_id,
+                 request_id);
+        return send_media_error(req,
+                                409,
+                                "MEDIA_ATTACH_FAILED",
+                                "engine",
+                                "ROM apply phase failed; previous ROM restored",
+                                details);
+    }
+
     strlcpy(attached_rom_id, rom_id, sizeof(attached_rom_id));
-    uint64_t now_us = (uint64_t)esp_timer_get_time();
+    media_runtime_generation++;
+    uint64_t applied_at_us = (uint64_t)esp_timer_get_time();
+    push_rom_attach_event(rom_id, "applied", "applied", request_id, NULL, NULL);
     cJSON_Delete(root);
 
-    char resp[384];
+    char resp[1152];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"rom_id\":\"%s\",\"catalog\":\"roms\",\"local_path\":\"%s\",\"state\":\"attached\",\"attached_at_us\":%llu}}",
-             attached_rom_id,
+             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"rom\":{\"id\":\"%s\",\"catalog\":\"rom\",\"local_path\":\"%s\",\"binding\":{\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"binding_result\":\"matched\"}},\"rom_id\":\"%s\",\"result\":\"applied\",\"phase\":\"applied\",\"phase_history\":[\"validated\",\"mounted\",\"applied\"],\"request_id\":\"%s\",\"mount\":{\"slot\":\"rom.primary\",\"mounted_path\":\"%s\",\"mounted_at_us\":%llu},\"apply\":{\"applied_at_us\":%llu,\"runtime_generation\":%llu},\"attached_at_us\":%llu}}",
+             rom_id,
              local_path,
-             (unsigned long long)now_us);
+             attached_rom_id,
+             request_id,
+             local_path,
+             (unsigned long long)mounted_at_us,
+             (unsigned long long)applied_at_us,
+             (unsigned long long)media_runtime_generation,
+             (unsigned long long)applied_at_us);
     return send_json(req, resp, 200);
 }
 

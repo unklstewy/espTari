@@ -8,6 +8,7 @@
 #include "esp_timer.h"
 #include "esptari_core.h"
 #include "esptari_web_http_utils.h"
+#include "esptari_web_media.h"
 
 #define send_json esptari_web_send_json
 #define query_value esptari_web_query_value
@@ -265,9 +266,55 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
         slo_severity = "warning";
     }
 
-    char resp[1792];
+    char media_attach_events_json[1536] = "[]";
+    if (stream == STREAM_KIND_ENGINE) {
+        const esptari_web_media_attach_event_t *events = NULL;
+        size_t event_count = 0;
+        esptari_web_media_get_last_rom_attach_events(&events, &event_count);
+
+        size_t cursor = 0;
+        cursor += snprintf(media_attach_events_json + cursor,
+                           sizeof(media_attach_events_json) - cursor,
+                           "[");
+        for (size_t index = 0; index < event_count; index++) {
+            const esptari_web_media_attach_event_t *event = &events[index];
+            if (index > 0) {
+                cursor += snprintf(media_attach_events_json + cursor,
+                                   sizeof(media_attach_events_json) - cursor,
+                                   ",");
+            }
+            if (event->has_error) {
+                cursor += snprintf(media_attach_events_json + cursor,
+                                   sizeof(media_attach_events_json) - cursor,
+                                   "{\"type\":\"media_attach_status\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"media_type\":\"rom\",\"media_id\":\"%s\",\"phase\":\"%s\",\"result\":\"%s\",\"request_id\":\"%s\",\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
+                                   (unsigned long long)event->event_seq,
+                                   (unsigned long long)event->event_timestamp_us,
+                                   event->media_id,
+                                   event->phase,
+                                   event->result,
+                                   event->request_id,
+                                   event->error_code,
+                                   event->error_message);
+            } else {
+                cursor += snprintf(media_attach_events_json + cursor,
+                                   sizeof(media_attach_events_json) - cursor,
+                                   "{\"type\":\"media_attach_status\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"media_type\":\"rom\",\"media_id\":\"%s\",\"phase\":\"%s\",\"result\":\"%s\",\"request_id\":\"%s\"}",
+                                   (unsigned long long)event->event_seq,
+                                   (unsigned long long)event->event_timestamp_us,
+                                   event->media_id,
+                                   event->phase,
+                                   event->result,
+                                   event->request_id);
+            }
+        }
+        snprintf(media_attach_events_json + cursor,
+                 sizeof(media_attach_events_json) - cursor,
+                 "]");
+    }
+
+    char resp[4096];
     snprintf(resp, sizeof(resp),
-             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"media_attach_status_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
              stream_name,
              (unsigned long long)stream_event_seq,
              (unsigned long long)timestamp_us,
@@ -299,6 +346,7 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
              (unsigned long long)metrics->overflow_events_total,
              (unsigned long long)metrics->throttle_transitions_total,
              (unsigned long long)metrics->sample_timestamp_us,
+             media_attach_events_json,
              (unsigned long long)slo_alarm_seq,
              slo_state,
              slo_severity);
