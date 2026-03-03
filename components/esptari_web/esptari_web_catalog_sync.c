@@ -16,6 +16,7 @@ static const char *TAG = "esptari_web_catalog";
 
 #define MAX_SYNC_SCHEDULES 32
 #define MAX_SYNC_JOBS 64
+#define MAX_RECOVERY_QUARANTINE 16
 
 typedef struct {
     char job_id[32];
@@ -44,14 +45,32 @@ typedef struct {
     char last_error_code[48];
 } esptari_sync_schedule_t;
 
+typedef struct {
+    char schedule_id[32];
+    char error_code[48];
+    char reason[64];
+} esptari_recovery_quarantine_t;
+
+typedef struct {
+    char recovery_run_id[48];
+    uint64_t scheduler_now_us;
+    uint32_t loaded;
+    uint32_t validated;
+    uint32_t recomputed_next_run;
+    uint32_t quarantined;
+    esptari_recovery_quarantine_t quarantine[MAX_RECOVERY_QUARANTINE];
+} esptari_recovery_report_t;
+
 static esptari_sync_job_t s_jobs[MAX_SYNC_JOBS];
 static size_t s_job_count;
 static esptari_sync_schedule_t s_schedules[MAX_SYNC_SCHEDULES];
 static size_t s_schedule_count;
 static char s_persisted_schedule_snapshot[8192];
+static char s_recovery_parse_buffer[8192];
 static bool s_initialized;
 static uint64_t s_job_seq;
 static uint64_t s_schedule_seq;
+static esptari_recovery_report_t s_recovery_report;
 
 static uint64_t scheduler_now_us(void)
 {
@@ -166,6 +185,56 @@ static cJSON *schedule_to_json(const esptari_sync_schedule_t *schedule)
     return item;
 }
 
+static bool is_known_job_type(const char *job_type)
+{
+    return job_type != NULL &&
+           (strcmp(job_type, "floppy_catalog_sync") == 0 || strcmp(job_type, "rom_catalog_sync") == 0 ||
+            strcmp(job_type, "tos_catalog_sync") == 0);
+}
+
+static bool is_known_mode(const char *mode)
+{
+    return mode != NULL &&
+           (strcmp(mode, "catalog_only") == 0 || strcmp(mode, "catalog_and_probe_links") == 0 ||
+            strcmp(mode, "catalog_probe_and_prefetch_missing") == 0);
+}
+
+static void recovery_reset(uint64_t now_us)
+{
+    memset(&s_recovery_report, 0, sizeof(s_recovery_report));
+    s_recovery_report.scheduler_now_us = now_us;
+    snprintf(s_recovery_report.recovery_run_id,
+             sizeof(s_recovery_report.recovery_run_id),
+             "sched_recover_%06llu",
+             (unsigned long long)(now_us % 1000000ULL));
+}
+
+static void recovery_quarantine_add(const char *schedule_id, const char *reason)
+{
+    s_recovery_report.quarantined++;
+    if (s_recovery_report.quarantined > MAX_RECOVERY_QUARANTINE) {
+        return;
+    }
+    esptari_recovery_quarantine_t *entry = &s_recovery_report.quarantine[s_recovery_report.quarantined - 1];
+    snprintf(entry->schedule_id, sizeof(entry->schedule_id), "%s", schedule_id != NULL ? schedule_id : "unknown");
+    snprintf(entry->error_code, sizeof(entry->error_code), "%s", "SCRAPER_SCHEDULE_INVALID");
+    snprintf(entry->reason, sizeof(entry->reason), "%s", reason != NULL ? reason : "invalid record");
+}
+
+static bool duplicate_schedule_identity(const char *job_type, const char *mode, const char *cron, const char *exclude_id)
+{
+    for (size_t i = 0; i < s_schedule_count; i++) {
+        const esptari_sync_schedule_t *schedule = &s_schedules[i];
+        if (exclude_id != NULL && strcmp(schedule->schedule_id, exclude_id) == 0) {
+            continue;
+        }
+        if (strcmp(schedule->job_type, job_type) == 0 && strcmp(schedule->mode, mode) == 0 && strcmp(schedule->cron, cron) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool persist_schedules(void)
 {
     cJSON *root = cJSON_CreateObject();
@@ -199,11 +268,17 @@ static void load_schedules_if_needed(void)
     }
     s_initialized = true;
 
-    if (s_persisted_schedule_snapshot[0] == '\0') {
+    uint64_t now_us = scheduler_now_us();
+    recovery_reset(now_us);
+
+    memset(s_recovery_parse_buffer, 0, sizeof(s_recovery_parse_buffer));
+    if (s_persisted_schedule_snapshot[0] != '\0') {
+        strlcpy(s_recovery_parse_buffer, s_persisted_schedule_snapshot, sizeof(s_recovery_parse_buffer));
+    } else {
         return;
     }
 
-    cJSON *root = cJSON_Parse(s_persisted_schedule_snapshot);
+    cJSON *root = cJSON_Parse(s_recovery_parse_buffer);
     if (root == NULL) {
         return;
     }
@@ -217,7 +292,9 @@ static void load_schedules_if_needed(void)
     cJSON *schedule = NULL;
     cJSON_ArrayForEach(schedule, schedules)
     {
+        s_recovery_report.loaded++;
         if (!cJSON_IsObject(schedule) || s_schedule_count >= MAX_SYNC_SCHEDULES) {
+            recovery_quarantine_add("unknown", "record is not an object or schedule capacity exhausted");
             continue;
         }
 
@@ -234,9 +311,11 @@ static void load_schedules_if_needed(void)
         cJSON *last_result = cJSON_GetObjectItemCaseSensitive(schedule, "last_result");
         cJSON *last_error_code = cJSON_GetObjectItemCaseSensitive(schedule, "last_error_code");
 
-        if (!cJSON_IsString(schedule_id) || !cJSON_IsString(job_type) || !cJSON_IsString(mode) ||
-            !cJSON_IsString(cron) || !cJSON_IsBool(enabled) || !cJSON_IsBool(catch_up) || !cJSON_IsNumber(created_at_us) ||
-            !cJSON_IsNumber(updated_at_us) || !cJSON_IsNumber(next_run_at_us)) {
+        if (!cJSON_IsString(schedule_id) || !cJSON_IsString(job_type) || !cJSON_IsString(mode) || !cJSON_IsString(cron) ||
+            !cJSON_IsBool(enabled) || !cJSON_IsBool(catch_up) || !cJSON_IsNumber(created_at_us) ||
+            !cJSON_IsNumber(updated_at_us) || !cJSON_IsNumber(next_run_at_us) || !is_known_job_type(job_type->valuestring) ||
+            !is_known_mode(mode->valuestring) || !parse_interval_hours_from_cron(cron->valuestring, &(uint32_t){0})) {
+            recovery_quarantine_add(cJSON_IsString(schedule_id) ? schedule_id->valuestring : "unknown", "validation failed");
             continue;
         }
 
@@ -262,6 +341,16 @@ static void load_schedules_if_needed(void)
             out->last_error_code[0] = '\0';
         }
 
+        if (out->next_run_at_us < now_us) {
+            if (out->catch_up) {
+                out->next_run_at_us = now_us;
+            } else {
+                out->next_run_at_us = compute_next_run_at_us(now_us, out->cron);
+            }
+            s_recovery_report.recomputed_next_run++;
+        }
+        s_recovery_report.validated++;
+
         if (strncmp(out->schedule_id, "sch_", 4) == 0) {
             uint64_t parsed = strtoull(out->schedule_id + 4, NULL, 10);
             if (parsed > s_schedule_seq) {
@@ -271,6 +360,10 @@ static void load_schedules_if_needed(void)
     }
 
     cJSON_Delete(root);
+
+    if (s_recovery_report.recomputed_next_run > 0 || s_recovery_report.quarantined > 0) {
+        persist_schedules();
+    }
 }
 
 static void append_job(const char *trigger,
@@ -489,10 +582,15 @@ static esp_err_t handle_catalog_sync_create_schedule(httpd_req_t *req)
     cJSON *catch_up = cJSON_GetObjectItemCaseSensitive(json, "catch_up");
 
     uint32_t interval_hours = 0;
-    if (!cJSON_IsString(job_type) || !cJSON_IsString(mode) || !cJSON_IsString(cron) ||
-        !cJSON_IsBool(enabled) || !cJSON_IsBool(catch_up) || !parse_interval_hours_from_cron(cron->valuestring, &interval_hours)) {
+    if (!cJSON_IsString(job_type) || !cJSON_IsString(mode) || !cJSON_IsString(cron) || !cJSON_IsBool(enabled) ||
+        !cJSON_IsBool(catch_up) || !parse_interval_hours_from_cron(cron->valuestring, &interval_hours) ||
+        !is_known_job_type(job_type->valuestring) || !is_known_mode(mode->valuestring)) {
         cJSON_Delete(json);
         return send_error(req, "SCRAPER_SCHEDULE_INVALID", 400);
+    }
+    if (duplicate_schedule_identity(job_type->valuestring, mode->valuestring, cron->valuestring, NULL)) {
+        cJSON_Delete(json);
+        return send_error(req, "CONFLICT", 409);
     }
     if (s_schedule_count >= MAX_SYNC_SCHEDULES) {
         cJSON_Delete(json);
@@ -519,7 +617,7 @@ static esp_err_t handle_catalog_sync_create_schedule(httpd_req_t *req)
 
     if (!persist_schedules()) {
         s_schedule_count--;
-        return send_error(req, "INTERNAL_ERROR", 500);
+        return send_error(req, "CATALOG_SYNC_FAILED", 409);
     }
 
     cJSON *resp = cJSON_CreateObject();
@@ -585,7 +683,7 @@ static esp_err_t handle_catalog_sync_get_schedule(httpd_req_t *req)
 
     esptari_sync_schedule_t *schedule = find_schedule_by_id(schedule_id);
     if (schedule == NULL) {
-        return send_error(req, "SCRAPER_SCHEDULE_INVALID", 404);
+        return send_error(req, "SCRAPER_JOB_NOT_FOUND", 404);
     }
 
     cJSON *resp = cJSON_CreateObject();
@@ -615,7 +713,9 @@ static esp_err_t handle_catalog_sync_delete_schedule(httpd_req_t *req)
                 memmove(&s_schedules[i], &s_schedules[i + 1], sizeof(s_schedules[0]) * (s_schedule_count - i - 1));
             }
             s_schedule_count--;
-            persist_schedules();
+            if (!persist_schedules()) {
+                return send_error(req, "CATALOG_SYNC_FAILED", 409);
+            }
 
             cJSON *resp = cJSON_CreateObject();
             cJSON_AddBoolToObject(resp, "ok", true);
@@ -630,7 +730,133 @@ static esp_err_t handle_catalog_sync_delete_schedule(httpd_req_t *req)
         }
     }
 
-    return send_error(req, "SCRAPER_SCHEDULE_INVALID", 404);
+    return send_error(req, "SCRAPER_JOB_NOT_FOUND", 404);
+}
+
+static esp_err_t handle_catalog_sync_patch_schedule(httpd_req_t *req)
+{
+    scheduler_tick();
+    load_schedules_if_needed();
+
+    const char *schedule_id = wildcard_tail(req->uri, "/api/v2/catalog-sync/schedules/");
+    if (schedule_id == NULL || schedule_id[0] == '\0') {
+        return send_error(req, "BAD_REQUEST", 400);
+    }
+
+    esptari_sync_schedule_t *schedule = find_schedule_by_id(schedule_id);
+    if (schedule == NULL) {
+        return send_error(req, "SCRAPER_JOB_NOT_FOUND", 404);
+    }
+
+    cJSON *json = NULL;
+    if (!parse_json_request(req, &json)) {
+        return ESP_OK;
+    }
+
+    cJSON *job_type = cJSON_GetObjectItemCaseSensitive(json, "job_type");
+    cJSON *mode = cJSON_GetObjectItemCaseSensitive(json, "mode");
+    cJSON *cron = cJSON_GetObjectItemCaseSensitive(json, "cron");
+    cJSON *enabled = cJSON_GetObjectItemCaseSensitive(json, "enabled");
+    cJSON *catch_up = cJSON_GetObjectItemCaseSensitive(json, "catch_up");
+
+    if ((job_type != NULL && (!cJSON_IsString(job_type) || !is_known_job_type(job_type->valuestring))) ||
+        (mode != NULL && (!cJSON_IsString(mode) || !is_known_mode(mode->valuestring))) ||
+        (cron != NULL && (!cJSON_IsString(cron) || !parse_interval_hours_from_cron(cron->valuestring, &(uint32_t){0}))) ||
+        (enabled != NULL && !cJSON_IsBool(enabled)) || (catch_up != NULL && !cJSON_IsBool(catch_up))) {
+        cJSON_Delete(json);
+        return send_error(req, "SCRAPER_SCHEDULE_INVALID", 400);
+    }
+
+    esptari_sync_schedule_t updated = *schedule;
+    bool has_change = false;
+    if (job_type != NULL) {
+        snprintf(updated.job_type, sizeof(updated.job_type), "%s", job_type->valuestring);
+        has_change = true;
+    }
+    if (mode != NULL) {
+        snprintf(updated.mode, sizeof(updated.mode), "%s", mode->valuestring);
+        has_change = true;
+    }
+    bool cron_changed = false;
+    if (cron != NULL) {
+        snprintf(updated.cron, sizeof(updated.cron), "%s", cron->valuestring);
+        has_change = true;
+        cron_changed = true;
+    }
+    bool was_enabled = updated.enabled;
+    if (enabled != NULL) {
+        updated.enabled = cJSON_IsTrue(enabled);
+        has_change = true;
+    }
+    if (catch_up != NULL) {
+        updated.catch_up = cJSON_IsTrue(catch_up);
+        has_change = true;
+    }
+    cJSON_Delete(json);
+
+    if (duplicate_schedule_identity(updated.job_type, updated.mode, updated.cron, schedule->schedule_id)) {
+        return send_error(req, "CONFLICT", 409);
+    }
+
+    uint64_t now_us = scheduler_now_us();
+    if (has_change) {
+        if (cron_changed || (was_enabled == false && updated.enabled)) {
+            updated.next_run_at_us = compute_next_run_at_us(now_us, updated.cron);
+        }
+        if (updated.updated_at_us >= now_us) {
+            now_us = updated.updated_at_us + 1;
+        }
+        updated.updated_at_us = now_us;
+    }
+
+    esptari_sync_schedule_t original = *schedule;
+    *schedule = updated;
+    if (has_change && !persist_schedules()) {
+        *schedule = original;
+        return send_error(req, "CATALOG_SYNC_FAILED", 409);
+    }
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+    cJSON *data = schedule_to_json(schedule);
+    cJSON_AddItemToObject(resp, "data", data);
+
+    esp_err_t out = send_json_object(req, resp, 200);
+    cJSON_Delete(resp);
+    return out;
+}
+
+static esp_err_t handle_catalog_sync_recovery_report(httpd_req_t *req)
+{
+    load_schedules_if_needed();
+
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddBoolToObject(resp, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(resp, "data", data);
+    cJSON_AddStringToObject(data, "recovery_run_id", s_recovery_report.recovery_run_id);
+    cJSON_AddNumberToObject(data, "scheduler_now_us", (double)s_recovery_report.scheduler_now_us);
+    cJSON_AddNumberToObject(data, "loaded", s_recovery_report.loaded);
+    cJSON_AddNumberToObject(data, "validated", s_recovery_report.validated);
+    cJSON_AddNumberToObject(data, "recomputed_next_run", s_recovery_report.recomputed_next_run);
+    cJSON_AddNumberToObject(data, "quarantined", s_recovery_report.quarantined);
+    cJSON *quarantine = cJSON_CreateArray();
+    cJSON_AddItemToObject(data, "quarantine", quarantine);
+    uint32_t quarantine_count = s_recovery_report.quarantined;
+    if (quarantine_count > MAX_RECOVERY_QUARANTINE) {
+        quarantine_count = MAX_RECOVERY_QUARANTINE;
+    }
+    for (uint32_t i = 0; i < quarantine_count; i++) {
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "schedule_id", s_recovery_report.quarantine[i].schedule_id);
+        cJSON_AddStringToObject(item, "error_code", s_recovery_report.quarantine[i].error_code);
+        cJSON_AddStringToObject(item, "reason", s_recovery_report.quarantine[i].reason);
+        cJSON_AddItemToArray(quarantine, item);
+    }
+
+    esp_err_t out = send_json_object(req, resp, 200);
+    cJSON_Delete(resp);
+    return out;
 }
 
 static esp_err_t handle_ebins_catalog(httpd_req_t *req)
@@ -722,7 +948,9 @@ void esptari_web_catalog_sync_register_routes(httpd_handle_t server_handle)
     httpd_uri_t sync_schedule_create = {.uri = "/api/v2/catalog-sync/schedules", .method = HTTP_POST, .handler = handle_catalog_sync_create_schedule, .user_ctx = NULL};
     httpd_uri_t sync_schedule_list = {.uri = "/api/v2/catalog-sync/schedules", .method = HTTP_GET, .handler = handle_catalog_sync_list_schedules, .user_ctx = NULL};
     httpd_uri_t sync_schedule_get = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_GET, .handler = handle_catalog_sync_get_schedule, .user_ctx = NULL};
+    httpd_uri_t sync_schedule_patch = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_PATCH, .handler = handle_catalog_sync_patch_schedule, .user_ctx = NULL};
     httpd_uri_t sync_schedule_delete = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_DELETE, .handler = handle_catalog_sync_delete_schedule, .user_ctx = NULL};
+    httpd_uri_t sync_recovery_report = {.uri = "/api/v2/catalog-sync/recovery", .method = HTTP_GET, .handler = handle_catalog_sync_recovery_report, .user_ctx = NULL};
     httpd_uri_t ebins_catalog = {.uri = "/api/v2/ebins/catalog", .method = HTTP_GET, .handler = handle_ebins_catalog, .user_ctx = NULL};
     httpd_uri_t ebins_rescan = {.uri = "/api/v2/ebins/rescan", .method = HTTP_POST, .handler = handle_ebins_rescan, .user_ctx = NULL};
     httpd_uri_t ebins_validate = {.uri = "/api/v2/ebins/validate", .method = HTTP_POST, .handler = handle_ebins_validate, .user_ctx = NULL};
@@ -735,7 +963,9 @@ void esptari_web_catalog_sync_register_routes(httpd_handle_t server_handle)
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_schedule_create));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_schedule_list));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_schedule_get));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_schedule_patch));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_schedule_delete));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_recovery_report));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_catalog));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_rescan));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_validate));

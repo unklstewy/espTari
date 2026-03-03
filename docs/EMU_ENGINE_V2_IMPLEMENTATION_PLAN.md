@@ -533,7 +533,7 @@ Browser input capture policy:
 - **6.2 SD-card file manager + catalog/scheduler/ebin admin**: COMPLETE
   - Implemented: `GET /api/v2/files/list`, `POST /api/v2/files/upload`, `POST /api/v2/files/move`, `POST /api/v2/files/delete`, `GET /api/v2/files/download`, `POST /api/v2/files/mkdir`, `GET /api/v2/files/stat`
   - Implemented: `GET /api/v2/catalogs/list`, `GET /api/v2/catalogs/*`, `POST /api/v2/catalogs/*`
-  - Implemented: `POST /api/v2/catalog-sync/jobs/run`, `GET /api/v2/catalog-sync/jobs`, `GET /api/v2/catalog-sync/jobs/*`, `POST /api/v2/catalog-sync/schedules`, `GET /api/v2/catalog-sync/schedules`, `DELETE /api/v2/catalog-sync/schedules/*`
+  - Implemented: `POST /api/v2/catalog-sync/jobs/run`, `GET /api/v2/catalog-sync/jobs`, `GET /api/v2/catalog-sync/jobs/*`, `POST /api/v2/catalog-sync/schedules`, `GET /api/v2/catalog-sync/schedules`, `GET /api/v2/catalog-sync/schedules/*`, `PATCH /api/v2/catalog-sync/schedules/*`, `DELETE /api/v2/catalog-sync/schedules/*`, `GET /api/v2/catalog-sync/recovery`
   - Implemented: `GET /api/v2/ebins/catalog`, `POST /api/v2/ebins/rescan`, `POST /api/v2/ebins/validate`, `POST /api/v2/ebins/load`, `POST /api/v2/ebins/unload`
 - **6.3 Media APIs**: COMPLETE
   - Implemented: `POST /api/v2/media/rom/attach`, `POST /api/v2/media/disk/attach`, `POST /api/v2/media/disk/eject`, `POST /api/v2/media/cartridge/attach`, `POST /api/v2/media/cartridge/eject`

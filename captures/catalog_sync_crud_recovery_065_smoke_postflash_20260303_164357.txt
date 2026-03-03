@@ -1,0 +1,14 @@
+# T-065 smoke 20260303_164357
+\n## create schedule
+{"ok":true,"data":{"schedule_id":"sch_000001","job_type":"rom_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":true,"catch_up":false,"created_at_us":34028776,"updated_at_us":34028776,"last_run_at_us":null,"next_run_at_us":21600000000,"last_result":"none","last_error_code":null}}
+schedule_id=sch_000001
+\n## patch schedule
+{"ok":true,"data":{"schedule_id":"sch_000001","job_type":"rom_catalog_sync","mode":"catalog_probe_and_prefetch_missing","cron":"0 */12 * * *","enabled":true,"catch_up":true,"created_at_us":34028776,"updated_at_us":34080639,"last_run_at_us":null,"next_run_at_us":43200000000,"last_result":"none","last_error_code":null}}\n## get schedule
+{"ok":true,"data":{"scheduler_now_us":34100348,"schedule":{"schedule_id":"sch_000001","job_type":"rom_catalog_sync","mode":"catalog_probe_and_prefetch_missing","cron":"0 */12 * * *","enabled":true,"catch_up":true,"created_at_us":34028776,"updated_at_us":34080639,"last_run_at_us":null,"next_run_at_us":43200000000,"last_result":"none","last_error_code":null}}}\n## duplicate conflict check
+{"ok":false,"error":{"code":"CONFLICT","category":"scheduler","retryable":false}}\n## recovery report
+{"ok":true,"data":{"recovery_run_id":"sched_recover_128679","scheduler_now_us":18128679,"loaded":0,"validated":0,"recomputed_next_run":0,"quarantined":0,"quarantine":[]}}\n## reboot
+\n## recovery report after reboot
+{"ok":true,"data":{"recovery_run_id":"sched_recover_128679","scheduler_now_us":18128679,"loaded":0,"validated":0,"recomputed_next_run":0,"quarantined":0,"quarantine":[]}}\n## list schedules after reboot
+{"ok":true,"data":{"scheduler_now_us":34241333,"schedules":[{"schedule_id":"sch_000001","job_type":"rom_catalog_sync","mode":"catalog_probe_and_prefetch_missing","cron":"0 */12 * * *","enabled":true,"catch_up":true,"created_at_us":34028776,"updated_at_us":34080639,"last_run_at_us":null,"next_run_at_us":43200000000,"last_result":"none","last_error_code":null}]}}\n## delete schedule
+{"ok":true,"data":{"schedule_id":"sch_000001","status":"deleted"}}\n## delete not found check
+{"ok":false,"error":{"code":"SCRAPER_JOB_NOT_FOUND","category":"scheduler","retryable":false}}
