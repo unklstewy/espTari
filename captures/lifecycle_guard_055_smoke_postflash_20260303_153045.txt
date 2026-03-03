@@ -1,0 +1,12 @@
+== stop (pre) ==
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-STOP","endpoint":"/api/v2/engine/session/stop","esp_err":"ESP_ERR_INVALID_STATE"}}}
+== pause from stopped -> INVALID_SESSION_STATE/G-LIFECYCLE-PAUSE ==
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-PAUSE","endpoint":"/api/v2/engine/session/pause","esp_err":"ESP_ERR_INVALID_STATE"}}}
+== suspend-save from stopped -> INVALID_SESSION_STATE/G-SUSPEND-01 ==
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Suspend-save allowed only from running state","retryable":false,"details":{"guard_id":"G-SUSPEND-01","endpoint":"/api/v2/engine/session/suspend-save"}}}
+== resume invalid mode -> BAD_REQUEST/G-RESUME-02 ==
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"request","message":"Invalid resume_mode value","retryable":false,"details":{"guard_id":"G-RESUME-02","endpoint":"/api/v2/engine/session/resume"}}}
+== reset invalid mode -> BAD_REQUEST/G-RESET-01 ==
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"request","message":"mode must be warm or cold","retryable":false,"details":{"guard_id":"G-RESET-01","endpoint":"/api/v2/engine/session/reset"}}}
+== restore-resume invalid mode -> BAD_REQUEST/G-RESUME-02 ==
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"request","message":"Invalid resume_mode value","retryable":false,"details":{"guard_id":"G-RESUME-02","endpoint":"/api/v2/engine/session/restore-resume"}}}

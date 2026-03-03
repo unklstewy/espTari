@@ -10,6 +10,42 @@
 #include "esptari_web_catalog_state.h"
 #include "esptari_web_http_utils.h"
 
+static esp_err_t send_guard_error(httpd_req_t *req,
+                                  int status_code,
+                                  const char *code,
+                                  const char *category,
+                                  bool retryable,
+                                  const char *guard_id,
+                                  const char *endpoint,
+                                  const char *message,
+                                  const char *esp_err_name)
+{
+    char buf[768];
+    if (esp_err_name != NULL) {
+        snprintf(buf,
+                 sizeof(buf),
+                 "{\"ok\":false,\"error\":{\"code\":\"%s\",\"category\":\"%s\",\"message\":\"%s\",\"retryable\":%s,\"details\":{\"guard_id\":\"%s\",\"endpoint\":\"%s\",\"esp_err\":\"%s\"}}}",
+                 code,
+                 category,
+                 message,
+                 retryable ? "true" : "false",
+                 guard_id,
+                 endpoint,
+                 esp_err_name);
+    } else {
+        snprintf(buf,
+                 sizeof(buf),
+                 "{\"ok\":false,\"error\":{\"code\":\"%s\",\"category\":\"%s\",\"message\":\"%s\",\"retryable\":%s,\"details\":{\"guard_id\":\"%s\",\"endpoint\":\"%s\"}}}",
+                 code,
+                 category,
+                 message,
+                 retryable ? "true" : "false",
+                 guard_id,
+                 endpoint);
+    }
+    return esptari_web_send_json(req, buf, status_code);
+}
+
 static esp_err_t handle_state_change(httpd_req_t *req,
                                      esp_err_t (*op)(void),
                                      const char *guard_id,
@@ -20,24 +56,38 @@ static esp_err_t handle_state_change(httpd_req_t *req,
         return esptari_web_send_json(req, "{\"ok\":true}", 200);
     }
 
-    const char *error_code = "INTERNAL_ERROR";
-    int status_code = 500;
-    const char *effective_guard_id = guard_id;
-
     if (err == ESP_ERR_INVALID_STATE) {
-        error_code = "INVALID_SESSION_STATE";
-        status_code = 409;
-    } else if (err == ESP_ERR_NOT_FOUND) {
-        error_code = "MACHINE_NOT_LOADED";
-        status_code = 412;
-        effective_guard_id = "G-LOADER-MACHINE-READY";
+        return send_guard_error(req,
+                                409,
+                                "INVALID_SESSION_STATE",
+                                "engine",
+                                false,
+                                guard_id,
+                                endpoint,
+                                "Lifecycle transition rejected for current state",
+                                esp_err_to_name(err));
+    }
+    if (err == ESP_ERR_NOT_FOUND) {
+        return send_guard_error(req,
+                                412,
+                                "MACHINE_NOT_LOADED",
+                                "engine",
+                                false,
+                                "G-LOADER-MACHINE-READY",
+                                endpoint,
+                                "Machine/profile prerequisites are not loaded",
+                                esp_err_to_name(err));
     }
 
-    char buf[256];
-    snprintf(buf, sizeof(buf),
-             "{\"ok\":false,\"error\":{\"code\":\"%s\",\"details\":{\"guard_id\":\"%s\",\"endpoint\":\"%s\",\"esp_err\":\"%s\"}}}",
-             error_code, effective_guard_id, endpoint, esp_err_to_name(err));
-    return esptari_web_send_json(req, buf, status_code);
+    return send_guard_error(req,
+                            500,
+                            "INTERNAL_ERROR",
+                            "internal",
+                            false,
+                            guard_id,
+                            endpoint,
+                            "Unhandled lifecycle guard validator failure",
+                            esp_err_to_name(err));
 }
 
 static esp_err_t send_start_error(httpd_req_t *req,
@@ -118,12 +168,28 @@ esp_err_t esptari_web_lifecycle_session_handler(httpd_req_t *req)
 {
     char body[768];
     if (esptari_web_read_request_body(req, body, sizeof(body)) != ESP_OK) {
-        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return send_guard_error(req,
+                                400,
+                                "BAD_REQUEST",
+                                "request",
+                                false,
+                                "G-START-02",
+                                "/api/v2/engine/session",
+                                "Invalid request body for start session",
+                                NULL);
     }
 
     cJSON *root = cJSON_Parse(body);
     if (root == NULL) {
-        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return send_guard_error(req,
+                                400,
+                                "BAD_REQUEST",
+                                "request",
+                                false,
+                                "G-START-02",
+                                "/api/v2/engine/session",
+                                "Malformed JSON for start session",
+                                NULL);
     }
 
     char machine[64] = {0};
@@ -137,19 +203,43 @@ esp_err_t esptari_web_lifecycle_session_handler(httpd_req_t *req)
         !parse_required_string(root, "profile", profile, sizeof(profile)) ||
         !parse_required_string(root, "rom_id", rom_id, sizeof(rom_id))) {
         cJSON_Delete(root);
-        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return send_guard_error(req,
+                                400,
+                                "BAD_REQUEST",
+                                "request",
+                                false,
+                                "G-START-02",
+                                "/api/v2/engine/session",
+                                "Missing required start fields (machine/profile/rom_id)",
+                                NULL);
     }
 
     if (!parse_optional_string(root, "tos_id", tos_id, sizeof(tos_id))) {
         cJSON_Delete(root);
-        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        return send_guard_error(req,
+                                400,
+                                "BAD_REQUEST",
+                                "request",
+                                false,
+                                "G-START-02",
+                                "/api/v2/engine/session",
+                                "Invalid optional tos_id value",
+                                NULL);
     }
 
     cJSON *disk_ids = cJSON_GetObjectItemCaseSensitive(root, "disk_ids");
     if (disk_ids != NULL) {
         if (!cJSON_IsArray(disk_ids)) {
             cJSON_Delete(root);
-            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            return send_guard_error(req,
+                                    400,
+                                    "BAD_REQUEST",
+                                    "request",
+                                    false,
+                                    "G-START-02",
+                                    "/api/v2/engine/session",
+                                    "disk_ids must be an array",
+                                    NULL);
         }
         disk_ids_supplied = true;
         int disk_count = cJSON_GetArraySize(disk_ids);
@@ -157,7 +247,15 @@ esp_err_t esptari_web_lifecycle_session_handler(httpd_req_t *req)
             cJSON *disk_item = cJSON_GetArrayItem(disk_ids, i);
             if (!cJSON_IsString(disk_item) || disk_item->valuestring == NULL || disk_item->valuestring[0] == '\0') {
                 cJSON_Delete(root);
-                return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+                return send_guard_error(req,
+                                        400,
+                                        "BAD_REQUEST",
+                                        "request",
+                                        false,
+                                        "G-START-02",
+                                        "/api/v2/engine/session",
+                                        "disk_ids contains invalid entry",
+                                        NULL);
             }
             if (i == 0) {
                 strlcpy(first_disk_id, disk_item->valuestring, sizeof(first_disk_id));
@@ -193,25 +291,37 @@ esp_err_t esptari_web_lifecycle_session_handler(httpd_req_t *req)
 
     esp_err_t err = esptari_core_start();
     if (err == ESP_ERR_INVALID_STATE) {
-        char buf[256];
-        snprintf(buf, sizeof(buf),
-                 "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"%s\",\"endpoint\":\"%s\",\"esp_err\":\"%s\"}}}",
-                 "G-LIFECYCLE-SESSION",
-                 "/api/v2/engine/session",
-                 esp_err_to_name(err));
-        return esptari_web_send_json(req, buf, 409);
+        return send_guard_error(req,
+                                409,
+                                "INVALID_SESSION_STATE",
+                                "engine",
+                                false,
+                                "G-LIFECYCLE-SESSION",
+                                "/api/v2/engine/session",
+                                "Cannot start session from current lifecycle state",
+                                esp_err_to_name(err));
     }
     if (err == ESP_ERR_NOT_FOUND) {
-        char buf[256];
-        snprintf(buf, sizeof(buf),
-                 "{\"ok\":false,\"error\":{\"code\":\"MACHINE_NOT_LOADED\",\"details\":{\"guard_id\":\"%s\",\"endpoint\":\"%s\",\"esp_err\":\"%s\"}}}",
-                 "G-LOADER-MACHINE-READY",
-                 "/api/v2/engine/session",
-                 esp_err_to_name(err));
-        return esptari_web_send_json(req, buf, 412);
+        return send_guard_error(req,
+                                412,
+                                "MACHINE_NOT_LOADED",
+                                "engine",
+                                false,
+                                "G-LOADER-MACHINE-READY",
+                                "/api/v2/engine/session",
+                                "Machine/profile prerequisites are not loaded",
+                                esp_err_to_name(err));
     }
     if (err != ESP_OK) {
-        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        return send_guard_error(req,
+                                500,
+                                "INTERNAL_ERROR",
+                                "internal",
+                                false,
+                                "G-LIFECYCLE-SESSION",
+                                "/api/v2/engine/session",
+                                "Unhandled start failure",
+                                esp_err_to_name(err));
     }
 
     char resp[768];
@@ -251,19 +361,19 @@ esp_err_t esptari_web_lifecycle_resume_handler(httpd_req_t *req)
     if (req->content_len > 0) {
         char body[256];
         if (esptari_web_read_request_body(req, body, sizeof(body)) != ESP_OK) {
-            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESUME-02", "/api/v2/engine/session/resume", "Invalid request body", NULL);
         }
 
         cJSON *root = cJSON_Parse(body);
         if (root == NULL) {
-            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESUME-02", "/api/v2/engine/session/resume", "Malformed JSON", NULL);
         }
 
         cJSON *resume_mode_item = cJSON_GetObjectItemCaseSensitive(root, "resume_mode");
         if (resume_mode_item != NULL) {
             if (!cJSON_IsString(resume_mode_item) || resume_mode_item->valuestring == NULL) {
                 cJSON_Delete(root);
-                return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+                return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESUME-02", "/api/v2/engine/session/resume", "resume_mode must be string", NULL);
             }
 
             if (strcmp(resume_mode_item->valuestring, "running") == 0) {
@@ -272,7 +382,7 @@ esp_err_t esptari_web_lifecycle_resume_handler(httpd_req_t *req)
                 resume_running = false;
             } else {
                 cJSON_Delete(root);
-                return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+                return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESUME-02", "/api/v2/engine/session/resume", "Invalid resume_mode value", NULL);
             }
         }
 
@@ -285,16 +395,10 @@ esp_err_t esptari_web_lifecycle_resume_handler(httpd_req_t *req)
     }
 
     if (err == ESP_ERR_INVALID_STATE) {
-        char buf[256];
-        snprintf(buf, sizeof(buf),
-                 "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"%s\",\"endpoint\":\"%s\",\"esp_err\":\"%s\"}}}",
-                 "G-LIFECYCLE-RESUME",
-                 "/api/v2/engine/session/resume",
-                 esp_err_to_name(err));
-        return esptari_web_send_json(req, buf, 409);
+        return send_guard_error(req, 409, "INVALID_SESSION_STATE", "engine", false, "G-LIFECYCLE-RESUME", "/api/v2/engine/session/resume", "Cannot resume from current lifecycle state", esp_err_to_name(err));
     }
 
-    return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    return send_guard_error(req, 500, "INTERNAL_ERROR", "internal", false, "G-LIFECYCLE-RESUME", "/api/v2/engine/session/resume", "Unhandled resume failure", esp_err_to_name(err));
 }
 
 esp_err_t esptari_web_lifecycle_stop_handler(httpd_req_t *req)
@@ -313,24 +417,24 @@ esp_err_t esptari_web_lifecycle_reset_handler(httpd_req_t *req)
     if (req->content_len > 0) {
         char body[256];
         if (esptari_web_read_request_body(req, body, sizeof(body)) != ESP_OK) {
-            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESET-01", "/api/v2/engine/session/reset", "Invalid request body", NULL);
         }
 
         cJSON *root = cJSON_Parse(body);
         if (root == NULL) {
-            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESET-01", "/api/v2/engine/session/reset", "Malformed JSON", NULL);
         }
 
         cJSON *mode_item = cJSON_GetObjectItemCaseSensitive(root, "mode");
         if (mode_item != NULL) {
             if (!cJSON_IsString(mode_item) || mode_item->valuestring == NULL) {
                 cJSON_Delete(root);
-                return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+                return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESET-01", "/api/v2/engine/session/reset", "mode must be string", NULL);
             }
 
             if (strcmp(mode_item->valuestring, "warm") != 0 && strcmp(mode_item->valuestring, "cold") != 0) {
                 cJSON_Delete(root);
-                return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+                return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESET-01", "/api/v2/engine/session/reset", "mode must be warm or cold", NULL);
             }
 
             strlcpy(reset_mode, mode_item->valuestring, sizeof(reset_mode));
@@ -340,7 +444,7 @@ esp_err_t esptari_web_lifecycle_reset_handler(httpd_req_t *req)
         if (preserve_media_item != NULL) {
             if (!cJSON_IsBool(preserve_media_item)) {
                 cJSON_Delete(root);
-                return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+                return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESET-01", "/api/v2/engine/session/reset", "preserve_media must be boolean", NULL);
             }
             preserve_media = cJSON_IsTrue(preserve_media_item);
         }
@@ -350,17 +454,11 @@ esp_err_t esptari_web_lifecycle_reset_handler(httpd_req_t *req)
 
     esp_err_t err = esptari_core_reset();
     if (err == ESP_ERR_INVALID_STATE) {
-        char buf[256];
-        snprintf(buf, sizeof(buf),
-                 "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"%s\",\"endpoint\":\"%s\",\"esp_err\":\"%s\"}}}",
-                 "G-LIFECYCLE-RESET",
-                 "/api/v2/engine/session/reset",
-                 esp_err_to_name(err));
-        return esptari_web_send_json(req, buf, 409);
+        return send_guard_error(req, 409, "INVALID_SESSION_STATE", "engine", false, "G-LIFECYCLE-RESET", "/api/v2/engine/session/reset", "Cannot reset from current lifecycle state", esp_err_to_name(err));
     }
 
     if (err != ESP_OK) {
-        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        return send_guard_error(req, 500, "INTERNAL_ERROR", "internal", false, "G-LIFECYCLE-RESET", "/api/v2/engine/session/reset", "Unhandled reset failure", esp_err_to_name(err));
     }
 
     esptari_session_status_t status;
