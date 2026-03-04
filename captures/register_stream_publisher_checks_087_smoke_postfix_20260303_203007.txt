@@ -1,0 +1,50 @@
+# T-087 register stream publisher checks smoke 20260303_203007
+
+## session start
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 11
+
+{"ok":true}
+
+## baseline register stream (publisher checks pass)
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 2656
+
+{"ok":true,"data":{"stream":"registers","event_seq":1,"event_timestamp_us":27053883,"delivery":{"degraded":false,"reason":"none","dropped_events_since_last":0,"coalesced_updates":0,"throttle_active":false},"backpressure":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":27053883},"backpressure_event":{"type":"stream_backpressure_telemetry","schema_version":1,"session_id":"ses_local","event_seq":1,"event_timestamp_us":27053883,"stream":"registers","metrics":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":27053883}},"video_metadata_contract":null,"video_frame_meta_sample":null,"audio_metadata_contract":null,"audio_chunk_meta_sample":null,"register_snapshot_contract":{"channel":"registers.snapshot.v1","schema":"register_snapshot_v1","required_fields":["type","schema_version","session_id","tick","cycle","component","register","old_value","new_value","value_encoding","value_bits"],"value_encoding_enum":["hex","signed","unsigned"],"ordering":"tick_cycle_ascending","selectors":{"components":"allowlist","registers":"exact_allowlist","register_prefixes":"prefix_allowlist","changed_only":"suppress_old_equals_new","mode_enum":["event","interval"],"interval_us":"required_when_mode_interval"}},"register_filter_selectors":{"components":["cpu"],"registers":["PC"],"register_prefixes":["P"],"changed_only":true,"mode":"event","interval_us":null},"register_update_sample":{"type":"register_update","schema_version":1,"session_id":"ses_local","event_seq":1,"event_timestamp_us":27053883,"tick":2,"cycle":1,"component":"cpu","register":"PC","old_value":"0x00FC1234","new_value":"0x00FC1236","value_encoding":"hex","value_bits":32},"register_publisher":{"pipeline":["collect","apply_filters","schema_validate","emit"],"checks":{"REG-PUB-01":"pass","REG-PUB-02":"pass","REG-PUB-03":"pass","REG-PUB-04":"pass"},"events_emitted":1,"events_suppressed_changed_only":0,"state":{"last_event_seq":1,"last_event_timestamp_us":27053883,"failure_counters":{"reg_pub_01":0,"reg_pub_02":0,"reg_pub_03":0,"reg_pub_04":0},"last_error":"none"}},"video_payload_emitter":null,"video_payload_sample":null,"audio_payload_emitter":null,"audio_payload_sample":null,"media_attach_status_events":[],"media_disk_state_events":[],"slo_alarm":{"seq":0,"state":"normal","severity":"info"}}}
+
+## force REG-PUB-01 event_seq regression => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## force REG-PUB-02 timestamp regression => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## force REG-PUB-03 selector mismatch => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## force REG-PUB-04 changed_only violation => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## force schema invalidation => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}

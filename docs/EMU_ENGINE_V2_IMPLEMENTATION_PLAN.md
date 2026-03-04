@@ -490,6 +490,8 @@ Browser input capture policy:
 - Runtime projection for contract verification is exposed on `GET /api/v2/inspect/registers/stream` via `register_snapshot_contract`, `register_filter_selectors`, and `register_update_sample` fields in stream probe responses.
 - Deterministic filter guards are enforced on `GET /api/v2/inspect/registers/stream`: invalid selector list shapes, invalid `changed_only` values, unsupported `mode`, or invalid `interval_us` rules return `BAD_REQUEST`; unresolved selector semantics (`unknown*`) return `INSPECT_FILTER_INVALID`.
 - Register snapshot stream publisher + validation-check contract (publisher pipeline ordering, required `event_seq`/`event_timestamp_us`, checks `REG-PUB-01..04`, and deterministic failure mapping) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `10.4` and is the canonical source.
+- `GET /api/v2/inspect/registers/stream` projects register publisher diagnostics via `register_publisher`, including pipeline stages (`collect -> apply_filters -> schema_validate -> emit`), check status map (`REG-PUB-01..04`), emitted/suppressed counters, and last publisher state fields.
+- Deterministic fail-fast publisher guard behavior is enforced on register stream probes: runtime schema invalidation and `REG-PUB-01..04` validation failures map to `INTERNAL_ERROR` while preserving selector/filter contract checks from the schema slice.
 
 ### Bus/memory trace stream
 

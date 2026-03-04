@@ -83,6 +83,18 @@ typedef struct {
     char last_error_code[32];
 } audio_payload_emitter_state_t;
 
+typedef struct {
+    uint64_t last_event_seq;
+    uint64_t last_event_timestamp_us;
+    uint64_t events_emitted;
+    uint64_t events_suppressed_changed_only;
+    uint64_t check_failures_seq;
+    uint64_t check_failures_timestamp;
+    uint64_t check_failures_selector;
+    uint64_t check_failures_changed_only;
+    char last_error_code[32];
+} register_stream_publisher_state_t;
+
 static uint64_t stream_event_seq;
 static uint64_t slo_alarm_seq;
 static bool slo_alarm_breached;
@@ -95,6 +107,7 @@ static char stream_audio_meta_sample_json_buf[640];
 static char stream_register_contract_json_buf[1536];
 static char stream_register_filter_json_buf[768];
 static char stream_register_sample_json_buf[768];
+static char stream_register_publisher_json_buf[1024];
 static char stream_video_payload_emitter_json_buf[1024];
 static char stream_video_payload_sample_json_buf[256];
 static char stream_audio_payload_emitter_json_buf[1024];
@@ -114,6 +127,7 @@ static audio_pacing_state_t audio_pacing_state = {
 };
 static video_payload_emitter_state_t video_emitter_state;
 static audio_payload_emitter_state_t audio_emitter_state;
+static register_stream_publisher_state_t register_publisher_state;
 static stream_backpressure_metrics_t stream_metrics[STREAM_KIND_COUNT] = {
     [STREAM_KIND_VIDEO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
     [STREAM_KIND_AUDIO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
@@ -373,6 +387,79 @@ static bool selector_list_to_json_array(const char *value, char *buffer, size_t 
         return false;
     }
     return true;
+}
+
+static bool selector_list_has_values(const char *value)
+{
+    return value != NULL && value[0] != '\0';
+}
+
+static bool selector_list_contains_exact(const char *value, const char *candidate)
+{
+    if (!selector_list_has_values(value) || candidate == NULL) {
+        return false;
+    }
+
+    const char *cursor = value;
+    while (*cursor != '\0') {
+        while (*cursor == ' ' || *cursor == '\t') {
+            cursor++;
+        }
+
+        const char *start = cursor;
+        while (*cursor != '\0' && *cursor != ',') {
+            cursor++;
+        }
+        const char *end = cursor;
+        while (end > start && (end[-1] == ' ' || end[-1] == '\t')) {
+            end--;
+        }
+
+        size_t token_len = (size_t)(end - start);
+        if (token_len == strlen(candidate) && strncmp(start, candidate, token_len) == 0) {
+            return true;
+        }
+
+        if (*cursor == ',') {
+            cursor++;
+        }
+    }
+
+    return false;
+}
+
+static bool selector_list_contains_prefix(const char *value, const char *candidate)
+{
+    if (!selector_list_has_values(value) || candidate == NULL) {
+        return false;
+    }
+
+    const char *cursor = value;
+    while (*cursor != '\0') {
+        while (*cursor == ' ' || *cursor == '\t') {
+            cursor++;
+        }
+
+        const char *start = cursor;
+        while (*cursor != '\0' && *cursor != ',') {
+            cursor++;
+        }
+        const char *end = cursor;
+        while (end > start && (end[-1] == ' ' || end[-1] == '\t')) {
+            end--;
+        }
+
+        size_t token_len = (size_t)(end - start);
+        if (token_len > 0 && strncmp(candidate, start, token_len) == 0) {
+            return true;
+        }
+
+        if (*cursor == ',') {
+            cursor++;
+        }
+    }
+
+    return false;
 }
 
 static bool is_unknown_selector(httpd_req_t *req)
@@ -914,6 +1001,7 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     strlcpy(stream_register_contract_json_buf, "null", sizeof(stream_register_contract_json_buf));
     strlcpy(stream_register_filter_json_buf, "null", sizeof(stream_register_filter_json_buf));
     strlcpy(stream_register_sample_json_buf, "null", sizeof(stream_register_sample_json_buf));
+    strlcpy(stream_register_publisher_json_buf, "null", sizeof(stream_register_publisher_json_buf));
     strlcpy(stream_video_payload_emitter_json_buf, "null", sizeof(stream_video_payload_emitter_json_buf));
     strlcpy(stream_video_payload_sample_json_buf, "null", sizeof(stream_video_payload_sample_json_buf));
     strlcpy(stream_audio_payload_emitter_json_buf, "null", sizeof(stream_audio_payload_emitter_json_buf));
@@ -994,12 +1082,32 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
         char mode_query[16] = {0};
         char interval_query[32] = {0};
         char changed_only_query[8] = {0};
+        char force_seq_regression_query[8] = {0};
+        char force_timestamp_regression_query[8] = {0};
+        char force_selector_mismatch_query[8] = {0};
+        char force_changed_only_violation_query[8] = {0};
+        char force_schema_invalid_query[8] = {0};
         char components_json[256] = {0};
         char registers_json[256] = {0};
         char prefixes_json[256] = {0};
         const char *mode = "event";
         const char *changed_only = "true";
         const char *interval_us = "null";
+        bool changed_only_enabled = true;
+        bool force_seq_regression = false;
+        bool force_timestamp_regression = false;
+        bool force_selector_mismatch = false;
+        bool force_changed_only_violation = false;
+        bool force_schema_invalid = false;
+
+        uint64_t publisher_event_seq = register_publisher_state.last_event_seq + 1ULL;
+        uint64_t publisher_event_timestamp_us = timestamp_us;
+        const char *publisher_component = "cpu";
+        const char *publisher_register = "PC";
+        const char *publisher_old_value = "0x00FC1234";
+        const char *publisher_new_value = "0x00FC1236";
+        char publisher_value_encoding[16] = "hex";
+        uint32_t publisher_value_bits = 32;
 
         bool has_components = query_value(req, "components", components_query, sizeof(components_query));
         bool has_registers = query_value(req, "registers", registers_query, sizeof(registers_query));
@@ -1007,6 +1115,11 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
         bool has_mode = query_value(req, "mode", mode_query, sizeof(mode_query));
         bool has_interval = query_value(req, "interval_us", interval_query, sizeof(interval_query));
         bool has_changed_only = query_value(req, "changed_only", changed_only_query, sizeof(changed_only_query));
+        force_seq_regression = query_value(req, "force_reg_event_seq_regression", force_seq_regression_query, sizeof(force_seq_regression_query)) && strcmp(force_seq_regression_query, "1") == 0;
+        force_timestamp_regression = query_value(req, "force_reg_timestamp_regression", force_timestamp_regression_query, sizeof(force_timestamp_regression_query)) && strcmp(force_timestamp_regression_query, "1") == 0;
+        force_selector_mismatch = query_value(req, "force_reg_selector_mismatch", force_selector_mismatch_query, sizeof(force_selector_mismatch_query)) && strcmp(force_selector_mismatch_query, "1") == 0;
+        force_changed_only_violation = query_value(req, "force_reg_changed_only_violation", force_changed_only_violation_query, sizeof(force_changed_only_violation_query)) && strcmp(force_changed_only_violation_query, "1") == 0;
+        force_schema_invalid = query_value(req, "force_reg_schema_invalid", force_schema_invalid_query, sizeof(force_schema_invalid_query)) && strcmp(force_schema_invalid_query, "1") == 0;
 
         if (has_mode) {
             mode = mode_query;
@@ -1015,7 +1128,30 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
             interval_us = interval_query;
         }
         if (has_changed_only) {
-            changed_only = (strcmp(changed_only_query, "1") == 0 || strcmp(changed_only_query, "true") == 0) ? "true" : "false";
+            changed_only_enabled = (strcmp(changed_only_query, "1") == 0 || strcmp(changed_only_query, "true") == 0);
+        }
+        changed_only = changed_only_enabled ? "true" : "false";
+
+        if (force_seq_regression && register_publisher_state.last_event_seq > 0) {
+            publisher_event_seq = register_publisher_state.last_event_seq;
+        }
+        if (force_timestamp_regression && register_publisher_state.last_event_timestamp_us > 0) {
+            publisher_event_timestamp_us = register_publisher_state.last_event_timestamp_us - 1ULL;
+        }
+        if (force_selector_mismatch) {
+            publisher_component = "shifter";
+            publisher_register = "VBL";
+        }
+        if (force_changed_only_violation) {
+            publisher_new_value = publisher_old_value;
+        }
+        if (force_schema_invalid) {
+            publisher_value_bits = 0;
+            strlcpy(publisher_value_encoding, "invalid", sizeof(publisher_value_encoding));
+        }
+
+        if (register_publisher_state.last_error_code[0] == '\0') {
+            strlcpy(register_publisher_state.last_error_code, "none", sizeof(register_publisher_state.last_error_code));
         }
 
         if (!selector_list_to_json_array(has_components ? components_query : NULL, components_json, sizeof(components_json)) ||
@@ -1023,6 +1159,52 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
             !selector_list_to_json_array(has_prefixes ? prefixes_query : NULL, prefixes_json, sizeof(prefixes_json))) {
             return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
         }
+
+        if (publisher_value_bits == 0 ||
+            !(strcmp(publisher_value_encoding, "hex") == 0 || strcmp(publisher_value_encoding, "signed") == 0 || strcmp(publisher_value_encoding, "unsigned") == 0)) {
+            strlcpy(register_publisher_state.last_error_code, "INTERNAL_ERROR", sizeof(register_publisher_state.last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        if (register_publisher_state.last_event_seq > 0 && publisher_event_seq != (register_publisher_state.last_event_seq + 1ULL)) {
+            register_publisher_state.check_failures_seq++;
+            strlcpy(register_publisher_state.last_error_code, "REG-PUB-01", sizeof(register_publisher_state.last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        if (register_publisher_state.last_event_timestamp_us > 0 && publisher_event_timestamp_us < register_publisher_state.last_event_timestamp_us) {
+            register_publisher_state.check_failures_timestamp++;
+            strlcpy(register_publisher_state.last_error_code, "REG-PUB-02", sizeof(register_publisher_state.last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        if (selector_list_has_values(components_query) && !selector_list_contains_exact(components_query, publisher_component)) {
+            register_publisher_state.check_failures_selector++;
+            strlcpy(register_publisher_state.last_error_code, "REG-PUB-03", sizeof(register_publisher_state.last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+        if (selector_list_has_values(registers_query) && !selector_list_contains_exact(registers_query, publisher_register)) {
+            register_publisher_state.check_failures_selector++;
+            strlcpy(register_publisher_state.last_error_code, "REG-PUB-03", sizeof(register_publisher_state.last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+        if (selector_list_has_values(prefixes_query) && !selector_list_contains_prefix(prefixes_query, publisher_register)) {
+            register_publisher_state.check_failures_selector++;
+            strlcpy(register_publisher_state.last_error_code, "REG-PUB-03", sizeof(register_publisher_state.last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        if (changed_only_enabled && strcmp(publisher_old_value, publisher_new_value) == 0) {
+            register_publisher_state.check_failures_changed_only++;
+            register_publisher_state.events_suppressed_changed_only++;
+            strlcpy(register_publisher_state.last_error_code, "REG-PUB-04", sizeof(register_publisher_state.last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        register_publisher_state.last_event_seq = publisher_event_seq;
+        register_publisher_state.last_event_timestamp_us = publisher_event_timestamp_us;
+        register_publisher_state.events_emitted++;
+        strlcpy(register_publisher_state.last_error_code, "none", sizeof(register_publisher_state.last_error_code));
 
         snprintf(stream_register_contract_json_buf,
                  sizeof(stream_register_contract_json_buf),
@@ -1038,11 +1220,29 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
                  interval_us);
         snprintf(stream_register_sample_json_buf,
                  sizeof(stream_register_sample_json_buf),
-                 "{\"type\":\"register_update\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"tick\":%llu,\"cycle\":%llu,\"component\":\"cpu\",\"register\":\"PC\",\"old_value\":\"0x00FC1234\",\"new_value\":\"0x00FC1236\",\"value_encoding\":\"hex\",\"value_bits\":32}",
-                 (unsigned long long)stream_event_seq,
-                 (unsigned long long)timestamp_us,
-                 (unsigned long long)(stream_event_seq * 2ULL),
-                 (unsigned long long)stream_event_seq);
+                 "{\"type\":\"register_update\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"tick\":%llu,\"cycle\":%llu,\"component\":\"%s\",\"register\":\"%s\",\"old_value\":\"%s\",\"new_value\":\"%s\",\"value_encoding\":\"%s\",\"value_bits\":%lu}",
+                 (unsigned long long)register_publisher_state.last_event_seq,
+                 (unsigned long long)register_publisher_state.last_event_timestamp_us,
+                 (unsigned long long)(register_publisher_state.last_event_seq * 2ULL),
+                 (unsigned long long)register_publisher_state.last_event_seq,
+                 publisher_component,
+                 publisher_register,
+                 publisher_old_value,
+                 publisher_new_value,
+                 publisher_value_encoding,
+                 (unsigned long)publisher_value_bits);
+        snprintf(stream_register_publisher_json_buf,
+                 sizeof(stream_register_publisher_json_buf),
+                 "{\"pipeline\":[\"collect\",\"apply_filters\",\"schema_validate\",\"emit\"],\"checks\":{\"REG-PUB-01\":\"pass\",\"REG-PUB-02\":\"pass\",\"REG-PUB-03\":\"pass\",\"REG-PUB-04\":\"pass\"},\"events_emitted\":%llu,\"events_suppressed_changed_only\":%llu,\"state\":{\"last_event_seq\":%llu,\"last_event_timestamp_us\":%llu,\"failure_counters\":{\"reg_pub_01\":%llu,\"reg_pub_02\":%llu,\"reg_pub_03\":%llu,\"reg_pub_04\":%llu},\"last_error\":\"%s\"}}",
+                 (unsigned long long)register_publisher_state.events_emitted,
+                 (unsigned long long)register_publisher_state.events_suppressed_changed_only,
+                 (unsigned long long)register_publisher_state.last_event_seq,
+                 (unsigned long long)register_publisher_state.last_event_timestamp_us,
+                 (unsigned long long)register_publisher_state.check_failures_seq,
+                 (unsigned long long)register_publisher_state.check_failures_timestamp,
+                 (unsigned long long)register_publisher_state.check_failures_selector,
+                 (unsigned long long)register_publisher_state.check_failures_changed_only,
+                 register_publisher_state.last_error_code);
     }
     if (stream == STREAM_KIND_ENGINE) {
         const esptari_web_media_attach_event_t *events = NULL;
@@ -1130,7 +1330,7 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     }
 
     snprintf(stream_response_buf, sizeof(stream_response_buf),
-             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"audio_metadata_contract\":%s,\"audio_chunk_meta_sample\":%s,\"register_snapshot_contract\":%s,\"register_filter_selectors\":%s,\"register_update_sample\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"audio_payload_emitter\":%s,\"audio_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"audio_metadata_contract\":%s,\"audio_chunk_meta_sample\":%s,\"register_snapshot_contract\":%s,\"register_filter_selectors\":%s,\"register_update_sample\":%s,\"register_publisher\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"audio_payload_emitter\":%s,\"audio_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
              stream_name,
              (unsigned long long)stream_event_seq,
              (unsigned long long)timestamp_us,
@@ -1169,6 +1369,7 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
              stream_register_contract_json_buf,
              stream_register_filter_json_buf,
              stream_register_sample_json_buf,
+             stream_register_publisher_json_buf,
              stream_video_payload_emitter_json_buf,
              stream_video_payload_sample_json_buf,
              stream_audio_payload_emitter_json_buf,
