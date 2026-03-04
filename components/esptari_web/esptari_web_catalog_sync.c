@@ -245,6 +245,28 @@ static bool dependencies_schema_valid(const cJSON *dependencies)
     return true;
 }
 
+static bool ebin_dependency_available(const char *module_id)
+{
+    if (module_id == NULL || module_id[0] == '\0') {
+        return false;
+    }
+
+    static const char *available_module_ids[] = {
+        "st.cpu.m68k",
+        "st.video.shifter",
+        "st.io.ikbd",
+        "st.storage.fdc",
+        "st.audio.psg",
+        "st.profile.520",
+    };
+    for (size_t i = 0; i < (sizeof(available_module_ids) / sizeof(available_module_ids[0])); i++) {
+        if (strcmp(module_id, available_module_ids[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static const char *wildcard_tail(const char *uri, const char *prefix)
 {
     size_t prefix_len = strlen(prefix);
@@ -1156,10 +1178,111 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
         return ESP_OK;
     }
 
-    const cJSON *name = cJSON_GetObjectItemCaseSensitive(json, "name");
+    if (!cJSON_IsObject(json)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "payload", "request body must be an object");
+    }
+
+    cJSON *module_id = cJSON_GetObjectItemCaseSensitive(json, "module_id");
+    cJSON *abi_version = cJSON_GetObjectItemCaseSensitive(json, "abi_version");
+    cJSON *payload_sha256 = cJSON_GetObjectItemCaseSensitive(json, "payload_sha256");
+    cJSON *signature = cJSON_GetObjectItemCaseSensitive(json, "signature");
+    cJSON *dependencies = cJSON_GetObjectItemCaseSensitive(json, "dependencies");
+
+    if (!cJSON_IsString(module_id) || module_id->valuestring == NULL || module_id->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "module_id", "required non-empty string");
+    }
+    if (!cJSON_IsString(abi_version) || abi_version->valuestring == NULL || abi_version->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "abi_version", "required semver string");
+    }
+    if (!cJSON_IsString(payload_sha256) || payload_sha256->valuestring == NULL || payload_sha256->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "payload_sha256", "required SHA-256 hex string");
+    }
+    if (!cJSON_IsArray(dependencies)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "dependencies", "required dependency array");
+    }
+
+    uint32_t abi_major = 0;
+    if (!parse_semver_major(abi_version->valuestring, &abi_major)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "abi_version", "must be semantic version MAJOR.MINOR.PATCH");
+    }
+
+    // Gate 1: integrity
+    if (!is_valid_sha256_hex(payload_sha256->valuestring)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "payload_sha256", "integrity_gate_failed_invalid_hash");
+    }
+
+    // Gate 2: signature
+    if (!cJSON_IsObject(signature)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_SIGNATURE_INVALID", 409, "signature", "signature_gate_failed_missing_signature_object");
+    }
+    cJSON *algorithm = cJSON_GetObjectItemCaseSensitive(signature, "algorithm");
+    cJSON *key_id = cJSON_GetObjectItemCaseSensitive(signature, "key_id");
+    cJSON *value = cJSON_GetObjectItemCaseSensitive(signature, "value");
+    if (!cJSON_IsString(algorithm) || algorithm->valuestring == NULL || algorithm->valuestring[0] == '\0' ||
+        !cJSON_IsString(key_id) || key_id->valuestring == NULL || key_id->valuestring[0] == '\0' ||
+        !cJSON_IsString(value) || value->valuestring == NULL || value->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_SIGNATURE_INVALID", 409, "signature", "signature_gate_failed_incomplete_signature_fields");
+    }
+
+    // Gate 3: dependency compatibility
+    if (abi_major != 1U) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_ABI_MISMATCH", 409, "abi_version", "dependency_gate_failed_module_abi_incompatible");
+    }
+    if (!dependencies_schema_valid(dependencies)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "dependencies", "dependency_gate_failed_invalid_schema");
+    }
+
+    cJSON *dep = NULL;
+    cJSON_ArrayForEach(dep, dependencies)
+    {
+        cJSON *dep_module_id = cJSON_GetObjectItemCaseSensitive(dep, "module_id");
+        cJSON *dep_abi_range = cJSON_GetObjectItemCaseSensitive(dep, "abi_range");
+        cJSON *dep_required = cJSON_GetObjectItemCaseSensitive(dep, "required");
+        if (cJSON_IsBool(dep_required) && cJSON_IsTrue(dep_required) &&
+            (!cJSON_IsString(dep_module_id) || dep_module_id->valuestring == NULL ||
+             !ebin_dependency_available(dep_module_id->valuestring))) {
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req,
+                                              "EBIN_DEPENDENCY_MISSING",
+                                              409,
+                                              "dependencies",
+                                              "dependency_gate_failed_required_dependency_missing");
+        }
+        if (cJSON_IsString(dep_abi_range) && dep_abi_range->valuestring != NULL &&
+            strcmp(dep_abi_range->valuestring, "1.0.x") != 0) {
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req,
+                                              "EBIN_ABI_MISMATCH",
+                                              409,
+                                              "dependencies",
+                                              "dependency_gate_failed_dependency_abi_range_unsupported");
+        }
+    }
+
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "name", cJSON_IsString(name) ? name->valuestring : "unknown");
-    cJSON_AddStringToObject(root, "status", "loaded");
+    cJSON_AddBoolToObject(root, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(root, "data", data);
+    cJSON_AddStringToObject(data, "module_id", module_id->valuestring);
+    cJSON_AddStringToObject(data, "status", "loaded");
+    cJSON *gates = cJSON_CreateArray();
+    cJSON_AddItemToObject(data, "gates", gates);
+    cJSON_AddItemToArray(gates, cJSON_CreateString("integrity"));
+    cJSON_AddItemToArray(gates, cJSON_CreateString("signature"));
+    cJSON_AddItemToArray(gates, cJSON_CreateString("dependency_compatibility"));
+    cJSON_AddStringToObject(data, "gate_result", "pass");
+    cJSON_AddNumberToObject(data, "loaded_at_us", (double)scheduler_now_us());
 
     cJSON_Delete(json);
     esp_err_t out = send_json_object(req, root, 200);

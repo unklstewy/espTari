@@ -1,0 +1,31 @@
+health_check=ok attempts=6
+### ebin_load_success
+POST /api/v2/ebins/load
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"loaded","gates":["integrity","signature","dependency_compatibility"],"gate_result":"pass","loaded_at_us":11386958}}
+
+ebin_load_success_contract=pass ok=True status=True gates=True
+### ebin_load_integrity_fail
+POST /api/v2/ebins/load
+HTTP 400
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":false,"details":{"field":"payload_sha256","reason":"integrity_gate_failed_invalid_hash"}}}
+
+ebin_load_integrity_fail=pass code=EBIN_INVALID reason=integrity_gate_failed_invalid_hash
+### ebin_load_signature_fail
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_SIGNATURE_INVALID","category":"ebin","retryable":false,"details":{"field":"signature","reason":"signature_gate_failed_missing_signature_object"}}}
+
+ebin_load_signature_fail=pass code=EBIN_SIGNATURE_INVALID reason=signature_gate_failed_missing_signature_object
+### ebin_load_dependency_missing
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_DEPENDENCY_MISSING","category":"ebin","retryable":false,"details":{"field":"dependencies","reason":"dependency_gate_failed_required_dependency_missing"}}}
+
+ebin_load_dependency_missing=pass code=EBIN_DEPENDENCY_MISSING reason=dependency_gate_failed_required_dependency_missing
+### ebin_load_dependency_abi_fail
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_ABI_MISMATCH","category":"ebin","retryable":false,"details":{"field":"dependencies","reason":"dependency_gate_failed_dependency_abi_range_unsupported"}}}
+
+ebin_load_dependency_abi_fail=pass code=EBIN_ABI_MISMATCH reason=dependency_gate_failed_dependency_abi_range_unsupported
