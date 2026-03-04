@@ -1,0 +1,52 @@
+health_check=ok attempts=8
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Cannot reset from current lifecycle state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 200
+{"ok":true}
+
+### suspend_save_baseline
+POST /api/v2/engine/session/suspend-save
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"suspended","snapshot_id":"snap_rval115","saved_at_us":13870223,"lifecycle_transition":"running->suspended","auto_resume":false,"include_stream_state":true}}
+
+### validate_missing_session
+POST /api/v2/engine/state/restore/validate
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"request","message":"session_id and snapshot_id are required","retryable":false,"details":{"guard_id":"RCOMP-VAL-01","endpoint":"/api/v2/engine/state/restore/validate"}}}
+
+missing_session_guard=pass code=BAD_REQUEST
+### validate_unknown_session
+POST /api/v2/engine/state/restore/validate
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING","category":"engine","message":"Unknown or inactive session_id","retryable":false,"details":{"guard_id":"RCOMP-VAL-01","endpoint":"/api/v2/engine/state/restore/validate"}}}
+
+unknown_session_guard=pass code=ENGINE_NOT_RUNNING
+### validate_bad_strict_type
+POST /api/v2/engine/state/restore/validate
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"request","message":"strict must be boolean","retryable":false,"details":{"guard_id":"RCOMP-VAL-01","endpoint":"/api/v2/engine/state/restore/validate"}}}
+
+strict_type_guard=pass code=BAD_REQUEST
+### validate_snapshot_missing
+POST /api/v2/engine/state/restore/validate
+HTTP 404
+{"ok":false,"error":{"code":"SNAPSHOT_NOT_FOUND","category":"snapshot","message":"Requested snapshot was not found","retryable":false,"details":{"guard_id":"RCOMP-VAL-01","endpoint":"/api/v2/engine/state/restore/validate"}}}
+
+snapshot_not_found_guard=pass code=SNAPSHOT_NOT_FOUND
+### validate_success_shape
+POST /api/v2/engine/state/restore/validate
+HTTP 200
+{"ok":true,"data":{"snapshot_id":"snap_rval115","compatible":true,"evaluated_rules":[{"rule_id":"RCOMP-01","result":"pass"},{"rule_id":"RCOMP-02","result":"pass"},{"rule_id":"RCOMP-03","result":"pass"},{"rule_id":"RCOMP-04","result":"pass"}],"failed_rule_id":null,"error_code":null,"validated_at_us":14085041}}
+
+validate_shape=pass compatible=true failed_rule=null error_code=null rule_count=4 rule_fmt_ok=True validated_at_us=14085041
+### restore_resume_running
+POST /api/v2/engine/session/restore-resume
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","snapshot_id":"snap_rval115","state":"running","restored_at_us":14664017,"lifecycle_transition":"suspended->running"}}
+
+Smoke PASS

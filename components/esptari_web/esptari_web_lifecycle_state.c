@@ -57,6 +57,27 @@ static void build_snapshot_id_from_request(const char *name, char *snapshot_id_o
     snprintf(snapshot_id_out, snapshot_id_len, "snap_%llu", (unsigned long long)now_us);
 }
 
+static const char *restore_validate_evaluated_rules_json(const char *failed_rule_id)
+{
+    if (failed_rule_id == NULL || failed_rule_id[0] == '\0') {
+        return "[{\"rule_id\":\"RCOMP-01\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-02\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-03\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-04\",\"result\":\"pass\"}]";
+    }
+    if (strcmp(failed_rule_id, "RCOMP-01") == 0) {
+        return "[{\"rule_id\":\"RCOMP-01\",\"result\":\"fail\"}]";
+    }
+    if (strcmp(failed_rule_id, "RCOMP-02") == 0) {
+        return "[{\"rule_id\":\"RCOMP-01\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-02\",\"result\":\"fail\"}]";
+    }
+    if (strcmp(failed_rule_id, "RCOMP-03") == 0) {
+        return "[{\"rule_id\":\"RCOMP-01\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-02\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-03\",\"result\":\"fail\"}]";
+    }
+    if (strcmp(failed_rule_id, "RCOMP-04") == 0) {
+        return "[{\"rule_id\":\"RCOMP-01\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-02\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-03\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-04\",\"result\":\"fail\"}]";
+    }
+
+    return "[{\"rule_id\":\"RCOMP-01\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-02\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-03\",\"result\":\"pass\"},{\"rule_id\":\"RCOMP-04\",\"result\":\"fail\"}]";
+}
+
 esp_err_t esptari_web_lifecycle_suspend_save_handler(httpd_req_t *req)
 {
     esptari_session_status_t before_status;
@@ -304,66 +325,83 @@ esp_err_t esptari_web_lifecycle_restore_validate_handler(httpd_req_t *req)
         return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESTORE-01", "/api/v2/engine/state/restore/validate", "Malformed restore-validate JSON");
     }
 
+    const char *session_id = NULL;
     const char *snapshot_id = NULL;
+    char session_id_copy[32];
     char snapshot_id_copy[128];
-    if (!esptari_web_json_get_string(root, "snapshot_id", &snapshot_id)) {
+    if (!esptari_web_json_get_string(root, "session_id", &session_id) ||
+        !esptari_web_json_get_string(root, "snapshot_id", &snapshot_id) ||
+        session_id == NULL || session_id[0] == '\0' ||
+        snapshot_id == NULL || snapshot_id[0] == '\0') {
         cJSON_Delete(root);
-        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESTORE-01", "/api/v2/engine/state/restore/validate", "snapshot_id is required");
+        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "RCOMP-VAL-01", "/api/v2/engine/state/restore/validate", "session_id and snapshot_id are required");
     }
+    strlcpy(session_id_copy, session_id, sizeof(session_id_copy));
     strlcpy(snapshot_id_copy, snapshot_id, sizeof(snapshot_id_copy));
 
     bool strict = true;
     cJSON *strict_item = cJSON_GetObjectItemCaseSensitive(root, "strict");
+    if (strict_item != NULL && !cJSON_IsBool(strict_item)) {
+        cJSON_Delete(root);
+        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "RCOMP-VAL-01", "/api/v2/engine/state/restore/validate", "strict must be boolean");
+    }
     if (cJSON_IsBool(strict_item)) {
         strict = cJSON_IsTrue(strict_item);
     }
     cJSON_Delete(root);
 
+    if (strcmp(session_id_copy, "ses_local") != 0) {
+        return send_guard_error(req, 409, "ENGINE_NOT_RUNNING", "engine", false, "RCOMP-VAL-01", "/api/v2/engine/state/restore/validate", "Unknown or inactive session_id");
+    }
+
     bool compatible = false;
     esp_err_t err = esptari_core_validate_restore_compatibility(snapshot_id_copy, strict, &compatible);
     if (err == ESP_ERR_INVALID_ARG) {
-        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESTORE-01", "/api/v2/engine/state/restore/validate", "Invalid restore-validate arguments");
+        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "RCOMP-VAL-01", "/api/v2/engine/state/restore/validate", "Invalid restore-validate arguments");
     }
     if (err == ESP_ERR_NOT_FOUND) {
-        return send_guard_error(req, 404, "SNAPSHOT_NOT_FOUND", "snapshot", false, "G-RESTORE-01", "/api/v2/engine/state/restore/validate", "Requested snapshot was not found");
+        return send_guard_error(req, 404, "SNAPSHOT_NOT_FOUND", "snapshot", false, "RCOMP-VAL-01", "/api/v2/engine/state/restore/validate", "Requested snapshot was not found");
     }
     if (err == ESP_ERR_INVALID_STATE) {
-        return send_guard_error(req, 409, "ENGINE_NOT_RUNNING", "engine", true, "G-RESTORE-01", "/api/v2/engine/state/restore/validate", "No active session for restore validation");
+        return send_guard_error(req, 409, "ENGINE_NOT_RUNNING", "engine", false, "RCOMP-VAL-01", "/api/v2/engine/state/restore/validate", "No active session for restore validation");
     }
     if (err == ESP_ERR_INVALID_RESPONSE) {
         const char *rule_id = esptari_core_get_last_failed_compat_rule();
-        char incompatible_resp[512];
+        char incompatible_resp[768];
         snprintf(incompatible_resp,
                  sizeof(incompatible_resp),
-                 "{\"ok\":false,\"error\":{\"code\":\"SNAPSHOT_INCOMPATIBLE\",\"category\":\"snapshot\",\"message\":\"Snapshot compatibility validation failed\",\"retryable\":false,\"details\":{\"rule_id\":\"%s\",\"guard_id\":\"G-RESTORE-01\",\"endpoint\":\"/api/v2/engine/state/restore/validate\"}}}",
+                 "{\"ok\":false,\"error\":{\"code\":\"SNAPSHOT_INCOMPATIBLE\",\"category\":\"snapshot\",\"message\":\"Snapshot compatibility validation failed\",\"retryable\":false,\"details\":{\"session_id\":\"%s\",\"snapshot_id\":\"%s\",\"rule_id\":\"%s\",\"guard_id\":\"RCOMP-VAL-04\",\"endpoint\":\"/api/v2/engine/state/restore/validate\"}}}",
+                 session_id_copy,
+                 snapshot_id_copy,
                  (rule_id != NULL && rule_id[0] != '\0') ? rule_id : "RCOMP-UNKNOWN");
         return esptari_web_send_json(req, incompatible_resp, 409);
     }
     if (err != ESP_OK) {
-        return send_guard_error(req, 500, "INTERNAL_ERROR", "internal", false, "G-RESTORE-01", "/api/v2/engine/state/restore/validate", "Unhandled restore-validate failure");
+        return send_guard_error(req, 500, "INTERNAL_ERROR", "internal", false, "RCOMP-VAL-01", "/api/v2/engine/state/restore/validate", "Unhandled restore-validate failure");
     }
 
     const char *failed_rule_id = esptari_core_get_last_failed_compat_rule();
+    const char *evaluated_rules = restore_validate_evaluated_rules_json(compatible ? NULL : failed_rule_id);
     uint64_t validated_at_us = (uint64_t)esp_timer_get_time();
-    char resp[640];
+    char resp[1024];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"compatible\":%s,\"evaluated_rules\":[\"RCOMP-01\",\"RCOMP-02\",\"RCOMP-03\",\"RCOMP-04\"],\"failed_rule_id\":%s,\"error_code\":%s,\"validated_at_us\":%llu}}",
+             "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"compatible\":%s,\"evaluated_rules\":%s,\"failed_rule_id\":%s,\"error_code\":%s,\"validated_at_us\":%llu}}",
              snapshot_id_copy,
              compatible ? "true" : "false",
-             (failed_rule_id != NULL && failed_rule_id[0] != '\0') ? "\"" : "null",
+             evaluated_rules,
+             compatible ? "null" : "\"RCOMP-UNKNOWN\"",
              compatible ? "null" : "\"SNAPSHOT_INCOMPATIBLE\"",
              (unsigned long long)validated_at_us);
 
-    if (failed_rule_id != NULL && failed_rule_id[0] != '\0') {
-        char fixed_resp[640];
+    if (!compatible && failed_rule_id != NULL && failed_rule_id[0] != '\0') {
+        char fixed_resp[1024];
         snprintf(fixed_resp,
                  sizeof(fixed_resp),
-                 "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"compatible\":%s,\"evaluated_rules\":[\"RCOMP-01\",\"RCOMP-02\",\"RCOMP-03\",\"RCOMP-04\"],\"failed_rule_id\":\"%s\",\"error_code\":%s,\"validated_at_us\":%llu}}",
+                 "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"compatible\":false,\"evaluated_rules\":%s,\"failed_rule_id\":\"%s\",\"error_code\":\"SNAPSHOT_INCOMPATIBLE\",\"validated_at_us\":%llu}}",
                  snapshot_id_copy,
-                 compatible ? "true" : "false",
+                 evaluated_rules,
                  failed_rule_id,
-                 compatible ? "null" : "\"SNAPSHOT_INCOMPATIBLE\"",
                  (unsigned long long)validated_at_us);
         return esptari_web_send_json(req, fixed_resp, 200);
     }
