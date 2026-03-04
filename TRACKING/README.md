@@ -43,6 +43,9 @@ This folder is the execution system for an Agentic AI delivery team.
 17. [S5 Runtime Unlock Execution Plan](S5_RUNTIME_UNLOCK_EXECUTION_PLAN.md)
 18. [S5 Unlock Prerequisite Task Cards (PRQ-001 through PRQ-004)](TASK_CARDS_S5_UNLOCK_PREREQS.md)
 19. [Umbrella Closure Report (2026-03-03)](UMBRELLA_CLOSURE_REPORT_2026-03-03.md)
+20. [S5 Runtime Unlock Review Packet (2026-03-04)](S5_RUNTIME_UNLOCK_PACKET_2026-03-04.md)
+21. [S5 Runtime Unlock Traceability Matrix (2026-03-04)](S5_RUNTIME_UNLOCK_TRACEABILITY_MATRIX_2026-03-04.md)
+22. [S5 Runtime Unlock Decision Template (2026-03-04)](S5_RUNTIME_UNLOCK_DECISION_TEMPLATE_2026-03-04.md)
 
 ## Cadence
 
