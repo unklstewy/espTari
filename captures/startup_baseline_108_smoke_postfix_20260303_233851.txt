@@ -1,0 +1,65 @@
+health_check=ok attempts=9
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Cannot reset from current lifecycle state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 200
+{"ok":true}
+
+### startup_defaults
+GET /api/v2/inspect/chipset/startup/defaults?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","machine_profile":"atari_st_520_1040_baseline","video_standard":"pal","ram_size_kib":1024,"boot_device":"floppy","defaults_revision":"startup_rev_03","applied_tick":13,"applied_timestamp_us":1710000035247,"conformance":{"PWR-BASE-01":"pass","PWR-BASE-04":"pass"}}}
+
+startup_defaults_contract=pass video=True boot=True conf=True
+### startup_baseline_mfp
+GET /api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=mfp
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","group":"mfp","registers":[{"name":"IERA","address":"0x00FFFA07","width_bits":8,"reset_value":"0x00","mask":"0xFF"},{"name":"IMRA","address":"0x00FFFA13","width_bits":8,"reset_value":"0x00","mask":"0xFF"}],"baseline_revision":"baseline_rev_07","source":"hardware_boot_table","conformance":{"PWR-BASE-01":"pass","PWR-BASE-02":"pass","PWR-BASE-03":"pass","PWR-BASE-04":"pass"}}}
+
+startup_baseline_contract=pass group=True regs=True addr_unique=True conf=True
+### startup_baseline_bad_group
+GET /api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=foo
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+startup_group_guard=pass code=BAD_REQUEST
+### startup_unknown_session
+GET /api/v2/inspect/chipset/startup/defaults?session_id=ses_unknown
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}
+
+startup_session_guard=pass code=ENGINE_NOT_RUNNING
+### startup_revision_unavailable
+GET /api/v2/inspect/chipset/startup/defaults?session_id=ses_local&force_revision_unavailable=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+startup_revision_failfast=pass code=INTERNAL_ERROR
+### pwr_base01_failfast
+GET /api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=mfp&force_missing_defaults=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"PWR-BASE-01"}}}
+
+pwr_base01_failfast=pass code=INTERNAL_ERROR
+### pwr_base02_failfast
+GET /api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=mfp&force_nondeterministic=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"PWR-BASE-02"}}}
+
+pwr_base02_failfast=pass code=INTERNAL_ERROR
+### pwr_base03_failfast
+GET /api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=mfp&force_duplicate_address=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"PWR-BASE-03"}}}
+
+pwr_base03_failfast=pass code=INTERNAL_ERROR
+### pwr_base04_failfast
+GET /api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=mfp&force_timestamp_regression=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"PWR-BASE-04"}}}
+
+pwr_base04_failfast=pass code=INTERNAL_ERROR

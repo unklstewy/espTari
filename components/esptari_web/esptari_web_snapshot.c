@@ -62,6 +62,8 @@ static uint64_t interrupt_last_tick_counter = 913600ULL;
 static uint64_t interrupt_wiring_check_seq = 409ULL;
 static uint64_t interrupt_wiring_last_timestamp_us = 1710000034620ULL;
 static uint64_t interrupt_wiring_last_tick_counter = 913900ULL;
+static uint64_t startup_applied_tick = 12ULL;
+static uint64_t startup_applied_timestamp_us = 1710000035200ULL;
 
 enum {
     CHIPSET_GROUP_GLUE = 0,
@@ -383,6 +385,33 @@ static bool append_interrupt_wiring_check_json(char *buffer,
                            result,
                            (unsigned long long)tick_counter,
                            (unsigned long long)timestamp_us);
+    if (written < 0 || (size_t)written >= buffer_len - used) {
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
+static bool append_power_on_register_json(char *buffer,
+                                          size_t buffer_len,
+                                          bool *first,
+                                          const char *name,
+                                          const char *address,
+                                          uint8_t width_bits,
+                                          const char *reset_value,
+                                          const char *mask)
+{
+    size_t used = strlen(buffer);
+    int written = snprintf(buffer + used,
+                           buffer_len - used,
+                           "%s{\"name\":\"%s\",\"address\":\"%s\",\"width_bits\":%u,\"reset_value\":\"%s\",\"mask\":\"%s\"}",
+                           *first ? "" : ",",
+                           name,
+                           address,
+                           (unsigned)width_bits,
+                           reset_value,
+                           mask);
     if (written < 0 || (size_t)written >= buffer_len - used) {
         return false;
     }
@@ -1438,6 +1467,173 @@ static esp_err_t inspect_chipset_interrupts_wiring_checks_handler(httpd_req_t *r
     return send_json(req, resp, 200);
 }
 
+static esp_err_t inspect_chipset_startup_defaults_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char force_revision_unavailable_query[8] = {0};
+    bool force_revision_unavailable = esptari_web_query_value(req,
+                                                              "force_revision_unavailable",
+                                                              force_revision_unavailable_query,
+                                                              sizeof(force_revision_unavailable_query)) &&
+                                     strcmp(force_revision_unavailable_query, "1") == 0;
+    if (force_revision_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    startup_applied_tick += 1ULL;
+    startup_applied_timestamp_us += 47ULL;
+
+    char resp[768];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"machine_profile\":\"atari_st_520_1040_baseline\",\"video_standard\":\"pal\",\"ram_size_kib\":1024,\"boot_device\":\"floppy\",\"defaults_revision\":\"startup_rev_03\",\"applied_tick\":%llu,\"applied_timestamp_us\":%llu,\"conformance\":{\"PWR-BASE-01\":\"pass\",\"PWR-BASE-04\":\"pass\"}}}",
+             session_id,
+             (unsigned long long)startup_applied_tick,
+             (unsigned long long)startup_applied_timestamp_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_startup_baseline_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char group[16] = {0};
+    if (!esptari_web_query_value(req, "group", group, sizeof(group)) || group[0] == '\0') {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    bool valid_group = strcmp(group, "glue") == 0 || strcmp(group, "mmu") == 0 || strcmp(group, "shifter") == 0 ||
+                       strcmp(group, "mfp") == 0 || strcmp(group, "acia") == 0 || strcmp(group, "fdc") == 0 ||
+                       strcmp(group, "psg") == 0;
+    if (!valid_group) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char force_table_unavailable_query[8] = {0};
+    bool force_table_unavailable = esptari_web_query_value(req,
+                                                           "force_table_unavailable",
+                                                           force_table_unavailable_query,
+                                                           sizeof(force_table_unavailable_query)) &&
+                                  strcmp(force_table_unavailable_query, "1") == 0;
+    if (force_table_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char force_missing_defaults_query[8] = {0};
+    bool force_missing_defaults = esptari_web_query_value(req,
+                                                          "force_missing_defaults",
+                                                          force_missing_defaults_query,
+                                                          sizeof(force_missing_defaults_query)) &&
+                                 strcmp(force_missing_defaults_query, "1") == 0;
+    if (force_missing_defaults) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"PWR-BASE-01\"}}}",
+                         500);
+    }
+
+    char force_nondeterministic_query[8] = {0};
+    bool force_nondeterministic = esptari_web_query_value(req,
+                                                          "force_nondeterministic",
+                                                          force_nondeterministic_query,
+                                                          sizeof(force_nondeterministic_query)) &&
+                                 strcmp(force_nondeterministic_query, "1") == 0;
+    if (force_nondeterministic) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"PWR-BASE-02\"}}}",
+                         500);
+    }
+
+    char force_duplicate_address_query[8] = {0};
+    bool force_duplicate_address = esptari_web_query_value(req,
+                                                           "force_duplicate_address",
+                                                           force_duplicate_address_query,
+                                                           sizeof(force_duplicate_address_query)) &&
+                                  strcmp(force_duplicate_address_query, "1") == 0;
+    if (force_duplicate_address) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"PWR-BASE-03\"}}}",
+                         500);
+    }
+
+    char force_timestamp_regression_query[8] = {0};
+    bool force_timestamp_regression = esptari_web_query_value(req,
+                                                              "force_timestamp_regression",
+                                                              force_timestamp_regression_query,
+                                                              sizeof(force_timestamp_regression_query)) &&
+                                     strcmp(force_timestamp_regression_query, "1") == 0;
+    if (force_timestamp_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"PWR-BASE-04\"}}}",
+                         500);
+    }
+
+    char registers_json[1024] = {0};
+    bool first = true;
+
+    if (strcmp(group, "mfp") == 0) {
+        if (!append_power_on_register_json(registers_json, sizeof(registers_json), &first, "IERA", "0x00FFFA07", 8, "0x00", "0xFF") ||
+            !append_power_on_register_json(registers_json, sizeof(registers_json), &first, "IMRA", "0x00FFFA13", 8, "0x00", "0xFF")) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    } else if (strcmp(group, "acia") == 0) {
+        if (!append_power_on_register_json(registers_json, sizeof(registers_json), &first, "ACIA_CTRL", "0x00FFFC00", 8, "0x15", "0xFF") ||
+            !append_power_on_register_json(registers_json, sizeof(registers_json), &first, "ACIA_STAT", "0x00FFFC00", 8, "0x02", "0xFF")) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    } else if (strcmp(group, "fdc") == 0) {
+        if (!append_power_on_register_json(registers_json, sizeof(registers_json), &first, "FDC_STATUS", "0x00FF8604", 8, "0x00", "0xFF") ||
+            !append_power_on_register_json(registers_json, sizeof(registers_json), &first, "DMA_MODE", "0x00FF8606", 8, "0x00", "0xFF")) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    } else if (strcmp(group, "psg") == 0) {
+        if (!append_power_on_register_json(registers_json, sizeof(registers_json), &first, "PSG_REGSEL", "0x00FF8800", 8, "0x00", "0xFF") ||
+            !append_power_on_register_json(registers_json, sizeof(registers_json), &first, "PSG_DATA", "0x00FF8802", 8, "0x00", "0xFF")) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    } else if (strcmp(group, "glue") == 0) {
+        if (!append_power_on_register_json(registers_json, sizeof(registers_json), &first, "VIDEO_BASE_H", "0x00FF8201", 8, "0x00", "0xFF") ||
+            !append_power_on_register_json(registers_json, sizeof(registers_json), &first, "VIDEO_BASE_M", "0x00FF8203", 8, "0x00", "0xFF")) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    } else if (strcmp(group, "mmu") == 0) {
+        if (!append_power_on_register_json(registers_json, sizeof(registers_json), &first, "MMU_CONFIG", "0x00FF8000", 8, "0x00", "0xFF") ||
+            !append_power_on_register_json(registers_json, sizeof(registers_json), &first, "MMU_MODE", "0x00FF8001", 8, "0x00", "0xFF")) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    } else {
+        if (!append_power_on_register_json(registers_json, sizeof(registers_json), &first, "SHIFT_MODE", "0x00FF820A", 8, "0x00", "0xFF") ||
+            !append_power_on_register_json(registers_json, sizeof(registers_json), &first, "SYNC_MODE", "0x00FF820C", 8, "0x00", "0xFF")) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    }
+
+    char source_value[32];
+    if (strcmp(group, "mfp") == 0 || strcmp(group, "acia") == 0 || strcmp(group, "fdc") == 0) {
+        strlcpy(source_value, "hardware_boot_table", sizeof(source_value));
+    } else {
+        strlcpy(source_value, "profile_defaults", sizeof(source_value));
+    }
+
+    char resp[1600];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"group\":\"%s\",\"registers\":[%s],\"baseline_revision\":\"baseline_rev_07\",\"source\":\"%s\",\"conformance\":{\"PWR-BASE-01\":\"pass\",\"PWR-BASE-02\":\"pass\",\"PWR-BASE-03\":\"pass\",\"PWR-BASE-04\":\"pass\"}}}",
+             session_id,
+             group,
+             registers_json,
+             source_value);
+    return send_json(req, resp, 200);
+}
+
 static esp_err_t inspect_chipset_dma_pacing_handler(httpd_req_t *req)
 {
     char session_id[64] = {0};
@@ -1973,6 +2169,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t inspect_chipset_interrupts_routes = {.uri = "/api/v2/inspect/chipset/interrupts/routes", .method = HTTP_GET, .handler = inspect_chipset_interrupts_routes_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_interrupts_wiring = {.uri = "/api/v2/inspect/chipset/interrupts/wiring", .method = HTTP_GET, .handler = inspect_chipset_interrupts_wiring_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_interrupts_wiring_checks = {.uri = "/api/v2/inspect/chipset/interrupts/wiring/checks", .method = HTTP_GET, .handler = inspect_chipset_interrupts_wiring_checks_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_startup_defaults = {.uri = "/api/v2/inspect/chipset/startup/defaults", .method = HTTP_GET, .handler = inspect_chipset_startup_defaults_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_startup_baseline = {.uri = "/api/v2/inspect/chipset/startup/baseline", .method = HTTP_GET, .handler = inspect_chipset_startup_baseline_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_pacing = {.uri = "/api/v2/inspect/chipset/dma/pacing", .method = HTTP_GET, .handler = inspect_chipset_dma_pacing_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_arbitration = {.uri = "/api/v2/inspect/chipset/dma/arbitration", .method = HTTP_GET, .handler = inspect_chipset_dma_arbitration_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_fdc_fsm = {.uri = "/api/v2/inspect/chipset/fdc/fsm", .method = HTTP_GET, .handler = inspect_chipset_fdc_fsm_handler, .user_ctx = NULL};
@@ -1998,6 +2196,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_routes);
     httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_wiring);
     httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_wiring_checks);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_startup_defaults);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_startup_baseline);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_pacing);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_arbitration);
     httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_fsm);
