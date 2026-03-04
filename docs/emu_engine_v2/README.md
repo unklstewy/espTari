@@ -5,6 +5,7 @@ This folder contains the cycle-accurate hardware specification split into cross-
 ## Quick navigation
 
 0. [Agent navigation graph (ultra-compact)](NAV_GRAPH.md)
+0a. [EBIN architecture pack index](ebin_arch_pack/EBIN-ARCH-000_INDEX.md)
 0b. [Engine v2 implementation plan](../EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md)
 0c. [Engine v2 API specification](../EMU_ENGINE_V2_API_SPEC.md)
 1. [Executive summary](01_executive_summary.md)
