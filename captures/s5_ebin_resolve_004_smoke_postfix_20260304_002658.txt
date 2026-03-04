@@ -1,0 +1,31 @@
+health_check=ok attempts=6
+### resolve_latest_success
+POST /api/v2/ebins/resolve
+HTTP 200
+{"ok":true,"data":{"machine":"atari_st","version_policy":"latest_compatible","resolved":[{"component":"cpu","module_id":"st.cpu.m68k","version":"1.0.0","path":"/sdcard/ebins/atari_st/cpu/st.cpu.m68k-1.0.0.ebin","selection_policy":"latest_compatible"},{"component":"video","module_id":"st.video.shifter","version":"1.0.0","path":"/sdcard/ebins/atari_st/video/st.video.shifter-1.0.0.ebin","selection_policy":"latest_compatible"}],"resolved_count":2}}
+
+resolve_latest_success_contract=pass ok=True count=True cpu_latest=True
+### resolve_machine_missing
+POST /api/v2/ebins/resolve
+HTTP 404
+{"ok":false,"error":{"code":"EBIN_NOT_FOUND","category":"ebin","retryable":false,"details":{"field":"machine","reason":"resolver_machine_not_indexed"}}}
+
+resolve_machine_missing=pass code=EBIN_NOT_FOUND reason=resolver_machine_not_indexed
+### resolve_component_missing
+POST /api/v2/ebins/resolve
+HTTP 404
+{"ok":false,"error":{"code":"EBIN_NOT_FOUND","category":"ebin","retryable":false,"details":{"field":"components","reason":"resolver_component_not_found"}}}
+
+resolve_component_missing=pass code=EBIN_NOT_FOUND reason=resolver_component_not_found
+### resolve_ambiguous_simulated
+POST /api/v2/ebins/resolve
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":false,"details":{"field":"components","reason":"resolver_ambiguous_selection"}}}
+
+resolve_ambiguous_simulated=pass code=EBIN_INVALID reason=resolver_ambiguous_selection
+### resolve_pinned_success
+POST /api/v2/ebins/resolve
+HTTP 200
+{"ok":true,"data":{"machine":"atari_st","version_policy":"pinned","resolved":[{"component":"cpu","module_id":"st.cpu.m68k","version":"0.9.0","path":"/sdcard/ebins/atari_st/cpu/st.cpu.m68k-0.9.0.ebin","selection_policy":"pinned"}],"resolved_count":1}}
+
+resolve_pinned_success=pass cpu_pinned=True

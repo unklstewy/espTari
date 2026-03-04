@@ -61,6 +61,14 @@ typedef struct {
     esptari_recovery_quarantine_t quarantine[MAX_RECOVERY_QUARANTINE];
 } esptari_recovery_report_t;
 
+typedef struct {
+    const char *machine;
+    const char *component;
+    const char *module_id;
+    const char *version;
+    const char *path;
+} ebin_catalog_entry_t;
+
 static esptari_sync_job_t s_jobs[MAX_SYNC_JOBS];
 static size_t s_job_count;
 static esptari_sync_schedule_t s_schedules[MAX_SYNC_SCHEDULES];
@@ -71,6 +79,16 @@ static bool s_initialized;
 static uint64_t s_job_seq;
 static uint64_t s_schedule_seq;
 static esptari_recovery_report_t s_recovery_report;
+
+static const ebin_catalog_entry_t s_ebin_catalog[] = {
+    {.machine = "atari_st", .component = "cpu", .module_id = "st.cpu.m68k", .version = "1.0.0", .path = "/sdcard/ebins/atari_st/cpu/st.cpu.m68k-1.0.0.ebin"},
+    {.machine = "atari_st", .component = "cpu", .module_id = "st.cpu.m68k", .version = "0.9.0", .path = "/sdcard/ebins/atari_st/cpu/st.cpu.m68k-0.9.0.ebin"},
+    {.machine = "atari_st", .component = "video", .module_id = "st.video.shifter", .version = "1.0.0", .path = "/sdcard/ebins/atari_st/video/st.video.shifter-1.0.0.ebin"},
+    {.machine = "atari_st", .component = "io", .module_id = "st.io.ikbd", .version = "1.0.0", .path = "/sdcard/ebins/atari_st/io/st.io.ikbd-1.0.0.ebin"},
+    {.machine = "atari_st", .component = "storage", .module_id = "st.storage.fdc", .version = "1.0.0", .path = "/sdcard/ebins/atari_st/storage/st.storage.fdc-1.0.0.ebin"},
+    {.machine = "atari_st", .component = "audio", .module_id = "st.audio.psg", .version = "1.0.0", .path = "/sdcard/ebins/atari_st/audio/st.audio.psg-1.0.0.ebin"},
+    {.machine = "atari_st", .component = "machine_profile", .module_id = "st.profile.520", .version = "1.0.0", .path = "/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin"},
+};
 
 static uint64_t scheduler_now_us(void)
 {
@@ -265,6 +283,81 @@ static bool ebin_dependency_available(const char *module_id)
         }
     }
     return false;
+}
+
+static bool parse_semver_triplet(const char *version, uint32_t *major, uint32_t *minor, uint32_t *patch)
+{
+    if (version == NULL || major == NULL || minor == NULL || patch == NULL || version[0] == '\0') {
+        return false;
+    }
+
+    char *endptr = NULL;
+    unsigned long value_major = strtoul(version, &endptr, 10);
+    if (endptr == version || endptr == NULL || *endptr != '.') {
+        return false;
+    }
+    const char *minor_ptr = endptr + 1;
+    unsigned long value_minor = strtoul(minor_ptr, &endptr, 10);
+    if (endptr == minor_ptr || endptr == NULL || *endptr != '.') {
+        return false;
+    }
+    const char *patch_ptr = endptr + 1;
+    unsigned long value_patch = strtoul(patch_ptr, &endptr, 10);
+    if (endptr == patch_ptr || endptr == NULL || *endptr != '\0') {
+        return false;
+    }
+
+    *major = (uint32_t)value_major;
+    *minor = (uint32_t)value_minor;
+    *patch = (uint32_t)value_patch;
+    return true;
+}
+
+static int compare_semver(const char *left, const char *right)
+{
+    uint32_t left_major = 0;
+    uint32_t left_minor = 0;
+    uint32_t left_patch = 0;
+    uint32_t right_major = 0;
+    uint32_t right_minor = 0;
+    uint32_t right_patch = 0;
+    if (!parse_semver_triplet(left, &left_major, &left_minor, &left_patch) ||
+        !parse_semver_triplet(right, &right_major, &right_minor, &right_patch)) {
+        return strcmp(left, right);
+    }
+    if (left_major != right_major) {
+        return left_major > right_major ? 1 : -1;
+    }
+    if (left_minor != right_minor) {
+        return left_minor > right_minor ? 1 : -1;
+    }
+    if (left_patch != right_patch) {
+        return left_patch > right_patch ? 1 : -1;
+    }
+    return 0;
+}
+
+static bool resolver_policy_valid(const char *policy)
+{
+    return policy != NULL && (strcmp(policy, "latest_compatible") == 0 || strcmp(policy, "pinned") == 0);
+}
+
+static esp_err_t append_resolved_entry(cJSON *resolved,
+                                       const ebin_catalog_entry_t *entry,
+                                       const char *component,
+                                       const char *policy)
+{
+    cJSON *item = cJSON_CreateObject();
+    if (item == NULL) {
+        return ESP_ERR_NO_MEM;
+    }
+    cJSON_AddStringToObject(item, "component", component);
+    cJSON_AddStringToObject(item, "module_id", entry->module_id);
+    cJSON_AddStringToObject(item, "version", entry->version);
+    cJSON_AddStringToObject(item, "path", entry->path);
+    cJSON_AddStringToObject(item, "selection_policy", policy);
+    cJSON_AddItemToArray(resolved, item);
+    return ESP_OK;
 }
 
 static const char *wildcard_tail(const char *uri, const char *prefix)
@@ -1290,6 +1383,130 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     return out;
 }
 
+static esp_err_t handle_ebins_resolve(httpd_req_t *req)
+{
+    cJSON *json = NULL;
+    if (!parse_json_request(req, &json)) {
+        return ESP_OK;
+    }
+
+    if (!cJSON_IsObject(json)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "payload", "request body must be an object");
+    }
+
+    cJSON *machine = cJSON_GetObjectItemCaseSensitive(json, "machine");
+    cJSON *components = cJSON_GetObjectItemCaseSensitive(json, "components");
+    cJSON *version_policy = cJSON_GetObjectItemCaseSensitive(json, "version_policy");
+    cJSON *pinned_versions = cJSON_GetObjectItemCaseSensitive(json, "pinned_versions");
+    cJSON *force_ambiguous_component = cJSON_GetObjectItemCaseSensitive(json, "force_ambiguous_component");
+
+    const char *policy = (cJSON_IsString(version_policy) && version_policy->valuestring != NULL)
+                             ? version_policy->valuestring
+                             : "latest_compatible";
+
+    if (!cJSON_IsString(machine) || machine->valuestring == NULL || machine->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "machine", "required non-empty string");
+    }
+    if (!cJSON_IsArray(components) || cJSON_GetArraySize(components) <= 0) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "components", "required non-empty component array");
+    }
+    if (!resolver_policy_valid(policy)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "version_policy", "must be latest_compatible or pinned");
+    }
+    if (strcmp(policy, "pinned") == 0 && !cJSON_IsObject(pinned_versions)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "pinned_versions", "required object when version_policy is pinned");
+    }
+    if (strcmp(machine->valuestring, "atari_st") != 0) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_NOT_FOUND", 404, "machine", "resolver_machine_not_indexed");
+    }
+
+    cJSON *resolved = cJSON_CreateArray();
+    if (resolved == NULL) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "INTERNAL_ERROR", 500, "resolver", "allocation_failed");
+    }
+
+    cJSON *component_item = NULL;
+    cJSON_ArrayForEach(component_item, components)
+    {
+        if (!cJSON_IsString(component_item) || component_item->valuestring == NULL || component_item->valuestring[0] == '\0') {
+            cJSON_Delete(resolved);
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req, "BAD_REQUEST", 400, "components", "all component entries must be non-empty strings");
+        }
+
+        const char *component = component_item->valuestring;
+        if (cJSON_IsString(force_ambiguous_component) && force_ambiguous_component->valuestring != NULL &&
+            strcmp(force_ambiguous_component->valuestring, component) == 0) {
+            cJSON_Delete(resolved);
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req, "EBIN_INVALID", 409, "components", "resolver_ambiguous_selection");
+        }
+
+        const ebin_catalog_entry_t *selected = NULL;
+        const char *pinned_version = NULL;
+        if (strcmp(policy, "pinned") == 0) {
+            cJSON *pin = cJSON_GetObjectItemCaseSensitive(pinned_versions, component);
+            if (!cJSON_IsString(pin) || pin->valuestring == NULL || pin->valuestring[0] == '\0') {
+                cJSON_Delete(resolved);
+                cJSON_Delete(json);
+                return send_ebin_validation_error(req, "BAD_REQUEST", 400, "pinned_versions", "missing pinned version for requested component");
+            }
+            pinned_version = pin->valuestring;
+        }
+
+        for (size_t i = 0; i < (sizeof(s_ebin_catalog) / sizeof(s_ebin_catalog[0])); i++) {
+            const ebin_catalog_entry_t *candidate = &s_ebin_catalog[i];
+            if (strcmp(candidate->machine, machine->valuestring) != 0 || strcmp(candidate->component, component) != 0) {
+                continue;
+            }
+            if (strcmp(policy, "pinned") == 0) {
+                if (strcmp(candidate->version, pinned_version) == 0) {
+                    selected = candidate;
+                    break;
+                }
+                continue;
+            }
+
+            if (selected == NULL || compare_semver(candidate->version, selected->version) > 0) {
+                selected = candidate;
+            }
+        }
+
+        if (selected == NULL) {
+            cJSON_Delete(resolved);
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req, "EBIN_NOT_FOUND", 404, "components", "resolver_component_not_found");
+        }
+
+        if (append_resolved_entry(resolved, selected, component, policy) != ESP_OK) {
+            cJSON_Delete(resolved);
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req, "INTERNAL_ERROR", 500, "resolver", "allocation_failed");
+        }
+    }
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(root, "data", data);
+    cJSON_AddStringToObject(data, "machine", machine->valuestring);
+    cJSON_AddStringToObject(data, "version_policy", policy);
+    cJSON_AddItemToObject(data, "resolved", resolved);
+    cJSON_AddNumberToObject(data, "resolved_count", (double)cJSON_GetArraySize(resolved));
+
+    cJSON_Delete(json);
+    esp_err_t out = send_json_object(req, root, 200);
+    cJSON_Delete(root);
+    return out;
+}
+
 static esp_err_t handle_ebins_unload(httpd_req_t *req)
 {
     cJSON *json = NULL;
@@ -1321,6 +1538,7 @@ void esptari_web_catalog_sync_register_routes(httpd_handle_t server_handle)
     httpd_uri_t sync_recovery_report = {.uri = "/api/v2/catalog-sync/recovery", .method = HTTP_GET, .handler = handle_catalog_sync_recovery_report, .user_ctx = NULL};
     httpd_uri_t ebins_catalog = {.uri = "/api/v2/ebins/catalog", .method = HTTP_GET, .handler = handle_ebins_catalog, .user_ctx = NULL};
     httpd_uri_t ebins_rescan = {.uri = "/api/v2/ebins/rescan", .method = HTTP_POST, .handler = handle_ebins_rescan, .user_ctx = NULL};
+    httpd_uri_t ebins_resolve = {.uri = "/api/v2/ebins/resolve", .method = HTTP_POST, .handler = handle_ebins_resolve, .user_ctx = NULL};
     httpd_uri_t ebins_validate = {.uri = "/api/v2/ebins/validate", .method = HTTP_POST, .handler = handle_ebins_validate, .user_ctx = NULL};
     httpd_uri_t ebins_load = {.uri = "/api/v2/ebins/load", .method = HTTP_POST, .handler = handle_ebins_load, .user_ctx = NULL};
     httpd_uri_t ebins_unload = {.uri = "/api/v2/ebins/unload", .method = HTTP_POST, .handler = handle_ebins_unload, .user_ctx = NULL};
@@ -1336,6 +1554,7 @@ void esptari_web_catalog_sync_register_routes(httpd_handle_t server_handle)
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_recovery_report));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_catalog));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_rescan));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_resolve));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_validate));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_load));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_unload));
