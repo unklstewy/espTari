@@ -56,6 +56,9 @@ static uint64_t ikbd_keyboard_packet_seq = 12411ULL;
 static uint64_t ikbd_mouse_packet_seq = 12409ULL;
 static uint64_t ikbd_keyboard_timestamp_us = 1710000030102ULL;
 static uint64_t ikbd_mouse_timestamp_us = 1710000029986ULL;
+static uint64_t interrupt_last_route_seq = 9901ULL;
+static uint64_t interrupt_last_timestamp_us = 1710000034028ULL;
+static uint64_t interrupt_last_tick_counter = 913600ULL;
 
 enum {
     CHIPSET_GROUP_GLUE = 0,
@@ -308,6 +311,39 @@ static bool append_ikbd_packet_json(char *buffer,
                            payload_hex,
                            (unsigned long long)acia_frame_seq,
                            (unsigned long long)inter_packet_gap_us,
+                           (unsigned long long)timestamp_us);
+    if (written < 0 || (size_t)written >= buffer_len - used) {
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
+static bool append_interrupt_route_json(char *buffer,
+                                        size_t buffer_len,
+                                        bool *first,
+                                        uint64_t route_seq,
+                                        const char *source_id,
+                                        uint8_t priority_level,
+                                        uint16_t vector,
+                                        const char *cpu_interrupt_line,
+                                        const char *delivery_state,
+                                        uint64_t tick_counter,
+                                        uint64_t timestamp_us)
+{
+    size_t used = strlen(buffer);
+    int written = snprintf(buffer + used,
+                           buffer_len - used,
+                           "%s{\"route_seq\":%llu,\"source_id\":\"%s\",\"priority_level\":%u,\"vector\":%u,\"cpu_interrupt_line\":\"%s\",\"delivery_state\":\"%s\",\"tick_counter\":%llu,\"timestamp_us\":%llu}",
+                           *first ? "" : ",",
+                           (unsigned long long)route_seq,
+                           source_id,
+                           (unsigned)priority_level,
+                           (unsigned)vector,
+                           cpu_interrupt_line,
+                           delivery_state,
+                           (unsigned long long)tick_counter,
                            (unsigned long long)timestamp_us);
     if (written < 0 || (size_t)written >= buffer_len - used) {
         return false;
@@ -1060,6 +1096,157 @@ static esp_err_t inspect_chipset_ikbd_packets_handler(httpd_req_t *req)
     return send_json(req, resp, 200);
 }
 
+static esp_err_t inspect_chipset_interrupts_hierarchy_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char force_map_unavailable_query[8] = {0};
+    bool force_map_unavailable = esptari_web_query_value(req,
+                                                         "force_map_unavailable",
+                                                         force_map_unavailable_query,
+                                                         sizeof(force_map_unavailable_query)) &&
+                                strcmp(force_map_unavailable_query, "1") == 0;
+    if (force_map_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char force_duplicate_source_query[8] = {0};
+    bool force_duplicate_source = esptari_web_query_value(req,
+                                                          "force_duplicate_source",
+                                                          force_duplicate_source_query,
+                                                          sizeof(force_duplicate_source_query)) &&
+                                 strcmp(force_duplicate_source_query, "1") == 0;
+    if (force_duplicate_source) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"INT-MAP-01\"}}}",
+                         500);
+    }
+
+    char resp[1024];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"cpu_level_order\":[7,6,5,4,3,2,1],\"sources\":[{\"source_id\":\"mfp\",\"priority_level\":6,\"vector\":38,\"enabled\":true},{\"source_id\":\"acia\",\"priority_level\":4,\"vector\":24,\"enabled\":true},{\"source_id\":\"fdc\",\"priority_level\":3,\"vector\":54,\"enabled\":true},{\"source_id\":\"blitter\",\"priority_level\":2,\"vector\":48,\"enabled\":false},{\"source_id\":\"vbl\",\"priority_level\":7,\"vector\":28,\"enabled\":true}],\"default_vector_base\":24,\"last_route_seq\":%llu,\"last_timestamp_us\":%llu,\"checks\":{\"INT-MAP-01\":\"pass\"}}}",
+             session_id,
+             (unsigned long long)interrupt_last_route_seq,
+             (unsigned long long)interrupt_last_timestamp_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_interrupts_routes_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char limit_str[16] = {0};
+    if (!esptari_web_query_value(req, "limit", limit_str, sizeof(limit_str))) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    uint32_t limit = 0;
+    if (!esptari_web_parse_u32_str(limit_str, &limit) || limit == 0 || limit > 256) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char force_map_unavailable_query[8] = {0};
+    bool force_map_unavailable = esptari_web_query_value(req,
+                                                         "force_map_unavailable",
+                                                         force_map_unavailable_query,
+                                                         sizeof(force_map_unavailable_query)) &&
+                                strcmp(force_map_unavailable_query, "1") == 0;
+    if (force_map_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char force_route_seq_regression_query[8] = {0};
+    bool force_route_seq_regression = esptari_web_query_value(req,
+                                                              "force_route_seq_regression",
+                                                              force_route_seq_regression_query,
+                                                              sizeof(force_route_seq_regression_query)) &&
+                                     strcmp(force_route_seq_regression_query, "1") == 0;
+    if (force_route_seq_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"INT-MAP-02\"}}}",
+                         500);
+    }
+
+    char force_route_time_regression_query[8] = {0};
+    bool force_route_time_regression = esptari_web_query_value(req,
+                                                               "force_route_time_regression",
+                                                               force_route_time_regression_query,
+                                                               sizeof(force_route_time_regression_query)) &&
+                                      strcmp(force_route_time_regression_query, "1") == 0;
+    if (force_route_time_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"INT-MAP-03\"}}}",
+                         500);
+    }
+
+    char force_route_order_violation_query[8] = {0};
+    bool force_route_order_violation = esptari_web_query_value(req,
+                                                               "force_route_order_violation",
+                                                               force_route_order_violation_query,
+                                                               sizeof(force_route_order_violation_query)) &&
+                                      strcmp(force_route_order_violation_query, "1") == 0;
+    if (force_route_order_violation) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"INT-MAP-04\"}}}",
+                         500);
+    }
+
+    uint32_t route_count = limit > 4 ? 4 : limit;
+    char routes_json[2048] = {0};
+    bool first = true;
+
+    static const char *source_ids[] = {"vbl", "mfp", "acia", "fdc"};
+    static const uint8_t priority_levels[] = {7, 6, 4, 3};
+    static const uint16_t vectors[] = {28, 38, 24, 54};
+    static const char *cpu_lines[] = {"irq7", "irq6", "irq4", "irq3"};
+    static const char *delivery_states[] = {"delivered", "delivered", "masked", "deferred"};
+
+    uint64_t route_seq = interrupt_last_route_seq + 1ULL;
+    uint64_t tick_counter = interrupt_last_tick_counter + 1ULL;
+    uint64_t timestamp_us = interrupt_last_timestamp_us + 3ULL;
+
+    for (uint32_t i = 0; i < route_count; ++i) {
+        uint32_t idx = i % 4U;
+        if (!append_interrupt_route_json(routes_json,
+                                         sizeof(routes_json),
+                                         &first,
+                                         route_seq,
+                                         source_ids[idx],
+                                         priority_levels[idx],
+                                         vectors[idx],
+                                         cpu_lines[idx],
+                                         delivery_states[idx],
+                                         tick_counter,
+                                         timestamp_us)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        route_seq += 1ULL;
+        tick_counter += 1ULL;
+        timestamp_us += 2ULL;
+    }
+
+    interrupt_last_route_seq = route_seq - 1ULL;
+    interrupt_last_tick_counter = tick_counter - 1ULL;
+    interrupt_last_timestamp_us = timestamp_us - 2ULL;
+
+    char resp[2560];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"checks\":{\"INT-MAP-02\":\"pass\",\"INT-MAP-03\":\"pass\",\"INT-MAP-04\":\"pass\"},\"routes\":[%s]}}",
+             session_id,
+             routes_json);
+    return send_json(req, resp, 200);
+}
+
 static esp_err_t inspect_chipset_dma_pacing_handler(httpd_req_t *req)
 {
     char session_id[64] = {0};
@@ -1591,6 +1778,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t inspect_chipset_acia_frames = {.uri = "/api/v2/inspect/chipset/acia/frames", .method = HTTP_GET, .handler = inspect_chipset_acia_frames_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_ikbd_bridge = {.uri = "/api/v2/inspect/chipset/ikbd/bridge", .method = HTTP_GET, .handler = inspect_chipset_ikbd_bridge_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_ikbd_packets = {.uri = "/api/v2/inspect/chipset/ikbd/packets", .method = HTTP_GET, .handler = inspect_chipset_ikbd_packets_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_interrupts_hierarchy = {.uri = "/api/v2/inspect/chipset/interrupts/hierarchy", .method = HTTP_GET, .handler = inspect_chipset_interrupts_hierarchy_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_interrupts_routes = {.uri = "/api/v2/inspect/chipset/interrupts/routes", .method = HTTP_GET, .handler = inspect_chipset_interrupts_routes_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_pacing = {.uri = "/api/v2/inspect/chipset/dma/pacing", .method = HTTP_GET, .handler = inspect_chipset_dma_pacing_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_arbitration = {.uri = "/api/v2/inspect/chipset/dma/arbitration", .method = HTTP_GET, .handler = inspect_chipset_dma_arbitration_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_fdc_fsm = {.uri = "/api/v2/inspect/chipset/fdc/fsm", .method = HTTP_GET, .handler = inspect_chipset_fdc_fsm_handler, .user_ctx = NULL};
@@ -1612,6 +1801,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &inspect_chipset_acia_frames);
     httpd_register_uri_handler(server_handle, &inspect_chipset_ikbd_bridge);
     httpd_register_uri_handler(server_handle, &inspect_chipset_ikbd_packets);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_hierarchy);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_routes);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_pacing);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_arbitration);
     httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_fsm);

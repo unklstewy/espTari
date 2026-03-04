@@ -1,0 +1,59 @@
+health_check=ok attempts=12
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Cannot reset from current lifecycle state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 200
+{"ok":true}
+
+### interrupt_hierarchy
+GET /api/v2/inspect/chipset/interrupts/hierarchy?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","cpu_level_order":[7,6,5,4,3,2,1],"sources":[{"source_id":"mfp","priority_level":6,"vector":38,"enabled":true},{"source_id":"acia","priority_level":4,"vector":24,"enabled":true},{"source_id":"fdc","priority_level":3,"vector":54,"enabled":true},{"source_id":"blitter","priority_level":2,"vector":48,"enabled":false},{"source_id":"vbl","priority_level":7,"vector":28,"enabled":true}],"default_vector_base":24,"last_route_seq":9901,"last_timestamp_us":1710000034028,"checks":{"INT-MAP-01":"pass"}}}
+
+int_hierarchy_contract=pass levels=True sources=True check01=True
+### interrupt_routes
+GET /api/v2/inspect/chipset/interrupts/routes?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"INT-MAP-02":"pass","INT-MAP-03":"pass","INT-MAP-04":"pass"},"routes":[{"route_seq":9902,"source_id":"vbl","priority_level":7,"vector":28,"cpu_interrupt_line":"irq7","delivery_state":"delivered","tick_counter":913601,"timestamp_us":1710000034031},{"route_seq":9903,"source_id":"mfp","priority_level":6,"vector":38,"cpu_interrupt_line":"irq6","delivery_state":"delivered","tick_counter":913602,"timestamp_us":1710000034033},{"route_seq":9904,"source_id":"acia","priority_level":4,"vector":24,"cpu_interrupt_line":"irq4","delivery_state":"masked","tick_counter":913603,"timestamp_us":1710000034035},{"route_seq":9905,"source_id":"fdc","priority_level":3,"vector":54,"cpu_interrupt_line":"irq3","delivery_state":"deferred","tick_counter":913604,"timestamp_us":1710000034037}]}}
+
+int_routes_contract=pass checks=True seq=True ts=True tick=True order=True
+### interrupt_routes_bad_limit
+GET /api/v2/inspect/chipset/interrupts/routes?session_id=ses_local&limit=0
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+int_limit_guard=pass code=BAD_REQUEST
+### interrupt_unknown_session
+GET /api/v2/inspect/chipset/interrupts/hierarchy?session_id=ses_unknown
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}
+
+int_session_guard=pass code=ENGINE_NOT_RUNNING
+### int_map01_failfast
+GET /api/v2/inspect/chipset/interrupts/hierarchy?session_id=ses_local&force_duplicate_source=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"INT-MAP-01"}}}
+
+int_map01_failfast=pass code=INTERNAL_ERROR
+### int_map02_failfast
+GET /api/v2/inspect/chipset/interrupts/routes?session_id=ses_local&limit=2&force_route_seq_regression=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"INT-MAP-02"}}}
+
+int_map02_failfast=pass code=INTERNAL_ERROR
+### int_map03_failfast
+GET /api/v2/inspect/chipset/interrupts/routes?session_id=ses_local&limit=2&force_route_time_regression=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"INT-MAP-03"}}}
+
+int_map03_failfast=pass code=INTERNAL_ERROR
+### int_map04_failfast
+GET /api/v2/inspect/chipset/interrupts/routes?session_id=ses_local&limit=2&force_route_order_violation=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"INT-MAP-04"}}}
+
+int_map04_failfast=pass code=INTERNAL_ERROR
