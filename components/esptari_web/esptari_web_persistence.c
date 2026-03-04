@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 #include "cJSON.h"
 #include "esp_err.h"
@@ -19,8 +21,9 @@ static char latest_snapshot_id[64] = "state_000001";
 static uint64_t latest_saved_at_us;
 static bool has_saved_snapshot;
 
-#define SNAPSHOT_INDEX_PATH "/spiffs/snapshot_index_v1.log"
-#define SNAPSHOT_META_PREFIX "/spiffs/snapshot_meta_v1_"
+#define SNAPSHOT_STATE_DIR "/sdcard/saves/states"
+#define SNAPSHOT_INDEX_PATH "/sdcard/saves/states/snapshot_index_v1.log"
+#define SNAPSHOT_META_PREFIX "/sdcard/saves/states/snapshot_meta_v1_"
 #define SNAPSHOT_INDEX_MAX_ENTRIES 32
 
 typedef struct {
@@ -138,6 +141,17 @@ static void parse_token(char **ctx, char *out, size_t out_len)
     }
 }
 
+static esp_err_t ensure_snapshot_storage_dirs(void)
+{
+    if (mkdir("/sdcard/saves", 0755) != 0 && errno != EEXIST) {
+        return ESP_FAIL;
+    }
+    if (mkdir(SNAPSHOT_STATE_DIR, 0755) != 0 && errno != EEXIST) {
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
 static void snapshot_staging_path(const char *target_path, char *out_path, size_t out_path_len)
 {
     if (target_path == NULL || out_path == NULL || out_path_len == 0) {
@@ -165,6 +179,10 @@ static esp_err_t atomic_write_text_file(const char *target_path, const char *tex
 {
     if (target_path == NULL || text == NULL) {
         return ESP_ERR_INVALID_ARG;
+    }
+
+    if (ensure_snapshot_storage_dirs() != ESP_OK) {
+        return ESP_FAIL;
     }
 
     char staging_path[128];
@@ -495,6 +513,10 @@ static void load_snapshot_index_if_needed(void)
 
     snapshot_index_loaded = true;
     snapshot_index_count = 0;
+
+    if (ensure_snapshot_storage_dirs() != ESP_OK) {
+        return;
+    }
 
     FILE *file = fopen(SNAPSHOT_INDEX_PATH, "r");
     if (file == NULL) {

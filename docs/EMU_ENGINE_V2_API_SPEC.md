@@ -6392,8 +6392,8 @@ Response `data`:
   "persistence": {
     "strategy": "staging_rename",
     "atomic": true,
-    "meta_path": "/spiffs/snapshot_meta_v1_<hash>.meta",
-    "index_path": "/spiffs/snapshot_index_v1.log"
+    "meta_path": "/sdcard/saves/states/snapshot_meta_v1_<hash>.meta",
+    "index_path": "/sdcard/saves/states/snapshot_index_v1.log"
   }
 }
 ```
