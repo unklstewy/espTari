@@ -506,6 +506,8 @@ Browser input capture policy:
 - Runtime projection for bus/memory filter-model verification is exposed via `GET /api/v2/inspect/bus/stream` and `GET /api/v2/inspect/memory/stream` through `bus_filter_contract`/`bus_filter_selectors` and `memory_filter_contract`/`memory_filter_selectors` fields in stream probe responses.
 - Deterministic guard rules are enforced on bus/memory stream filter query validation: invalid `type`, malformed/overlapping `address_ranges`, unknown enum values (`access_types`, `level`), or non-positive `max_events_per_sec` return `BAD_REQUEST`; unresolved selector semantics (`unknown*` list items) return `INSPECT_FILTER_INVALID`.
 - Filtered bus/memory stream publisher + load-validation contract (publisher checks `BUS-FLT-01..04` and `MEM-FLT-01..04`, required `event_seq`/`event_timestamp_us`, and deterministic load-run validation artifact) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` sections `10.5` and `10.6` and is the canonical source.
+- `GET /api/v2/inspect/bus/stream` and `GET /api/v2/inspect/memory/stream` project publisher diagnostics through `bus_stream_publisher` and `memory_stream_publisher`, including fixed pipeline ordering, check maps (`BUS-FLT-01..04` / `MEM-FLT-01..04`), emitted/rejected counters, and last publisher state.
+- Stream probes also expose deterministic load-run summary projection via `filtered_stream_load_validation` (`run_id`, duration, bus/memory emitted+rejected counters, check status map, and `result`), with fail-fast `INTERNAL_ERROR` mapping for forced selector/sequence/timestamp/rejected-event validation violations.
 
 ## 6.6 Snapshot APIs
 

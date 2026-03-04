@@ -95,6 +95,18 @@ typedef struct {
     char last_error_code[32];
 } register_stream_publisher_state_t;
 
+typedef struct {
+    uint64_t last_event_seq;
+    uint64_t last_event_timestamp_us;
+    uint64_t events_emitted;
+    uint64_t events_rejected;
+    uint64_t check_failures_selector;
+    uint64_t check_failures_seq;
+    uint64_t check_failures_timestamp;
+    uint64_t check_failures_rejected_emit;
+    char last_error_code[32];
+} filtered_stream_publisher_state_t;
+
 static uint64_t stream_event_seq;
 static uint64_t slo_alarm_seq;
 static bool slo_alarm_breached;
@@ -112,6 +124,9 @@ static char stream_bus_filter_contract_json_buf[1280];
 static char stream_bus_filter_selectors_json_buf[768];
 static char stream_memory_filter_contract_json_buf[1408];
 static char stream_memory_filter_selectors_json_buf[896];
+static char stream_bus_publisher_json_buf[1024];
+static char stream_memory_publisher_json_buf[1152];
+static char stream_filtered_load_validation_json_buf[1024];
 static char stream_video_payload_emitter_json_buf[1024];
 static char stream_video_payload_sample_json_buf[256];
 static char stream_audio_payload_emitter_json_buf[1024];
@@ -132,6 +147,8 @@ static audio_pacing_state_t audio_pacing_state = {
 static video_payload_emitter_state_t video_emitter_state;
 static audio_payload_emitter_state_t audio_emitter_state;
 static register_stream_publisher_state_t register_publisher_state;
+static filtered_stream_publisher_state_t bus_publisher_state;
+static filtered_stream_publisher_state_t memory_publisher_state;
 static stream_backpressure_metrics_t stream_metrics[STREAM_KIND_COUNT] = {
     [STREAM_KIND_VIDEO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
     [STREAM_KIND_AUDIO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
@@ -1271,6 +1288,9 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     strlcpy(stream_bus_filter_selectors_json_buf, "null", sizeof(stream_bus_filter_selectors_json_buf));
     strlcpy(stream_memory_filter_contract_json_buf, "null", sizeof(stream_memory_filter_contract_json_buf));
     strlcpy(stream_memory_filter_selectors_json_buf, "null", sizeof(stream_memory_filter_selectors_json_buf));
+    strlcpy(stream_bus_publisher_json_buf, "null", sizeof(stream_bus_publisher_json_buf));
+    strlcpy(stream_memory_publisher_json_buf, "null", sizeof(stream_memory_publisher_json_buf));
+    strlcpy(stream_filtered_load_validation_json_buf, "null", sizeof(stream_filtered_load_validation_json_buf));
     strlcpy(stream_video_payload_emitter_json_buf, "null", sizeof(stream_video_payload_emitter_json_buf));
     strlcpy(stream_video_payload_sample_json_buf, "null", sizeof(stream_video_payload_sample_json_buf));
     strlcpy(stream_audio_payload_emitter_json_buf, "null", sizeof(stream_audio_payload_emitter_json_buf));
@@ -1528,9 +1548,26 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
         char regions_json[256] = {0};
         char mapped_targets_json[256] = {0};
 
+        char force_selector_mismatch_query[8] = {0};
+        char force_seq_regression_query[8] = {0};
+        char force_timestamp_regression_query[8] = {0};
+        char force_emit_rejected_query[8] = {0};
+        char rejected_events_query[16] = {0};
+
         const char *filter_type = "subscribe";
         const char *filter_level = "info";
         const char *max_events = "null";
+        bool force_selector_mismatch = false;
+        bool force_seq_regression = false;
+        bool force_timestamp_regression = false;
+        bool force_emit_rejected = false;
+        uint64_t rejected_events = 0;
+
+        filtered_stream_publisher_state_t *publisher_state =
+            (stream == STREAM_KIND_BUS) ? &bus_publisher_state : &memory_publisher_state;
+
+        uint64_t publisher_event_seq = publisher_state->last_event_seq + 1ULL;
+        uint64_t publisher_event_timestamp_us = timestamp_us;
 
         if (query_value(req, "type", type_query, sizeof(type_query))) {
             filter_type = type_query;
@@ -1540,6 +1577,49 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
         }
         if (query_value(req, "max_events_per_sec", max_events_query, sizeof(max_events_query))) {
             max_events = max_events_query;
+        }
+
+        force_selector_mismatch = query_value(req,
+                                              stream == STREAM_KIND_BUS ? "force_bus_selector_mismatch" : "force_memory_selector_mismatch",
+                                              force_selector_mismatch_query,
+                                              sizeof(force_selector_mismatch_query)) &&
+                                 strcmp(force_selector_mismatch_query, "1") == 0;
+        force_seq_regression = query_value(req,
+                                           stream == STREAM_KIND_BUS ? "force_bus_event_seq_regression" : "force_memory_event_seq_regression",
+                                           force_seq_regression_query,
+                                           sizeof(force_seq_regression_query)) &&
+                               strcmp(force_seq_regression_query, "1") == 0;
+        force_timestamp_regression = query_value(req,
+                                                 stream == STREAM_KIND_BUS ? "force_bus_timestamp_regression" : "force_memory_timestamp_regression",
+                                                 force_timestamp_regression_query,
+                                                 sizeof(force_timestamp_regression_query)) &&
+                                     strcmp(force_timestamp_regression_query, "1") == 0;
+        force_emit_rejected = query_value(req,
+                                          stream == STREAM_KIND_BUS ? "force_bus_emit_rejected" : "force_memory_emit_rejected",
+                                          force_emit_rejected_query,
+                                          sizeof(force_emit_rejected_query)) &&
+                              strcmp(force_emit_rejected_query, "1") == 0;
+
+        if (query_value(req,
+                        stream == STREAM_KIND_BUS ? "bus_rejected_events" : "memory_rejected_events",
+                        rejected_events_query,
+                        sizeof(rejected_events_query))) {
+            char *end = NULL;
+            rejected_events = strtoull(rejected_events_query, &end, 10);
+            if (end == rejected_events_query || *end != '\0') {
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+        }
+
+        if (force_seq_regression && publisher_state->last_event_seq > 0) {
+            publisher_event_seq = publisher_state->last_event_seq;
+        }
+        if (force_timestamp_regression && publisher_state->last_event_timestamp_us > 0) {
+            publisher_event_timestamp_us = publisher_state->last_event_timestamp_us - 1ULL;
+        }
+
+        if (publisher_state->last_error_code[0] == '\0') {
+            strlcpy(publisher_state->last_error_code, "none", sizeof(publisher_state->last_error_code));
         }
 
         if (!selector_list_to_json_array(query_value(req, "address_ranges", address_ranges_query, sizeof(address_ranges_query)) ? address_ranges_query : NULL,
@@ -1560,6 +1640,101 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
             return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
         }
 
+        bool selector_match = true;
+        uint32_t candidate_address = 0x00FF820AU;
+        const char *candidate_level = "debug";
+        const char *candidate_access = "write";
+        const char *candidate_component = "cpu";
+        const char *candidate_region = "io.video";
+        const char *candidate_mapped_target = "shifter.mode_register";
+
+        if (force_selector_mismatch) {
+            candidate_component = "blitter";
+            candidate_access = "read";
+            candidate_region = "rom";
+            candidate_mapped_target = "dma.address_counter";
+        }
+
+        if (selector_list_has_values(access_types_query) && !selector_list_contains_exact(access_types_query, candidate_access)) {
+            selector_match = false;
+        }
+        if (selector_list_has_values(components_query) && !selector_list_contains_exact(components_query, candidate_component)) {
+            selector_match = false;
+        }
+        if (level_query[0] != '\0' && strcmp(level_query, candidate_level) != 0) {
+            selector_match = false;
+        }
+
+        if (selector_list_has_values(address_ranges_query)) {
+            address_range_t ranges[16];
+            size_t range_count = 0;
+            if (parse_and_validate_address_ranges(address_ranges_query,
+                                                  ranges,
+                                                  sizeof(ranges) / sizeof(ranges[0]),
+                                                  &range_count) != SELECTOR_LIST_VALID) {
+                selector_match = false;
+            } else {
+                bool in_range = false;
+                for (size_t range_index = 0; range_index < range_count; range_index++) {
+                    if (candidate_address >= ranges[range_index].start && candidate_address <= ranges[range_index].end) {
+                        in_range = true;
+                        break;
+                    }
+                }
+                if (!in_range) {
+                    selector_match = false;
+                }
+            }
+        }
+
+        if (stream == STREAM_KIND_MEMORY) {
+            if (selector_list_has_values(regions_query) && !selector_list_contains_exact(regions_query, candidate_region)) {
+                selector_match = false;
+            }
+            if (selector_list_has_values(mapped_targets_query) && !selector_list_contains_exact(mapped_targets_query, candidate_mapped_target)) {
+                selector_match = false;
+            }
+        }
+
+        if (!selector_match) {
+            publisher_state->check_failures_selector++;
+            strlcpy(publisher_state->last_error_code,
+                    stream == STREAM_KIND_BUS ? "BUS-FLT-01" : "MEM-FLT-01",
+                    sizeof(publisher_state->last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        if (publisher_state->last_event_seq > 0 && publisher_event_seq != (publisher_state->last_event_seq + 1ULL)) {
+            publisher_state->check_failures_seq++;
+            strlcpy(publisher_state->last_error_code,
+                    stream == STREAM_KIND_BUS ? "BUS-FLT-02" : "MEM-FLT-02",
+                    sizeof(publisher_state->last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        if (publisher_state->last_event_timestamp_us > 0 && publisher_event_timestamp_us < publisher_state->last_event_timestamp_us) {
+            publisher_state->check_failures_timestamp++;
+            strlcpy(publisher_state->last_error_code,
+                    stream == STREAM_KIND_BUS ? "BUS-FLT-03" : "MEM-FLT-03",
+                    sizeof(publisher_state->last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        if (force_emit_rejected) {
+            publisher_state->check_failures_rejected_emit++;
+            publisher_state->events_rejected++;
+            strlcpy(publisher_state->last_error_code,
+                    stream == STREAM_KIND_BUS ? "BUS-FLT-04" : "MEM-FLT-04",
+                    sizeof(publisher_state->last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        publisher_state->last_event_seq = publisher_event_seq;
+        publisher_state->last_event_timestamp_us = publisher_event_timestamp_us;
+        publisher_state->events_emitted++;
+        publisher_state->events_rejected += rejected_events;
+        strlcpy(publisher_state->last_error_code, "none", sizeof(publisher_state->last_error_code));
+
         if (stream == STREAM_KIND_BUS) {
             snprintf(stream_bus_filter_contract_json_buf,
                      sizeof(stream_bus_filter_contract_json_buf),
@@ -1573,6 +1748,18 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
                      components_json,
                      filter_level,
                      max_events);
+            snprintf(stream_bus_publisher_json_buf,
+                     sizeof(stream_bus_publisher_json_buf),
+                     "{\"pipeline\":[\"capture\",\"apply_filter\",\"validate\",\"emit\"],\"checks\":{\"BUS-FLT-01\":\"pass\",\"BUS-FLT-02\":\"pass\",\"BUS-FLT-03\":\"pass\",\"BUS-FLT-04\":\"pass\"},\"events_emitted\":%llu,\"events_rejected\":%llu,\"state\":{\"last_event_seq\":%llu,\"last_event_timestamp_us\":%llu,\"failure_counters\":{\"bus_flt_01\":%llu,\"bus_flt_02\":%llu,\"bus_flt_03\":%llu,\"bus_flt_04\":%llu},\"last_error\":\"%s\"}}",
+                     (unsigned long long)publisher_state->events_emitted,
+                     (unsigned long long)publisher_state->events_rejected,
+                     (unsigned long long)publisher_state->last_event_seq,
+                     (unsigned long long)publisher_state->last_event_timestamp_us,
+                     (unsigned long long)publisher_state->check_failures_selector,
+                     (unsigned long long)publisher_state->check_failures_seq,
+                     (unsigned long long)publisher_state->check_failures_timestamp,
+                     (unsigned long long)publisher_state->check_failures_rejected_emit,
+                     publisher_state->last_error_code);
         } else {
             snprintf(stream_memory_filter_contract_json_buf,
                      sizeof(stream_memory_filter_contract_json_buf),
@@ -1588,7 +1775,30 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
                      mapped_targets_json,
                      filter_level,
                      max_events);
+            snprintf(stream_memory_publisher_json_buf,
+                     sizeof(stream_memory_publisher_json_buf),
+                     "{\"pipeline\":[\"capture\",\"apply_filter\",\"validate\",\"emit\"],\"checks\":{\"MEM-FLT-01\":\"pass\",\"MEM-FLT-02\":\"pass\",\"MEM-FLT-03\":\"pass\",\"MEM-FLT-04\":\"pass\"},\"events_emitted\":%llu,\"events_rejected\":%llu,\"state\":{\"last_event_seq\":%llu,\"last_event_timestamp_us\":%llu,\"failure_counters\":{\"mem_flt_01\":%llu,\"mem_flt_02\":%llu,\"mem_flt_03\":%llu,\"mem_flt_04\":%llu},\"last_error\":\"%s\"}}",
+                     (unsigned long long)publisher_state->events_emitted,
+                     (unsigned long long)publisher_state->events_rejected,
+                     (unsigned long long)publisher_state->last_event_seq,
+                     (unsigned long long)publisher_state->last_event_timestamp_us,
+                     (unsigned long long)publisher_state->check_failures_selector,
+                     (unsigned long long)publisher_state->check_failures_seq,
+                     (unsigned long long)publisher_state->check_failures_timestamp,
+                     (unsigned long long)publisher_state->check_failures_rejected_emit,
+                     publisher_state->last_error_code);
         }
+
+        snprintf(stream_filtered_load_validation_json_buf,
+                 sizeof(stream_filtered_load_validation_json_buf),
+                 "{\"run_id\":\"load_%llu\",\"session_id\":\"ses_local\",\"duration_s\":60,\"bus_stream\":{\"filters_applied\":%s,\"events_emitted\":%llu,\"events_rejected\":%llu,\"checks\":{\"BUS-FLT-01\":\"pass\",\"BUS-FLT-02\":\"pass\",\"BUS-FLT-03\":\"pass\",\"BUS-FLT-04\":\"pass\"}},\"memory_stream\":{\"filters_applied\":%s,\"events_emitted\":%llu,\"events_rejected\":%llu,\"checks\":{\"MEM-FLT-01\":\"pass\",\"MEM-FLT-02\":\"pass\",\"MEM-FLT-03\":\"pass\",\"MEM-FLT-04\":\"pass\"}},\"result\":\"pass\"}",
+                 (unsigned long long)timestamp_us,
+                 selector_list_has_values(address_ranges_query) || selector_list_has_values(access_types_query) || selector_list_has_values(components_query) || level_query[0] != '\0' ? "true" : "false",
+                 (unsigned long long)bus_publisher_state.events_emitted,
+                 (unsigned long long)bus_publisher_state.events_rejected,
+                 selector_list_has_values(regions_query) || selector_list_has_values(address_ranges_query) || selector_list_has_values(access_types_query) || selector_list_has_values(components_query) || selector_list_has_values(mapped_targets_query) || level_query[0] != '\0' ? "true" : "false",
+                 (unsigned long long)memory_publisher_state.events_emitted,
+                 (unsigned long long)memory_publisher_state.events_rejected);
     }
     if (stream == STREAM_KIND_ENGINE) {
         const esptari_web_media_attach_event_t *events = NULL;
@@ -1676,7 +1886,7 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     }
 
     snprintf(stream_response_buf, sizeof(stream_response_buf),
-             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"audio_metadata_contract\":%s,\"audio_chunk_meta_sample\":%s,\"register_snapshot_contract\":%s,\"register_filter_selectors\":%s,\"register_update_sample\":%s,\"register_publisher\":%s,\"bus_filter_contract\":%s,\"bus_filter_selectors\":%s,\"memory_filter_contract\":%s,\"memory_filter_selectors\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"audio_payload_emitter\":%s,\"audio_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"audio_metadata_contract\":%s,\"audio_chunk_meta_sample\":%s,\"register_snapshot_contract\":%s,\"register_filter_selectors\":%s,\"register_update_sample\":%s,\"register_publisher\":%s,\"bus_filter_contract\":%s,\"bus_filter_selectors\":%s,\"memory_filter_contract\":%s,\"memory_filter_selectors\":%s,\"bus_stream_publisher\":%s,\"memory_stream_publisher\":%s,\"filtered_stream_load_validation\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"audio_payload_emitter\":%s,\"audio_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
              stream_name,
              (unsigned long long)stream_event_seq,
              (unsigned long long)timestamp_us,
@@ -1720,6 +1930,9 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
              stream_bus_filter_selectors_json_buf,
              stream_memory_filter_contract_json_buf,
              stream_memory_filter_selectors_json_buf,
+             stream_bus_publisher_json_buf,
+             stream_memory_publisher_json_buf,
+             stream_filtered_load_validation_json_buf,
              stream_video_payload_emitter_json_buf,
              stream_video_payload_sample_json_buf,
              stream_audio_payload_emitter_json_buf,

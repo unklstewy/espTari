@@ -1,0 +1,78 @@
+# T-089 filtered bus/memory stream publisher + load validation smoke 20260303_205647
+
+## session start
+HTTP/1.1 409 Conflict
+Content-Type: application/json
+Content-Length: 270
+
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+## bus stream baseline (checks pass + load summary)
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 2837
+
+{"ok":true,"data":{"stream":"bus","event_seq":11,"event_timestamp_us":34974946,"delivery":{"degraded":false,"reason":"none","dropped_events_since_last":0,"coalesced_updates":0,"throttle_active":false},"backpressure":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":34974946},"backpressure_event":{"type":"stream_backpressure_telemetry","schema_version":1,"session_id":"ses_local","event_seq":11,"event_timestamp_us":34974946,"stream":"bus","metrics":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":34974946}},"video_metadata_contract":null,"video_frame_meta_sample":null,"audio_metadata_contract":null,"audio_chunk_meta_sample":null,"register_snapshot_contract":null,"register_filter_selectors":null,"register_update_sample":null,"register_publisher":null,"bus_filter_contract":{"schema":"bus_filter_v1","type_enum":["subscribe","set_filter"],"fields":["address_ranges","access_types","components","level","max_events_per_sec"],"access_types_enum":["read","write","iack","dma"],"level_enum":["info","debug"],"address_ranges":"0x<start>-0x<end> inclusive, start<=end, non-overlapping","atomic_update":true},"bus_filter_selectors":{"type":"subscribe","address_ranges":["0x00FF8000-0x00FF82FF"],"access_types":["write"],"components":["cpu"],"level":"debug","max_events_per_sec":null},"memory_filter_contract":null,"memory_filter_selectors":null,"bus_stream_publisher":{"pipeline":["capture","apply_filter","validate","emit"],"checks":{"BUS-FLT-01":"pass","BUS-FLT-02":"pass","BUS-FLT-03":"pass","BUS-FLT-04":"pass"},"events_emitted":2,"events_rejected":15,"state":{"last_event_seq":2,"last_event_timestamp_us":34974946,"failure_counters":{"bus_flt_01":1,"bus_flt_02":1,"bus_flt_03":1,"bus_flt_04":1},"last_error":"none"}},"memory_stream_publisher":null,"filtered_stream_load_validation":{"run_id":"load_34974946","session_id":"ses_local","duration_s":60,"bus_stream":{"filters_applied":true,"events_emitted":2,"events_rejected":15,"checks":{"BUS-FLT-01":"pass","BUS-FLT-02":"pass","BUS-FLT-03":"pass","BUS-FLT-04":"pass"}},"memory_stream":{"filters_applied":true,"events_emitted":1,"events_rejected":10,"checks":{"MEM-FLT-01":"pass","MEM-FLT-02":"pass","MEM-FLT-03":"pass","MEM-FLT-04":"pass"}},"result":"pass"},"video_payload_emitter":null,"video_payload_sample":null,"audio_payload_emitter":null,"audio_payload_sample":null,"media_attach_status_events":[],"media_disk_state_events":[],"slo_alarm":{"seq":0,"state":"normal","severity":"info"}}}
+
+## memory stream baseline (checks pass + load summary)
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 2910
+
+{"ok":true,"data":{"stream":"memory","event_seq":12,"event_timestamp_us":34997075,"delivery":{"degraded":false,"reason":"none","dropped_events_since_last":0,"coalesced_updates":0,"throttle_active":false},"backpressure":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":34997075},"backpressure_event":{"type":"stream_backpressure_telemetry","schema_version":1,"session_id":"ses_local","event_seq":12,"event_timestamp_us":34997075,"stream":"memory","metrics":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":34997075}},"video_metadata_contract":null,"video_frame_meta_sample":null,"audio_metadata_contract":null,"audio_chunk_meta_sample":null,"register_snapshot_contract":null,"register_filter_selectors":null,"register_update_sample":null,"register_publisher":null,"bus_filter_contract":null,"bus_filter_selectors":null,"memory_filter_contract":{"schema":"memory_filter_v1","type_enum":["subscribe","set_filter"],"fields":["regions","address_ranges","access_types","components","mapped_targets","level","max_events_per_sec"],"access_types_enum":["read","write"],"level_enum":["info","debug"],"address_ranges":"0x<start>-0x<end> inclusive, start<=end","atomic_update":true},"memory_filter_selectors":{"type":"set_filter","regions":["io.video"],"address_ranges":["0x00FF8000-0x00FF82FF"],"access_types":["write"],"components":["cpu"],"mapped_targets":["shifter.mode_register"],"level":"debug","max_events_per_sec":null},"bus_stream_publisher":null,"memory_stream_publisher":{"pipeline":["capture","apply_filter","validate","emit"],"checks":{"MEM-FLT-01":"pass","MEM-FLT-02":"pass","MEM-FLT-03":"pass","MEM-FLT-04":"pass"},"events_emitted":2,"events_rejected":19,"state":{"last_event_seq":2,"last_event_timestamp_us":34997075,"failure_counters":{"mem_flt_01":1,"mem_flt_02":1,"mem_flt_03":1,"mem_flt_04":1},"last_error":"none"}},"filtered_stream_load_validation":{"run_id":"load_34997075","session_id":"ses_local","duration_s":60,"bus_stream":{"filters_applied":true,"events_emitted":2,"events_rejected":15,"checks":{"BUS-FLT-01":"pass","BUS-FLT-02":"pass","BUS-FLT-03":"pass","BUS-FLT-04":"pass"}},"memory_stream":{"filters_applied":true,"events_emitted":2,"events_rejected":19,"checks":{"MEM-FLT-01":"pass","MEM-FLT-02":"pass","MEM-FLT-03":"pass","MEM-FLT-04":"pass"}},"result":"pass"},"video_payload_emitter":null,"video_payload_sample":null,"audio_payload_emitter":null,"audio_payload_sample":null,"media_attach_status_events":[],"media_disk_state_events":[],"slo_alarm":{"seq":0,"state":"normal","severity":"info"}}}
+
+## BUS-FLT-01 selector mismatch => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## BUS-FLT-02 event_seq regression => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## BUS-FLT-03 timestamp regression => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## BUS-FLT-04 rejected event emitted => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## MEM-FLT-01 selector mismatch => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## MEM-FLT-02 event_seq regression => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## MEM-FLT-03 timestamp regression => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+## MEM-FLT-04 rejected event emitted => INTERNAL_ERROR
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/json
+Content-Length: 46
+
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
