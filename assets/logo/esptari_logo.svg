@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  espTari Logo
+  A modified Atari "Fuji" mark with ESP32 circuit-board accents.
+  Licensed under the same license as the espTari project.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 700" width="600" height="700">
+  <defs>
+    <!-- Warm glow behind the Fuji shape (SVG 1.1 compatible) -->
+    <filter id="fujiGlow" x="-10%" y="-10%" width="120%" height="130%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="shadow"/>
+      <feOffset dx="0" dy="3" result="offsetShadow"/>
+      <feFlood flood-color="#E8601C" flood-opacity="0.3" result="shadowColor"/>
+      <feComposite in="shadowColor" in2="offsetShadow" operator="in" result="coloredShadow"/>
+      <feMerge>
+        <feMergeNode in="coloredShadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Green glow for PCB via pads -->
+    <filter id="viaGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Subtle PCB grid pattern -->
+    <pattern id="pcbGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="20" x2="20" y2="20" stroke="#1C1C32" stroke-width="0.5"/>
+      <line x1="20" y1="0" x2="20" y2="20" stroke="#1C1C32" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+
+  <!-- ==================== BACKGROUND ==================== -->
+  <rect width="600" height="700" rx="16" fill="#111122"/>
+  <rect width="600" height="700" rx="16" fill="url(#pcbGrid)"/>
+
+  <!-- ==================== MODIFIED FUJI SHAPE ==================== -->
+  <!--
+    Three prongs rising from a curved base, echoing the classic Atari
+    "Fuji" logo.  The centre prong is tallest; the two outer prongs are
+    shorter and angle outward.  Two V-notches separate the prongs.
+  -->
+  <path d="
+    M 300,400
+    C 275,400 165,305 80,130
+    L 80,110
+    L 172,110
+    L 210,218
+    L 250,48
+    L 350,48
+    L 390,218
+    L 428,110
+    L 520,110
+    L 520,130
+    C 435,305 325,400 300,400
+    Z
+  " fill="#E8601C" filter="url(#fujiGlow)"/>
+
+  <!-- ==================== CIRCUIT TRACES ==================== -->
+  <!-- Vertical traces down the centre of each prong -->
+  <line x1="126" y1="118" x2="126" y2="195"
+        stroke="#00C853" stroke-width="1.5" opacity="0.45" stroke-linecap="round"/>
+  <line x1="300" y1="60"  x2="300" y2="185"
+        stroke="#00C853" stroke-width="1.5" opacity="0.45" stroke-linecap="round"/>
+  <line x1="474" y1="118" x2="474" y2="195"
+        stroke="#00C853" stroke-width="1.5" opacity="0.45" stroke-linecap="round"/>
+
+  <!-- Short horizontal trace stubs -->
+  <line x1="115" y1="160" x2="138" y2="160"
+        stroke="#00C853" stroke-width="1" opacity="0.3" stroke-linecap="round"/>
+  <line x1="285" y1="130" x2="315" y2="130"
+        stroke="#00C853" stroke-width="1" opacity="0.3" stroke-linecap="round"/>
+  <line x1="462" y1="160" x2="485" y2="160"
+        stroke="#00C853" stroke-width="1" opacity="0.3" stroke-linecap="round"/>
+
+  <!-- ==================== VIA PADS (prong tips) ==================== -->
+  <!-- Left -->
+  <circle cx="126" cy="100" r="10"  fill="#111122" stroke="#00C853" stroke-width="2.5"
+          filter="url(#viaGlow)"/>
+  <circle cx="126" cy="100" r="4"   fill="#00C853"/>
+
+  <!-- Centre (slightly larger — primary node) -->
+  <circle cx="300" cy="38"  r="12"  fill="#111122" stroke="#00C853" stroke-width="2.5"
+          filter="url(#viaGlow)"/>
+  <circle cx="300" cy="38"  r="5"   fill="#00C853"/>
+
+  <!-- Right -->
+  <circle cx="474" cy="100" r="10"  fill="#111122" stroke="#00C853" stroke-width="2.5"
+          filter="url(#viaGlow)"/>
+  <circle cx="474" cy="100" r="4"   fill="#00C853"/>
+
+  <!-- ==================== CHIP OUTLINE + PINS ==================== -->
+  <!-- Faint IC package outline at the base of the Fuji -->
+  <rect x="252" y="368" width="96" height="38" rx="3"
+        fill="none" stroke="#00C853" stroke-width="0.8" opacity="0.2"/>
+  <!-- Pin-1 indicator dot -->
+  <circle cx="259" cy="375" r="2" fill="#00C853" opacity="0.2"/>
+
+  <!-- Gold lead-frame pins extending below the shape -->
+  <rect x="270" y="407" width="5" height="14" rx="1" fill="#C8A84E" opacity="0.7"/>
+  <rect x="281" y="408" width="5" height="12" rx="1" fill="#C8A84E" opacity="0.7"/>
+  <rect x="292" y="409" width="5" height="11" rx="1" fill="#C8A84E" opacity="0.7"/>
+  <rect x="303" y="409" width="5" height="11" rx="1" fill="#C8A84E" opacity="0.7"/>
+  <rect x="314" y="408" width="5" height="12" rx="1" fill="#C8A84E" opacity="0.7"/>
+  <rect x="325" y="407" width="5" height="14" rx="1" fill="#C8A84E" opacity="0.7"/>
+
+  <!-- ==================== WORDMARK ==================== -->
+  <text x="300" y="510" text-anchor="middle" font-size="70" font-weight="bold"
+        letter-spacing="2">
+    <tspan font-family="'Courier New','Liberation Mono',monospace"
+           fill="#00C853">esp</tspan><tspan
+           font-family="'Arial Black','Impact',sans-serif"
+           fill="#E8601C">Tari</tspan>
+  </text>
+
+  <!-- PCB trace underline with via pads at each end -->
+  <line x1="140" y1="532" x2="460" y2="532"
+        stroke="#00C853" stroke-width="1.5" opacity="0.3" stroke-linecap="round"/>
+  <circle cx="140" cy="532" r="3.5" fill="none" stroke="#00C853"
+          stroke-width="1.5" opacity="0.4"/>
+  <circle cx="140" cy="532" r="1.5" fill="#00C853" opacity="0.4"/>
+  <circle cx="460" cy="532" r="3.5" fill="none" stroke="#00C853"
+          stroke-width="1.5" opacity="0.4"/>
+  <circle cx="460" cy="532" r="1.5" fill="#00C853" opacity="0.4"/>
+
+  <!-- ==================== SUBTITLES ==================== -->
+  <text x="300" y="572" text-anchor="middle"
+        font-family="'Courier New','Liberation Mono',monospace"
+        font-size="15" fill="#666" letter-spacing="5">ATARI ST EMULATOR</text>
+  <text x="300" y="600" text-anchor="middle"
+        font-family="'Courier New','Liberation Mono',monospace"
+        font-size="12" fill="#555" letter-spacing="3">ESP32-P4 · OPEN SOURCE</text>
+</svg>

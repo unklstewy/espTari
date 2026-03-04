@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  espTari Icon (mark only, transparent background)
+  For use as favicon, app icon, badge, etc.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <filter id="fujiGlow" x="-10%" y="-10%" width="120%" height="130%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="shadow"/>
+      <feOffset dx="0" dy="3" result="offsetShadow"/>
+      <feFlood flood-color="#E8601C" flood-opacity="0.35" result="shadowColor"/>
+      <feComposite in="shadowColor" in2="offsetShadow" operator="in" result="coloredShadow"/>
+      <feMerge>
+        <feMergeNode in="coloredShadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="viaGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Modified Fuji shape — scaled to fill the viewBox -->
+  <path d="
+    M 256,440
+    C 232,440 130,335 50,145
+    L 50,120
+    L 148,120
+    L 188,245
+    L 212,42
+    L 300,42
+    L 324,245
+    L 364,120
+    L 462,120
+    L 462,145
+    C 382,335 280,440 256,440
+    Z
+  " fill="#E8601C" filter="url(#fujiGlow)"/>
+
+  <!-- Vertical traces -->
+  <line x1="99"  y1="130" x2="99"  y2="210"
+        stroke="#00C853" stroke-width="1.5" opacity="0.5" stroke-linecap="round"/>
+  <line x1="256" y1="55"  x2="256" y2="190"
+        stroke="#00C853" stroke-width="1.5" opacity="0.5" stroke-linecap="round"/>
+  <line x1="413" y1="130" x2="413" y2="210"
+        stroke="#00C853" stroke-width="1.5" opacity="0.5" stroke-linecap="round"/>
+
+  <!-- Via pads — left -->
+  <circle cx="99"  cy="112" r="10" fill="#1A1A2E" stroke="#00C853" stroke-width="2.5"
+          filter="url(#viaGlow)"/>
+  <circle cx="99"  cy="112" r="4"  fill="#00C853"/>
+
+  <!-- Via pads — centre -->
+  <circle cx="256" cy="33"  r="12" fill="#1A1A2E" stroke="#00C853" stroke-width="2.5"
+          filter="url(#viaGlow)"/>
+  <circle cx="256" cy="33"  r="5"  fill="#00C853"/>
+
+  <!-- Via pads — right -->
+  <circle cx="413" cy="112" r="10" fill="#1A1A2E" stroke="#00C853" stroke-width="2.5"
+          filter="url(#viaGlow)"/>
+  <circle cx="413" cy="112" r="4"  fill="#00C853"/>
+
+  <!-- Chip pins -->
+  <rect x="232" y="442" width="5" height="13" rx="1" fill="#C8A84E" opacity="0.7"/>
+  <rect x="243" y="444" width="5" height="11" rx="1" fill="#C8A84E" opacity="0.7"/>
+  <rect x="254" y="445" width="5" height="10" rx="1" fill="#C8A84E" opacity="0.7"/>
+  <rect x="265" y="444" width="5" height="11" rx="1" fill="#C8A84E" opacity="0.7"/>
+  <rect x="276" y="442" width="5" height="13" rx="1" fill="#C8A84E" opacity="0.7"/>
+</svg>
