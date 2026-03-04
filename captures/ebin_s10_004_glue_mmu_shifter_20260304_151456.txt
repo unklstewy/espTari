@@ -1,0 +1,4 @@
+run=smoke_chipset_windows_096
+health_check=ok attempts=1
+Step failed: register_windows_all_groups HTTP=403
+{"ok":false,"error":{"code":"FORBIDDEN","category":"auth","retryable":false,"details":{"required_scope":"inspect:read","granted_scope":"engine:control inspect ebin:manage"}}}

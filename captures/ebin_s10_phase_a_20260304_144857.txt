@@ -1,0 +1,39 @@
+=== EBIN-S10-001 ./tools/smoke_ebin_s10_001_admission_lock.sh
+auth_header=configured
+health_check=ok attempts=1
+determinism_runs=10
+determinism_check=pass
+missing_required_check=pass code=BAD_REQUEST field=module_id
+module_type_check=pass code=EBIN_INVALID
+sha_check=pass code=EBIN_INVALID
+abi_mismatch_check=pass code=EBIN_ABI_MISMATCH
+Smoke PASS
+Evidence: captures/ebin_s10_001_admission_lock_20260304_144857.txt
+=== EBIN-S10-002 ./tools/smoke_ebin_s10_002_resolver_determinism_lock.sh
+auth_header=configured
+health_check=ok attempts=1
+determinism_runs=10
+determinism_check=pass
+ambiguous_check=pass code=EBIN_INVALID reason=resolver_ambiguous_selection
+machine_missing_check=pass code=EBIN_NOT_FOUND reason=resolver_machine_not_indexed
+pinned_check=pass
+Smoke PASS
+Evidence: captures/ebin_s10_002_resolver_lock_20260304_144858.txt
+=== EBIN-S10-003 ./tools/smoke_ebin_s10_003_rollback_fallback_lock.sh
+auth_header=configured
+health_check=ok attempts=1
+determinism_runs=3
+rollback_check=pass run=1 code=EBIN_INVALID action=rollback_previous_active_module
+fallback_check=pass run=1 code=EBIN_INVALID action=fallback_module_set_activated
+rollback_check=pass run=2 code=EBIN_INVALID action=rollback_previous_active_module
+fallback_check=pass run=2 code=EBIN_INVALID action=fallback_module_set_activated
+rollback_check=pass run=3 code=EBIN_INVALID action=rollback_previous_active_module
+fallback_check=pass run=3 code=EBIN_INVALID action=fallback_module_set_activated
+determinism_check=pass
+Smoke PASS
+Evidence: captures/ebin_s10_003_rollback_fallback_lock_20260304_144858.txt
+=== EBIN-S10-004 ./tools/smoke_ebin_s10_004_glue_mmu_shifter_adapter_baseline.sh
+run=smoke_chipset_windows_096
+health_check=ok attempts=1
+Step failed: session_reset HTTP=500
+{"ok":false,"error":{"code":"UNAUTHORIZED","category":"auth","retryable":false,"details":{"required_scope":"engine:control"}}}

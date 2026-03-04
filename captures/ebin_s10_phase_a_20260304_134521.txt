@@ -1,0 +1,3 @@
+=== EBIN-S10-001 ./tools/smoke_ebin_s10_001_admission_lock.sh
+health_check=ok attempts=1
+determinism_runs=10

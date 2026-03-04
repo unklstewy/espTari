@@ -35,6 +35,7 @@ Use these as the active source of truth for current delivery state:
 - `S5_RUNTIME_UNLOCK_DECISION_TEMPLATE_2026-03-04.md`
 - `SPRINT_02_CLOSURE_REPORT_2026-03-04.md`
 - `PROGRAM_STATUS_SNAPSHOT_2026-03-04.md`
+- `AUTH_CONTRACT_EVIDENCE_INDEX_2026-03-04.md`
 
 Legacy/superseded markdown snapshot is preserved under:
 
@@ -66,6 +67,7 @@ Legacy/superseded markdown snapshot is preserved under:
 22. [S5 Runtime Unlock Decision Template (2026-03-04)](S5_RUNTIME_UNLOCK_DECISION_TEMPLATE_2026-03-04.md)
 23. [Sprint 02 Closure Report (2026-03-04)](SPRINT_02_CLOSURE_REPORT_2026-03-04.md)
 24. [Program Status Snapshot (2026-03-04)](PROGRAM_STATUS_SNAPSHOT_2026-03-04.md)
+25. [Auth Contract Evidence Index (2026-03-04)](AUTH_CONTRACT_EVIDENCE_INDEX_2026-03-04.md)
 1. [Backlog and Task Index](BACKLOG.md)
 2. [Kanban Board](KANBAN_BOARD.md)
 3. [Acceptance Log](ACCEPTANCE_LOG.md)

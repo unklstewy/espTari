@@ -5,11 +5,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 
 #include "cJSON.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 
+#include "esptari_web_auth.h"
 #include "esptari_web_http_utils.h"
 
 static const char *TAG = "esptari_web_catalog";
@@ -17,6 +19,7 @@ static const char *TAG = "esptari_web_catalog";
 #define MAX_SYNC_SCHEDULES 32
 #define MAX_SYNC_JOBS 64
 #define MAX_RECOVERY_QUARANTINE 16
+#define MAX_EBIN_CATALOG_ENTRIES 64
 
 typedef struct {
     char job_id[32];
@@ -62,11 +65,11 @@ typedef struct {
 } esptari_recovery_report_t;
 
 typedef struct {
-    const char *machine;
-    const char *component;
-    const char *module_id;
-    const char *version;
-    const char *path;
+    char machine[24];
+    char component[24];
+    char module_id[64];
+    char version[24];
+    char path[256];
 } ebin_catalog_entry_t;
 
 typedef struct {
@@ -115,7 +118,7 @@ static ebin_runtime_state_t s_ebin_runtime = {
     .updated_at_us = 0,
 };
 
-static const ebin_catalog_entry_t s_ebin_catalog[] = {
+static const ebin_catalog_entry_t s_ebin_catalog_baked[] = {
     {.machine = "atari_st", .component = "cpu", .module_id = "st.cpu.m68k", .version = "1.0.0", .path = "/sdcard/ebins/atari_st/cpu/st.cpu.m68k-1.0.0.ebin"},
     {.machine = "atari_st", .component = "cpu", .module_id = "st.cpu.m68k", .version = "0.9.0", .path = "/sdcard/ebins/atari_st/cpu/st.cpu.m68k-0.9.0.ebin"},
     {.machine = "atari_st", .component = "video", .module_id = "st.video.shifter", .version = "1.0.0", .path = "/sdcard/ebins/atari_st/video/st.video.shifter-1.0.0.ebin"},
@@ -124,6 +127,9 @@ static const ebin_catalog_entry_t s_ebin_catalog[] = {
     {.machine = "atari_st", .component = "audio", .module_id = "st.audio.psg", .version = "1.0.0", .path = "/sdcard/ebins/atari_st/audio/st.audio.psg-1.0.0.ebin"},
     {.machine = "atari_st", .component = "machine_profile", .module_id = "st.profile.520", .version = "1.0.0", .path = "/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin"},
 };
+
+static ebin_catalog_entry_t s_ebin_catalog_runtime[MAX_EBIN_CATALOG_ENTRIES];
+static size_t s_ebin_catalog_runtime_count;
 
 static uint64_t scheduler_now_us(void)
 {
@@ -226,6 +232,143 @@ static bool parse_semver_major(const char *version, uint32_t *out_major)
     return true;
 }
 
+static bool has_ebin_suffix(const char *name)
+{
+    if (name == NULL) {
+        return false;
+    }
+    size_t len = strlen(name);
+    return len > 5 && strcmp(name + len - 5, ".ebin") == 0;
+}
+
+static bool parse_ebin_filename(const char *filename,
+                                char *out_module_id,
+                                size_t out_module_id_len,
+                                char *out_version,
+                                size_t out_version_len)
+{
+    if (filename == NULL || out_module_id == NULL || out_version == NULL) {
+        return false;
+    }
+    if (!has_ebin_suffix(filename)) {
+        return false;
+    }
+
+    char stem[160] = {0};
+    strlcpy(stem, filename, sizeof(stem));
+    size_t stem_len = strlen(stem);
+    if (stem_len <= 5) {
+        return false;
+    }
+    stem[stem_len - 5] = '\0';
+
+    char *dash = strrchr(stem, '-');
+    if (dash == NULL || dash == stem || dash[1] == '\0') {
+        return false;
+    }
+    *dash = '\0';
+
+    uint32_t major = 0;
+    if (!parse_semver_major(dash + 1, &major)) {
+        return false;
+    }
+
+    strlcpy(out_module_id, stem, out_module_id_len);
+    strlcpy(out_version, dash + 1, out_version_len);
+    return true;
+}
+
+static bool runtime_catalog_append(const char *machine,
+                                   const char *component,
+                                   const char *module_id,
+                                   const char *version,
+                                   const char *path)
+{
+    if (s_ebin_catalog_runtime_count >= MAX_EBIN_CATALOG_ENTRIES) {
+        return false;
+    }
+
+    ebin_catalog_entry_t *entry = &s_ebin_catalog_runtime[s_ebin_catalog_runtime_count++];
+    snprintf(entry->machine, sizeof(entry->machine), "%s", machine);
+    snprintf(entry->component, sizeof(entry->component), "%s", component);
+    snprintf(entry->module_id, sizeof(entry->module_id), "%s", module_id);
+    snprintf(entry->version, sizeof(entry->version), "%s", version);
+    snprintf(entry->path, sizeof(entry->path), "%s", path);
+    return true;
+}
+
+static void refresh_runtime_catalog(void)
+{
+    static const char *machine = "atari_st";
+    static const char *components[] = {"cpu", "video", "io", "storage", "audio", "machine_profile"};
+
+    s_ebin_catalog_runtime_count = 0;
+
+    for (size_t component_index = 0; component_index < (sizeof(components) / sizeof(components[0])); component_index++) {
+        const char *component = components[component_index];
+        char dir_path[256];
+        snprintf(dir_path, sizeof(dir_path), "/sdcard/ebins/%s/%s", machine, component);
+
+        DIR *dir = opendir(dir_path);
+        if (dir == NULL) {
+            continue;
+        }
+
+        struct dirent *item = NULL;
+        while ((item = readdir(dir)) != NULL) {
+            const char *name = item->d_name;
+            if (name == NULL || name[0] == '.') {
+                continue;
+            }
+
+            char module_id[64] = {0};
+            char version[24] = {0};
+            if (!parse_ebin_filename(name, module_id, sizeof(module_id), version, sizeof(version))) {
+                continue;
+            }
+
+            char full_path[320] = {0};
+            if (strlcpy(full_path, dir_path, sizeof(full_path)) >= sizeof(full_path)) {
+                continue;
+            }
+            if (strlcat(full_path, "/", sizeof(full_path)) >= sizeof(full_path)) {
+                continue;
+            }
+            if (strlcat(full_path, name, sizeof(full_path)) >= sizeof(full_path)) {
+                continue;
+            }
+            if (!runtime_catalog_append(machine, component, module_id, version, full_path)) {
+                break;
+            }
+        }
+
+        closedir(dir);
+    }
+
+    if (s_ebin_catalog_runtime_count == 0) {
+        for (size_t i = 0; i < (sizeof(s_ebin_catalog_baked) / sizeof(s_ebin_catalog_baked[0])) &&
+                           i < MAX_EBIN_CATALOG_ENTRIES;
+             i++) {
+            runtime_catalog_append(s_ebin_catalog_baked[i].machine,
+                                   s_ebin_catalog_baked[i].component,
+                                   s_ebin_catalog_baked[i].module_id,
+                                   s_ebin_catalog_baked[i].version,
+                                   s_ebin_catalog_baked[i].path);
+        }
+    }
+}
+
+static void get_active_catalog(const ebin_catalog_entry_t **out_entries, size_t *out_count)
+{
+    refresh_runtime_catalog();
+    if (out_entries != NULL) {
+        *out_entries = s_ebin_catalog_runtime;
+    }
+    if (out_count != NULL) {
+        *out_count = s_ebin_catalog_runtime_count;
+    }
+}
+
 static bool string_array_non_empty(const cJSON *array)
 {
     if (!cJSON_IsArray(array) || cJSON_GetArraySize(array) <= 0) {
@@ -304,16 +447,11 @@ static bool ebin_dependency_available(const char *module_id)
         return false;
     }
 
-    static const char *available_module_ids[] = {
-        "st.cpu.m68k",
-        "st.video.shifter",
-        "st.io.ikbd",
-        "st.storage.fdc",
-        "st.audio.psg",
-        "st.profile.520",
-    };
-    for (size_t i = 0; i < (sizeof(available_module_ids) / sizeof(available_module_ids[0])); i++) {
-        if (strcmp(module_id, available_module_ids[i]) == 0) {
+    const ebin_catalog_entry_t *entries = NULL;
+    size_t count = 0;
+    get_active_catalog(&entries, &count);
+    for (size_t i = 0; i < count; i++) {
+        if (strcmp(module_id, entries[i].module_id) == 0) {
             return true;
         }
     }
@@ -400,8 +538,12 @@ static bool catalog_contains_module_id(const char *module_id)
     if (module_id == NULL || module_id[0] == '\0') {
         return false;
     }
-    for (size_t i = 0; i < (sizeof(s_ebin_catalog) / sizeof(s_ebin_catalog[0])); i++) {
-        if (strcmp(s_ebin_catalog[i].module_id, module_id) == 0) {
+
+    const ebin_catalog_entry_t *entries = NULL;
+    size_t count = 0;
+    get_active_catalog(&entries, &count);
+    for (size_t i = 0; i < count; i++) {
+        if (strcmp(entries[i].module_id, module_id) == 0) {
             return true;
         }
     }
@@ -1807,6 +1949,10 @@ static esp_err_t handle_ebins_resolve(httpd_req_t *req)
         return send_ebin_validation_error(req, "INTERNAL_ERROR", 500, "resolver", "allocation_failed");
     }
 
+    const ebin_catalog_entry_t *catalog_entries = NULL;
+    size_t catalog_count = 0;
+    get_active_catalog(&catalog_entries, &catalog_count);
+
     cJSON *component_item = NULL;
     cJSON_ArrayForEach(component_item, components)
     {
@@ -1836,8 +1982,8 @@ static esp_err_t handle_ebins_resolve(httpd_req_t *req)
             pinned_version = pin->valuestring;
         }
 
-        for (size_t i = 0; i < (sizeof(s_ebin_catalog) / sizeof(s_ebin_catalog[0])); i++) {
-            const ebin_catalog_entry_t *candidate = &s_ebin_catalog[i];
+        for (size_t i = 0; i < catalog_count; i++) {
+            const ebin_catalog_entry_t *candidate = &catalog_entries[i];
             if (strcmp(candidate->machine, machine->valuestring) != 0 || strcmp(candidate->component, component) != 0) {
                 continue;
             }
@@ -2013,37 +2159,21 @@ static esp_err_t handle_ebins_unload(httpd_req_t *req)
 
 void esptari_web_catalog_sync_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t sync_jobs_run = {.uri = "/api/v2/catalog-sync/jobs/run", .method = HTTP_POST, .handler = handle_catalog_sync_run, .user_ctx = NULL};
-    httpd_uri_t sync_jobs_list = {.uri = "/api/v2/catalog-sync/jobs", .method = HTTP_GET, .handler = handle_catalog_sync_jobs, .user_ctx = NULL};
-    httpd_uri_t sync_job_get = {.uri = "/api/v2/catalog-sync/jobs/*", .method = HTTP_GET, .handler = handle_catalog_sync_job_by_id, .user_ctx = NULL};
-    httpd_uri_t sync_schedule_create = {.uri = "/api/v2/catalog-sync/schedules", .method = HTTP_POST, .handler = handle_catalog_sync_create_schedule, .user_ctx = NULL};
-    httpd_uri_t sync_schedule_list = {.uri = "/api/v2/catalog-sync/schedules", .method = HTTP_GET, .handler = handle_catalog_sync_list_schedules, .user_ctx = NULL};
-    httpd_uri_t sync_schedule_get = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_GET, .handler = handle_catalog_sync_get_schedule, .user_ctx = NULL};
-    httpd_uri_t sync_schedule_patch = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_PATCH, .handler = handle_catalog_sync_patch_schedule, .user_ctx = NULL};
-    httpd_uri_t sync_schedule_delete = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_DELETE, .handler = handle_catalog_sync_delete_schedule, .user_ctx = NULL};
-    httpd_uri_t sync_recovery_report = {.uri = "/api/v2/catalog-sync/recovery", .method = HTTP_GET, .handler = handle_catalog_sync_recovery_report, .user_ctx = NULL};
-    httpd_uri_t ebins_catalog = {.uri = "/api/v2/ebins/catalog", .method = HTTP_GET, .handler = handle_ebins_catalog, .user_ctx = NULL};
-    httpd_uri_t ebins_rescan = {.uri = "/api/v2/ebins/rescan", .method = HTTP_POST, .handler = handle_ebins_rescan, .user_ctx = NULL};
-    httpd_uri_t ebins_resolve = {.uri = "/api/v2/ebins/resolve", .method = HTTP_POST, .handler = handle_ebins_resolve, .user_ctx = NULL};
-    httpd_uri_t ebins_validate = {.uri = "/api/v2/ebins/validate", .method = HTTP_POST, .handler = handle_ebins_validate, .user_ctx = NULL};
-    httpd_uri_t ebins_load = {.uri = "/api/v2/ebins/load", .method = HTTP_POST, .handler = handle_ebins_load, .user_ctx = NULL};
-    httpd_uri_t ebins_unload = {.uri = "/api/v2/ebins/unload", .method = HTTP_POST, .handler = handle_ebins_unload, .user_ctx = NULL};
-
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_jobs_run));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_jobs_list));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_job_get));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_schedule_create));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_schedule_list));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_schedule_get));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_schedule_patch));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_schedule_delete));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_recovery_report));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_catalog));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_rescan));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_resolve));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_validate));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_load));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &ebins_unload));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/catalog-sync/jobs/run", HTTP_POST, handle_catalog_sync_run, "files:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/catalog-sync/jobs", HTTP_GET, handle_catalog_sync_jobs, "files:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/catalog-sync/jobs/*", HTTP_GET, handle_catalog_sync_job_by_id, "files:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/catalog-sync/schedules", HTTP_POST, handle_catalog_sync_create_schedule, "files:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/catalog-sync/schedules", HTTP_GET, handle_catalog_sync_list_schedules, "files:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/catalog-sync/schedules/*", HTTP_GET, handle_catalog_sync_get_schedule, "files:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/catalog-sync/schedules/*", HTTP_PATCH, handle_catalog_sync_patch_schedule, "files:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/catalog-sync/schedules/*", HTTP_DELETE, handle_catalog_sync_delete_schedule, "files:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/catalog-sync/recovery", HTTP_GET, handle_catalog_sync_recovery_report, "files:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/ebins/catalog", HTTP_GET, handle_ebins_catalog, "ebin:manage"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/ebins/rescan", HTTP_POST, handle_ebins_rescan, "ebin:manage"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/ebins/resolve", HTTP_POST, handle_ebins_resolve, "ebin:manage"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/ebins/validate", HTTP_POST, handle_ebins_validate, "ebin:manage"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/ebins/load", HTTP_POST, handle_ebins_load, "ebin:manage"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/ebins/unload", HTTP_POST, handle_ebins_unload, "ebin:manage"));
 
     ESP_LOGI(TAG, "Registered catalog sync and ebin routes");
 }

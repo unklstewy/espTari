@@ -33,6 +33,40 @@ API style:
 - Transport: HTTP JSON and WebSocket stream surfaces
 - Envelope and error taxonomy defined by V2 spec
 
+## API Authentication (Token Mode)
+
+Authentication is now implemented for protected control-plane routes with two modes:
+
+- `dev-open` (LAN test mode)
+- `token` (bearer token required)
+
+Current verification baseline uses token mode with:
+
+- `client_id`: `esptari-smoke`
+- `client_secret`: `esptari-smoke-secret`
+
+Token mint endpoint:
+
+- `POST /api/v2/auth/token`
+
+Protected-route enforcement contract:
+
+- no token -> `401 Unauthorized`
+- wrong scope -> `403 Forbidden`
+- correct scope -> route-specific response (not `401`/`403`)
+
+Route-matrix verifier:
+
+```bash
+BASE_URL=http://192.168.1.196 ./tools/smoke_auth_route_matrix.sh
+```
+
+Latest evidence files:
+
+- `captures/auth_route_matrix_20260304_145513.txt`
+- `captures/auth_route_matrix_20260304_145652.txt`
+- `captures/ebin_s10_phase_a_20260304_145043.txt`
+
 ## Repository Map (V2-Relevant)
 
 - components/esptari_web: V2 HTTP route registration and handlers

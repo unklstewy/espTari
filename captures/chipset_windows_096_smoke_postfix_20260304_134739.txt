@@ -1,0 +1,18 @@
+health_check=ok attempts=1
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Cannot reset from current lifecycle state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### register_windows_all_groups
+GET /api/v2/inspect/chipset/windows/registers?session_id=ses_local&group=glue,mmu,shifter
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}
+
+Step failed: register_windows_all_groups HTTP=409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}

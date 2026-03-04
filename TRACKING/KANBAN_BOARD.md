@@ -24,15 +24,11 @@ This board is the operational view for daily execution.
 - T-045, T-046, T-047 (decomposition of T-001)
 - T-048, T-049, T-050 (decomposition of T-003)
 - T-051, T-052, T-053 (decomposition of T-009)
-- T-094, T-095 (conformance checklist runner + review pack)
-- T-110, T-111 (section-11 acceptance suite/reporting path)
-- T-116, T-117 (SLO collectors + threshold/alarm exposure)
 - (no remaining T-054 through T-121 items)
 
 ### In Progress
 
-- T-092 (conformance harness scaffold + manifest loader)
-- T-093 (evidence artifact collection + report packaging flow)
+
 
 ### In Review
 
@@ -48,8 +44,11 @@ This board is the operational view for daily execution.
 ### Done
 
 - T-054 through T-121
+- T-092 through T-095 (conformance harness/checklist/review-pack/signoff-bundle path)
 - T-090 (stream backpressure counters + watermark metrics)
 - T-091 (backpressure telemetry/event exposure)
+- T-110, T-111 (section-11 runtime scaffold/suite/reporting closure)
+- T-112 through T-117 (lifecycle save/restore + compatibility + SLO runtime closure)
 - PRQ-001 (core runtime code-path closure)
 - PRQ-002 (deterministic fixture/scenario package)
 - PRQ-003 (deployment workflow documentation)
@@ -58,7 +57,8 @@ This board is the operational view for daily execution.
 
 ### Blocked
 
-- Runtime/API validation is conditionally unlocked and must follow `unlock_with_conditions` controls documented in CRT/PRQ artifacts.
+- No active blockers.
+- Blocker tracker: `TRACKING/SPRINT_BLOCKER_BURNDOWN_2026-03-04.md` (all current entries closed).
 
 ## Daily standup fields
 

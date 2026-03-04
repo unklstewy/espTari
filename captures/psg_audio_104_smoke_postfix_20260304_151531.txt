@@ -1,0 +1,59 @@
+health_check=ok attempts=1
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":1356661690}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### psg_registers
+GET /api/v2/inspect/chipset/psg/registers?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","base_address":"0x00FF8800","window_bytes":16,"registers":[{"name":"CHANNEL_A_FINE","index":0,"value":34,"latched_tick":913015},{"name":"MIXER_CONTROL","index":7,"value":56,"latched_tick":913015},{"name":"NOISE_PERIOD","index":6,"value":5,"latched_tick":913015},{"name":"ENVELOPE_SHAPE","index":13,"value":9,"latched_tick":913015}]}}
+
+psg_register_window_contract=pass base=True window=True regs=True
+### psg_audio
+GET /api/v2/inspect/chipset/psg/audio?session_id=ses_local&limit=3
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","conformance":{"PSG-AUD-01":"pass","PSG-AUD-02":"pass","PSG-AUD-03":"pass","PSG-AUD-04":"pass"},"states":[{"frame_seq":7814,"mix_mode":"mono","sample_rate_hz":50066,"channel_a_level":2,"channel_b_level":7,"channel_c_level":10,"noise_enable":false,"envelope_shape":9,"tick_counter":913014,"timestamp_us":1710000032546},{"frame_seq":7815,"mix_mode":"mono","sample_rate_hz":50066,"channel_a_level":3,"channel_b_level":9,"channel_c_level":13,"noise_enable":false,"envelope_shape":9,"tick_counter":913015,"timestamp_us":1710000032552},{"frame_seq":7816,"mix_mode":"mono","sample_rate_hz":50066,"channel_a_level":4,"channel_b_level":11,"channel_c_level":0,"noise_enable":false,"envelope_shape":9,"tick_counter":913016,"timestamp_us":1710000032558}]}}
+
+psg_audio_contract=pass conf=True seq=True ts=True tick=True level=True shape=True
+### psg_audio_bad_limit
+GET /api/v2/inspect/chipset/psg/audio?session_id=ses_local&limit=0
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+psg_audio_limit_guard=pass code=BAD_REQUEST
+### psg_registers_unknown_session
+GET /api/v2/inspect/chipset/psg/registers?session_id=ses_unknown
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}
+
+psg_registers_session_guard=pass code=ENGINE_NOT_RUNNING
+### psg_aud01_failfast
+GET /api/v2/inspect/chipset/psg/audio?session_id=ses_local&limit=2&force_register_reflection_miss=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"PSG-AUD-01"}}}
+
+psg_aud01_failfast=pass code=INTERNAL_ERROR
+### psg_aud02_failfast
+GET /api/v2/inspect/chipset/psg/audio?session_id=ses_local&limit=2&force_frame_seq_gap=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"PSG-AUD-02"}}}
+
+psg_aud02_failfast=pass code=INTERNAL_ERROR
+### psg_aud03_failfast
+GET /api/v2/inspect/chipset/psg/audio?session_id=ses_local&limit=2&force_time_regression=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"PSG-AUD-03"}}}
+
+psg_aud03_failfast=pass code=INTERNAL_ERROR
+### psg_aud04_failfast
+GET /api/v2/inspect/chipset/psg/audio?session_id=ses_local&limit=2&force_level_overflow=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"PSG-AUD-04"}}}
+
+psg_aud04_failfast=pass code=INTERNAL_ERROR

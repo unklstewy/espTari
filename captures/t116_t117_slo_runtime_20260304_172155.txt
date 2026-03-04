@@ -1,0 +1,112 @@
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+### session_reset_run_1
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":719731222}}
+
+### session_start_run_1
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### collectors_config_run_1
+POST /api/v2/metrics/performance/collectors/config
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","collector_revision":"slo_col_rev_04","sampling_interval_ms":500,"window_ms":5000,"state":"active","emit_history":true,"applied_at_us":719787772}}
+
+### metrics_performance_run_1
+GET /api/v2/metrics/performance?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","window_ms":5000,"window_end_us":719827759,"input_latency_ms":{"p50":18,"p95":41.0,"max":49,"target_max":50.0,"status":"ok"},"jitter_ms":{"p50":7,"p95":22.0,"max":28,"target_max":30.0,"status":"ok"},"dropped_frame_percent":{"value":0.4,"target_max":1.0,"status":"ok"}}}
+
+### metrics_samples_run_1
+GET /api/v2/metrics/performance/samples?session_id=ses_local&limit=3
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","samples":[{"sample_seq":7,"window_start_us":714866679,"window_end_us":719866679,"input_latency_ms_p95":41,"jitter_ms_p95":22,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_04","timestamp_us":719866680},{"sample_seq":8,"window_start_us":715366679,"window_end_us":720366679,"input_latency_ms_p95":42,"jitter_ms_p95":36,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_04","timestamp_us":720366680},{"sample_seq":9,"window_start_us":715866679,"window_end_us":720866679,"input_latency_ms_p95":43,"jitter_ms_p95":22,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_04","timestamp_us":720866680}]}}
+
+### metrics_thresholds_run_1
+GET /api/v2/metrics/performance/thresholds?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","thresholds":{"input_latency_ms_p95_max":50.0,"jitter_ms_p95_max":30.0,"dropped_frame_percent_max":1.0},"evaluation_window_ms":5000,"active_revision":"slo_thr_rev_02"}}
+
+### metrics_alarms_run_1
+GET /api/v2/metrics/performance/alarms?session_id=ses_local&limit=2
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","alarms":[{"alarm_seq":5,"metric":"jitter_ms_p95","threshold":30,"observed":37.5,"severity":"critical","state":"breached","window_start_us":728821259,"window_end_us":733821259,"timestamp_us":733821260},{"alarm_seq":6,"metric":"jitter_ms_p95","threshold":30,"observed":24,"severity":"warning","state":"recovered","window_start_us":733821259,"window_end_us":738821259,"timestamp_us":738821260}]}}
+
+run_1_signature=collector=active;thresholds=30.0:1.0;alarms=breached,recovered
+### session_reset_run_2
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":720039228}}
+
+### session_start_run_2
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### collectors_config_run_2
+POST /api/v2/metrics/performance/collectors/config
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","collector_revision":"slo_col_rev_05","sampling_interval_ms":500,"window_ms":5000,"state":"active","emit_history":true,"applied_at_us":720094775}}
+
+### metrics_performance_run_2
+GET /api/v2/metrics/performance?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","window_ms":5000,"window_end_us":720134251,"input_latency_ms":{"p50":18,"p95":39.0,"max":49,"target_max":50.0,"status":"ok"},"jitter_ms":{"p50":7,"p95":22.0,"max":28,"target_max":30.0,"status":"ok"},"dropped_frame_percent":{"value":0.4,"target_max":1.0,"status":"ok"}}}
+
+### metrics_samples_run_2
+GET /api/v2/metrics/performance/samples?session_id=ses_local&limit=3
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","samples":[{"sample_seq":10,"window_start_us":716366679,"window_end_us":721366679,"input_latency_ms_p95":39,"jitter_ms_p95":22,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_05","timestamp_us":721366680},{"sample_seq":11,"window_start_us":716866679,"window_end_us":721866679,"input_latency_ms_p95":40,"jitter_ms_p95":22,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_05","timestamp_us":721866680},{"sample_seq":12,"window_start_us":717366679,"window_end_us":722366679,"input_latency_ms_p95":41,"jitter_ms_p95":36,"dropped_frame_percent":1.3,"collector_revision":"slo_col_rev_05","timestamp_us":722366680}]}}
+
+### metrics_thresholds_run_2
+GET /api/v2/metrics/performance/thresholds?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","thresholds":{"input_latency_ms_p95_max":50.0,"jitter_ms_p95_max":30.0,"dropped_frame_percent_max":1.0},"evaluation_window_ms":5000,"active_revision":"slo_thr_rev_02"}}
+
+### metrics_alarms_run_2
+GET /api/v2/metrics/performance/alarms?session_id=ses_local&limit=2
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","alarms":[{"alarm_seq":7,"metric":"jitter_ms_p95","threshold":30,"observed":37.5,"severity":"critical","state":"breached","window_start_us":738821259,"window_end_us":743821259,"timestamp_us":743821260},{"alarm_seq":8,"metric":"jitter_ms_p95","threshold":30,"observed":24,"severity":"warning","state":"recovered","window_start_us":743821259,"window_end_us":748821259,"timestamp_us":748821260}]}}
+
+run_2_signature=collector=active;thresholds=30.0:1.0;alarms=breached,recovered
+### session_reset_run_3
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":720399228}}
+
+### session_start_run_3
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### collectors_config_run_3
+POST /api/v2/metrics/performance/collectors/config
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","collector_revision":"slo_col_rev_06","sampling_interval_ms":500,"window_ms":5000,"state":"active","emit_history":true,"applied_at_us":720453352}}
+
+### metrics_performance_run_3
+GET /api/v2/metrics/performance?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","window_ms":5000,"window_end_us":720497243,"input_latency_ms":{"p50":18,"p95":42.0,"max":49,"target_max":50.0,"status":"ok"},"jitter_ms":{"p50":7,"p95":22.0,"max":28,"target_max":30.0,"status":"ok"},"dropped_frame_percent":{"value":0.4,"target_max":1.0,"status":"ok"}}}
+
+### metrics_samples_run_3
+GET /api/v2/metrics/performance/samples?session_id=ses_local&limit=3
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","samples":[{"sample_seq":13,"window_start_us":717866679,"window_end_us":722866679,"input_latency_ms_p95":42,"jitter_ms_p95":22,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_06","timestamp_us":722866680},{"sample_seq":14,"window_start_us":718366679,"window_end_us":723366679,"input_latency_ms_p95":43,"jitter_ms_p95":22,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_06","timestamp_us":723366680},{"sample_seq":15,"window_start_us":718866679,"window_end_us":723866679,"input_latency_ms_p95":39,"jitter_ms_p95":22,"dropped_frame_percent":0.4,"collector_revision":"slo_col_rev_06","timestamp_us":723866680}]}}
+
+### metrics_thresholds_run_3
+GET /api/v2/metrics/performance/thresholds?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","thresholds":{"input_latency_ms_p95_max":50.0,"jitter_ms_p95_max":30.0,"dropped_frame_percent_max":1.0},"evaluation_window_ms":5000,"active_revision":"slo_thr_rev_02"}}
+
+### metrics_alarms_run_3
+GET /api/v2/metrics/performance/alarms?session_id=ses_local&limit=2
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","alarms":[{"alarm_seq":9,"metric":"jitter_ms_p95","threshold":30,"observed":37.5,"severity":"critical","state":"breached","window_start_us":748821259,"window_end_us":753821259,"timestamp_us":753821260},{"alarm_seq":10,"metric":"jitter_ms_p95","threshold":30,"observed":24,"severity":"warning","state":"recovered","window_start_us":753821259,"window_end_us":758821259,"timestamp_us":758821260}]}}
+
+run_3_signature=collector=active;thresholds=30.0:1.0;alarms=breached,recovered
+determinism_check=pass

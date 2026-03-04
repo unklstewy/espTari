@@ -24,6 +24,17 @@ Operational note:
 - Sprint-level closure summary is published at `TRACKING/SPRINT_02_CLOSURE_REPORT_2026-03-04.md`.
 - One-page status roll-up is published at `TRACKING/PROGRAM_STATUS_SNAPSHOT_2026-03-04.md`.
 - Acceptance log historical CRT rows were normalized to explicit superseded-context `Deferred` records for clearer current-state reading.
+- Auth contract verification closure is recorded via acceptance entry `AUTH-CONTRACT-ROUTE-MATRIX-2026-03-04` with audit index `TRACKING/AUTH_CONTRACT_EVIDENCE_INDEX_2026-03-04.md` and route-matrix captures (`summary_pass=119`, `summary_fail=0`).
+- EBIN Phase-B entry gate is recorded via acceptance entry `EBIN-S10-009-ENTRY-GATE-2026-03-04` with decision report `captures/ebin_s10_009_gate_check_20260304_151526.txt` (`decision=go`, `summary_failures=0`).
+- EBIN-S10-009 arbitration integration smoke is recorded via acceptance entry `EBIN-S10-009-ARBITRATION-INTEGRATION-2026-03-04` with evidence `captures/ebin_s10_009_arbitration_integration_20260304_152554.txt` (`determinism_runs=3`, `determinism_check=pass`).
+- EBIN-S10-010 interrupt integration smoke is recorded via acceptance entry `EBIN-S10-010-INTERRUPT-INTEGRATION-2026-03-04` with evidence `captures/ebin_s10_010_interrupt_integration_20260304_155304.txt` (`determinism_runs=3`, `determinism_check=pass`).
+- EBIN-S10-011 startup integration smoke is recorded via acceptance entry `EBIN-S10-011-STARTUP-INTEGRATION-2026-03-04` with evidence `captures/ebin_s10_011_startup_integration_20260304_162212.txt` (`determinism_runs=3`, `determinism_check=pass`).
+- EBIN-S10-012 suspend/restore integration smoke is recorded via acceptance entry `EBIN-S10-012-SUSPEND-RESTORE-INTEGRATION-2026-03-04` with evidence `captures/ebin_s10_012_suspend_restore_integration_20260304_162615.txt` (`determinism_runs=3`, `determinism_check=pass`).
+- EBIN-S10-013 conformance integration smoke is recorded via acceptance entry `EBIN-S10-013-CONFORMANCE-INTEGRATION-2026-03-04` with evidence `captures/ebin_s10_013_conformance_integration_20260304_163001.txt` (`determinism_runs=3`, `determinism_check=pass`).
+- EBIN-S10-014 release-signoff integration smoke is recorded via acceptance entry `EBIN-S10-014-RELEASE-SIGNOFF-INTEGRATION-2026-03-04` with evidence `captures/ebin_s10_014_release_signoff_integration_20260304_163303.txt` (`determinism_runs=3`, `determinism_check=pass`).
+- EBIN-S10-015 release-checklist integration smoke is recorded via acceptance entry `EBIN-S10-015-RELEASE-CHECKLIST-INTEGRATION-2026-03-04` with evidence `captures/ebin_s10_015_release_checklist_integration_20260304_164326.txt` (`determinism_runs=3`, `determinism_check=pass`).
+- EBIN-S10-016 release-reviewpack integration smoke is recorded via acceptance entry `EBIN-S10-016-RELEASE-REVIEWPACK-INTEGRATION-2026-03-04` with evidence `captures/ebin_s10_016_release_reviewpack_integration_20260304_164254.txt` (`determinism_runs=3`, `determinism_check=pass`).
+- EBIN-S10-017 release-bundle integration smoke is recorded via acceptance entry `EBIN-S10-017-RELEASE-BUNDLE-INTEGRATION-2026-03-04` with evidence `captures/ebin_s10_017_release_bundle_integration_20260304_164256.txt` (`determinism_runs=3`, `determinism_check=pass`).
 
 ## 2026-03-02 — Contracts + Tracking Tranche Closeout
 

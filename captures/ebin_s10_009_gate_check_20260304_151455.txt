@@ -1,0 +1,44 @@
+gate_check=EBIN-S10-008-to-009
+base_url=http://esptari.local
+report=captures/ebin_s10_009_gate_check_20260304_151455.txt
+rerun=begin scope=A-04..A-08
+run=smoke_chipset_windows_096
+health_check=ok attempts=1
+Step failed: register_windows_all_groups HTTP=403
+{"ok":false,"error":{"code":"FORBIDDEN","category":"auth","retryable":false,"details":{"required_scope":"inspect:read","granted_scope":"engine:control inspect ebin:manage"}}}
+run=smoke_mfp_windows_098
+health_check=ok attempts=1
+Step failed: mfp_register_window_ok HTTP=403
+{"ok":false,"error":{"code":"FORBIDDEN","category":"auth","retryable":false,"details":{"required_scope":"inspect:read","granted_scope":"engine:control inspect ebin:manage"}}}
+run=smoke_acia_framing_100
+health_check=ok attempts=1
+Step failed: acia_bridge_state HTTP=403
+{"ok":false,"error":{"code":"FORBIDDEN","category":"auth","retryable":false,"details":{"required_scope":"inspect:read","granted_scope":"engine:control inspect ebin:manage"}}}
+run=smoke_dma_arbitration_102
+health_check=ok attempts=1
+Step failed: dma_pacing_ok HTTP=403
+{"ok":false,"error":{"code":"FORBIDDEN","category":"auth","retryable":false,"details":{"required_scope":"inspect:read","granted_scope":"engine:control inspect ebin:manage"}}}
+run=smoke_psg_audio_104
+health_check=ok attempts=1
+Step failed: psg_registers HTTP=403
+{"ok":false,"error":{"code":"FORBIDDEN","category":"auth","retryable":false,"details":{"required_scope":"inspect:read","granted_scope":"engine:control inspect ebin:manage"}}}
+rerun=end
+EBIN-S10-004.evidence=fail reason=missing_smoke_pass first=captures/ebin_s10_004_glue_mmu_shifter_20260304_151434.txt second=captures/ebin_s10_004_glue_mmu_shifter_20260304_151456.txt
+EBIN-S10-005.evidence=fail reason=missing_smoke_pass first=captures/ebin_s10_005_mfp_20260304_151434.txt second=captures/ebin_s10_005_mfp_20260304_151456.txt
+EBIN-S10-006.evidence=fail reason=missing_smoke_pass first=captures/ebin_s10_006_acia_ikbd_20260304_151434.txt second=captures/ebin_s10_006_acia_ikbd_20260304_151456.txt
+EBIN-S10-007.evidence=fail reason=missing_smoke_pass first=captures/ebin_s10_007_dma_fdc_20260304_151434.txt second=captures/ebin_s10_007_dma_fdc_20260304_151456.txt
+EBIN-S10-008.evidence=fail reason=missing_smoke_pass first=captures/ebin_s10_008_psg_20260304_151434.txt second=captures/ebin_s10_008_psg_20260304_151456.txt
+recovery_safety=pass capture=captures/ebin_s10_003_rollback_fallback_lock_20260304_145044.txt rollback_count=3 fallback_count=3
+contract_drift_detected=file:docs/EMU_ENGINE_V2_API_SPEC.md
+contract_drift_detected=file:docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md
+contract_drift=warn mode=non_strict
+traceability_row=pass id=EBIN-S10-004
+traceability_row=pass id=EBIN-S10-005
+traceability_row=pass id=EBIN-S10-006
+traceability_row=pass id=EBIN-S10-007
+traceability_row=pass id=EBIN-S10-008
+traceability=pass
+manual_confirmation=pass
+decision=non_go
+scope=EBIN-S10-009 start eligibility only
+summary_failures=5

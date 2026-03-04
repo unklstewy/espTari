@@ -1,0 +1,8 @@
+health_check=ok attempts=1
+determinism_runs=10
+### validate_success_run_1
+POST /api/v2/ebins/validate
+HTTP 401
+{"ok":false,"error":{"code":"UNAUTHORIZED","category":"auth","retryable":false,"details":{"required_scope":"ebin:manage"}}}
+
+step_failed=validate_success_run_1 http=401

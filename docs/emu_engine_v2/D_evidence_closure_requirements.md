@@ -12,6 +12,14 @@ Before claiming 100% compatibility, each [I] and [R] item must be promoted to me
 3. Recording profile-specific deltas in versioned documentation.
 4. Locking deterministic replay hashes for each test configuration.
 
+Authentication contract closure requirement (control-plane security):
+
+5. Verifying auth matrix behavior for all protected routes (`401` no token, `403` wrong scope, authorized with required scope) and storing route-matrix evidence artifacts.
+
+Current verification appendix:
+
+- `E_api_auth_contract_verification_2026-03-04.md`
+
 ---
 
 [← Index](README.md) | [← Previous: Appendix C](C_model_delta_summary.md)

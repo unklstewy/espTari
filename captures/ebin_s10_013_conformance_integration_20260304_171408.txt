@@ -1,0 +1,157 @@
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+### session_reset_run_1
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":251963028}}
+
+### session_start_run_1
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### manifest_load_run_1
+POST /api/v2/conformance/manifests/load
+HTTP 200
+{"ok":true,"data":{"manifest_id":"mf_s10_013_run_1","loaded":true,"checks_total":1,"checks_enabled":1,"loaded_at_us":252019960}}
+
+### harness_session_run_1
+POST /api/v2/conformance/harness/session
+HTTP 200
+{"ok":true,"data":{"harness_session_id":"chs_000001","session_id":"ses_local","manifest_id":"mf_s10_013_run_1","state":"running","created_at_us":252071089,"checks_total":1,"checks_enabled":1}}
+
+### evidence_collect_run_1
+POST /api/v2/conformance/harness/evidence/collect
+HTTP 200
+{"ok":true,"data":{"collection_id":"col_000001","harness_session_id":"chs_000001","state":"completed","artifacts":[{"type":"logs","uri":"sdcard/conformance/chs_000001/logs.ndjson","bytes":120334},{"type":"metrics","uri":"sdcard/conformance/chs_000001/metrics.json","bytes":4421}],"started_at_us":252112729,"completed_at_us":252113929}}
+
+### report_package_run_1
+POST /api/v2/conformance/harness/report/package
+HTTP 200
+{"ok":true,"data":{"package_id":"pkg_000001","harness_session_id":"chs_000001","collection_id":"col_000001","state":"ready","report_uri":"sdcard/conformance/chs_000001/report_pkg_000001.json","sha256":"9f2f52be6f7d11f8f0a6f7bc62bf4b6c6e5ac6f4c91dc2a82bf32f4c0c55f2a1"}}
+
+### subsystem_scaffold_run_1
+POST /api/v2/conformance/subsystems/scaffold
+HTTP 200
+{"ok":true,"data":{"scaffold_id":"scf_000001","harness_session_id":"chs_000001","subsystem":"mfp","state":"ready","fixture_model_id":"fxm_000001","created_at_us":252214691,"prepared_at_us":252214731,"ready_at_us":252214779}}
+
+### fixture_model_run_1
+GET /api/v2/conformance/subsystems/fixtures/model?scaffold_id=scf_000001
+HTTP 200
+{"ok":true,"data":{"fixture_model_id":"fxm_000001","subsystem":"mfp","inputs":[{"signal":"timer_a_start","value":"0x01"}],"expected_outputs":[{"signal":"irq6_assert","within_ticks":32}],"invariants":["event_seq_monotonic","timestamp_us_monotonic"],"tolerances":{"tick_jitter_max":2},"schema_version":1}}
+
+### subsystem_suite_run_1
+POST /api/v2/conformance/subsystems/suites/run
+HTTP 200
+{"ok":true,"data":{"suite_run_id":"ssr_000001","harness_session_id":"chs_000001","subsystem":"mfp","suite_id":"mfp_acceptance_v1","state":"completed","cases_total":2,"cases_passed":2,"cases_failed":0,"started_at_us":252269853,"completed_at_us":252270093}}
+
+### subsystem_suite_report_1
+GET /api/v2/conformance/subsystems/suites/report?suite_run_id=ssr_000001
+HTTP 200
+{"ok":true,"data":{"suite_run_id":"ssr_000001","subsystem":"mfp","summary":{"cases_total":2,"cases_passed":2,"cases_failed":0,"pass_rate":1.000},"case_results":[{"case_id":"timer_a_irq","assertion_id":"irq6_asserted","result":"pass"}],"evidence_uris":["sdcard/conformance/chs_000001/suites/ssr_000001/mfp_report.json"],"generated_at_us":252270113}}
+
+run_1_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+### session_reset_run_2
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":253021288}}
+
+### session_start_run_2
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### manifest_load_run_2
+POST /api/v2/conformance/manifests/load
+HTTP 200
+{"ok":true,"data":{"manifest_id":"mf_s10_013_run_2","loaded":true,"checks_total":1,"checks_enabled":1,"loaded_at_us":254271845}}
+
+### harness_session_run_2
+POST /api/v2/conformance/harness/session
+HTTP 200
+{"ok":true,"data":{"harness_session_id":"chs_000002","session_id":"ses_local","manifest_id":"mf_s10_013_run_2","state":"running","created_at_us":254330588,"checks_total":1,"checks_enabled":1}}
+
+### evidence_collect_run_2
+POST /api/v2/conformance/harness/evidence/collect
+HTTP 200
+{"ok":true,"data":{"collection_id":"col_000002","harness_session_id":"chs_000002","state":"completed","artifacts":[{"type":"logs","uri":"sdcard/conformance/chs_000002/logs.ndjson","bytes":120334},{"type":"metrics","uri":"sdcard/conformance/chs_000002/metrics.json","bytes":4421}],"started_at_us":254369754,"completed_at_us":254370954}}
+
+### report_package_run_2
+POST /api/v2/conformance/harness/report/package
+HTTP 200
+{"ok":true,"data":{"package_id":"pkg_000002","harness_session_id":"chs_000002","collection_id":"col_000002","state":"ready","report_uri":"sdcard/conformance/chs_000002/report_pkg_000002.json","sha256":"9f2f52be6f7d11f8f0a6f7bc62bf4b6c6e5ac6f4c91dc2a82bf32f4c0c55f2a1"}}
+
+### subsystem_scaffold_run_2
+POST /api/v2/conformance/subsystems/scaffold
+HTTP 200
+{"ok":true,"data":{"scaffold_id":"scf_000002","harness_session_id":"chs_000002","subsystem":"mfp","state":"ready","fixture_model_id":"fxm_000002","created_at_us":254473915,"prepared_at_us":254473955,"ready_at_us":254474003}}
+
+### fixture_model_run_2
+GET /api/v2/conformance/subsystems/fixtures/model?scaffold_id=scf_000002
+HTTP 200
+{"ok":true,"data":{"fixture_model_id":"fxm_000002","subsystem":"mfp","inputs":[{"signal":"timer_a_start","value":"0x01"}],"expected_outputs":[{"signal":"irq6_assert","within_ticks":32}],"invariants":["event_seq_monotonic","timestamp_us_monotonic"],"tolerances":{"tick_jitter_max":2},"schema_version":1}}
+
+### subsystem_suite_run_2
+POST /api/v2/conformance/subsystems/suites/run
+HTTP 200
+{"ok":true,"data":{"suite_run_id":"ssr_000002","harness_session_id":"chs_000002","subsystem":"mfp","suite_id":"mfp_acceptance_v1","state":"completed","cases_total":2,"cases_passed":2,"cases_failed":0,"started_at_us":254534809,"completed_at_us":254535049}}
+
+### subsystem_suite_report_2
+GET /api/v2/conformance/subsystems/suites/report?suite_run_id=ssr_000002
+HTTP 200
+{"ok":true,"data":{"suite_run_id":"ssr_000002","subsystem":"mfp","summary":{"cases_total":2,"cases_passed":2,"cases_failed":0,"pass_rate":1.000},"case_results":[{"case_id":"timer_a_irq","assertion_id":"irq6_asserted","result":"pass"}],"evidence_uris":["sdcard/conformance/chs_000002/suites/ssr_000002/mfp_report.json"],"generated_at_us":254535069}}
+
+run_2_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+### session_reset_run_3
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":255286481}}
+
+### session_start_run_3
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### manifest_load_run_3
+POST /api/v2/conformance/manifests/load
+HTTP 200
+{"ok":true,"data":{"manifest_id":"mf_s10_013_run_3","loaded":true,"checks_total":1,"checks_enabled":1,"loaded_at_us":255334918}}
+
+### harness_session_run_3
+POST /api/v2/conformance/harness/session
+HTTP 200
+{"ok":true,"data":{"harness_session_id":"chs_000003","session_id":"ses_local","manifest_id":"mf_s10_013_run_3","state":"running","created_at_us":255389605,"checks_total":1,"checks_enabled":1}}
+
+### evidence_collect_run_3
+POST /api/v2/conformance/harness/evidence/collect
+HTTP 200
+{"ok":true,"data":{"collection_id":"col_000003","harness_session_id":"chs_000003","state":"completed","artifacts":[{"type":"logs","uri":"sdcard/conformance/chs_000003/logs.ndjson","bytes":120334},{"type":"metrics","uri":"sdcard/conformance/chs_000003/metrics.json","bytes":4421}],"started_at_us":255424670,"completed_at_us":255425870}}
+
+### report_package_run_3
+POST /api/v2/conformance/harness/report/package
+HTTP 200
+{"ok":true,"data":{"package_id":"pkg_000003","harness_session_id":"chs_000003","collection_id":"col_000003","state":"ready","report_uri":"sdcard/conformance/chs_000003/report_pkg_000003.json","sha256":"9f2f52be6f7d11f8f0a6f7bc62bf4b6c6e5ac6f4c91dc2a82bf32f4c0c55f2a1"}}
+
+### subsystem_scaffold_run_3
+POST /api/v2/conformance/subsystems/scaffold
+HTTP 200
+{"ok":true,"data":{"scaffold_id":"scf_000003","harness_session_id":"chs_000003","subsystem":"mfp","state":"ready","fixture_model_id":"fxm_000003","created_at_us":255523766,"prepared_at_us":255523806,"ready_at_us":255523854}}
+
+### fixture_model_run_3
+GET /api/v2/conformance/subsystems/fixtures/model?scaffold_id=scf_000003
+HTTP 200
+{"ok":true,"data":{"fixture_model_id":"fxm_000003","subsystem":"mfp","inputs":[{"signal":"timer_a_start","value":"0x01"}],"expected_outputs":[{"signal":"irq6_assert","within_ticks":32}],"invariants":["event_seq_monotonic","timestamp_us_monotonic"],"tolerances":{"tick_jitter_max":2},"schema_version":1}}
+
+### subsystem_suite_run_3
+POST /api/v2/conformance/subsystems/suites/run
+HTTP 200
+{"ok":true,"data":{"suite_run_id":"ssr_000003","harness_session_id":"chs_000003","subsystem":"mfp","suite_id":"mfp_acceptance_v1","state":"completed","cases_total":2,"cases_passed":2,"cases_failed":0,"started_at_us":255589804,"completed_at_us":255590044}}
+
+### subsystem_suite_report_3
+GET /api/v2/conformance/subsystems/suites/report?suite_run_id=ssr_000003
+HTTP 200
+{"ok":true,"data":{"suite_run_id":"ssr_000003","subsystem":"mfp","summary":{"cases_total":2,"cases_passed":2,"cases_failed":0,"pass_rate":1.000},"case_results":[{"case_id":"timer_a_irq","assertion_id":"irq6_asserted","result":"pass"}],"evidence_uris":["sdcard/conformance/chs_000003/suites/ssr_000003/mfp_report.json"],"generated_at_us":255590064}}
+
+run_3_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+determinism_check=pass

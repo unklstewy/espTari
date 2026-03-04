@@ -8,12 +8,22 @@ mkdir -p captures
 : > "$OUT"
 LAST_BODY=""
 
+AUTH_BEARER="${AUTH_BEARER:-}"
+AUTH_HEADER="${AUTH_HEADER:-}"
+AUTH_ARGS=()
+if [[ -n "$AUTH_BEARER" ]]; then
+  AUTH_ARGS+=( -H "Authorization: Bearer ${AUTH_BEARER}" )
+fi
+if [[ -n "$AUTH_HEADER" ]]; then
+  AUTH_ARGS+=( -H "$AUTH_HEADER" )
+fi
+
 wait_for_health() {
   local attempts="${1:-60}"
   local interval="${2:-1}"
   local i
   for ((i=1; i<=attempts; i++)); do
-    if curl --max-time 2 -sS "${BASE_URL}/api/v2/engine/health" >/dev/null 2>&1; then
+    if curl --max-time 2 -sS "${AUTH_ARGS[@]}" "${BASE_URL}/api/v2/engine/health" >/dev/null 2>&1; then
       echo "health_check=ok attempts=${i}" | tee -a "$OUT"
       return 0
     fi
@@ -28,9 +38,9 @@ call_json() {
   local body_file code body
   body_file="$(mktemp)"
   if [[ -n "$data" ]]; then
-    code=$(curl --max-time 20 -sS -o "$body_file" -w "%{http_code}" -X "$method" "$BASE_URL$path" -H "Content-Type: application/json" -d "$data")
+    code=$(curl --max-time 20 -sS -o "$body_file" -w "%{http_code}" -X "$method" "$BASE_URL$path" "${AUTH_ARGS[@]}" -H "Content-Type: application/json" -d "$data")
   else
-    code=$(curl --max-time 20 -sS -o "$body_file" -w "%{http_code}" -X "$method" "$BASE_URL$path")
+    code=$(curl --max-time 20 -sS -o "$body_file" -w "%{http_code}" -X "$method" "$BASE_URL$path" "${AUTH_ARGS[@]}")
   fi
   body="$(cat "$body_file")"
   rm -f "$body_file"

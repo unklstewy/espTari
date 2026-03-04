@@ -1,0 +1,4 @@
+run=smoke_mfp_windows_098
+health_check=ok attempts=1
+Step failed: mfp_register_window_ok HTTP=403
+{"ok":false,"error":{"code":"FORBIDDEN","category":"auth","retryable":false,"details":{"required_scope":"inspect:read","granted_scope":"engine:control inspect ebin:manage"}}}

@@ -9,6 +9,7 @@
 #include "esp_err.h"
 #include "esp_timer.h"
 #include "esptari_core.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_catalog_state.h"
 #include "esptari_web_http_utils.h"
 
@@ -551,15 +552,9 @@ static esp_err_t media_cartridge_eject_handler(httpd_req_t *req)
 
 void esptari_web_media_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t rom_attach = {.uri = "/api/v2/media/rom/attach", .method = HTTP_POST, .handler = media_rom_attach_handler, .user_ctx = NULL};
-    httpd_uri_t disk_attach = {.uri = "/api/v2/media/disk/attach", .method = HTTP_POST, .handler = media_disk_attach_handler, .user_ctx = NULL};
-    httpd_uri_t disk_eject = {.uri = "/api/v2/media/disk/eject", .method = HTTP_POST, .handler = media_disk_eject_handler, .user_ctx = NULL};
-    httpd_uri_t cartridge_attach = {.uri = "/api/v2/media/cartridge/attach", .method = HTTP_POST, .handler = media_cartridge_attach_handler, .user_ctx = NULL};
-    httpd_uri_t cartridge_eject = {.uri = "/api/v2/media/cartridge/eject", .method = HTTP_POST, .handler = media_cartridge_eject_handler, .user_ctx = NULL};
-
-    httpd_register_uri_handler(server_handle, &rom_attach);
-    httpd_register_uri_handler(server_handle, &disk_attach);
-    httpd_register_uri_handler(server_handle, &disk_eject);
-    httpd_register_uri_handler(server_handle, &cartridge_attach);
-    httpd_register_uri_handler(server_handle, &cartridge_eject);
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/media/rom/attach", HTTP_POST, media_rom_attach_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/media/disk/attach", HTTP_POST, media_disk_attach_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/media/disk/eject", HTTP_POST, media_disk_eject_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/media/cartridge/attach", HTTP_POST, media_cartridge_attach_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/media/cartridge/eject", HTTP_POST, media_cartridge_eject_handler, "engine:control"));
 }

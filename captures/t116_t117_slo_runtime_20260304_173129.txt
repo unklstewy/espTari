@@ -1,0 +1,10 @@
+auth_header=none
+determinism_runs=3
+health_check=ok attempts=38
+### session_reset_run_1
+POST /api/v2/engine/session/reset
+HTTP 401
+{"ok":false,"error":{"code":"UNAUTHORIZED","category":"auth","retryable":false,"details":{"required_scope":"engine:control"}}}
+
+step_failed=session_reset_run_1 http=401
+{"ok":false,"error":{"code":"UNAUTHORIZED","category":"auth","retryable":false,"details":{"required_scope":"engine:control"}}}

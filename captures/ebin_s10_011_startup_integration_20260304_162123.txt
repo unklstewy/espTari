@@ -1,0 +1,23 @@
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+### session_reset_run_1
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":5308979684}}
+
+### session_start_run_1
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### startup_defaults_run_1
+GET /api/v2/inspect/chipset/startup/defaults?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","machine_profile":"atari_st_520_1040_baseline","video_standard":"pal","ram_size_kib":1024,"boot_device":"floppy","defaults_revision":"startup_rev_03","applied_tick":20,"applied_timestamp_us":1710000035576,"conformance":{"PWR-BASE-01":"pass","PWR-BASE-04":"pass"}}}
+
+### startup_baseline_run_1
+GET /api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=mfp
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","group":"mfp","registers":[{"name":"IERA","address":"0x00FFFA07","width_bits":8,"reset_value":"0x00","mask":"0xFF"},{"name":"IMRA","address":"0x00FFFA13","width_bits":8,"reset_value":"0x00","mask":"0xFF"}],"baseline_revision":"baseline_rev_07","source":"hardware_boot_table","conformance":{"PWR-BASE-01":"pass","PWR-BASE-02":"pass","PWR-BASE-03":"pass","PWR-BASE-04":"pass"}}}
+

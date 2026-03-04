@@ -1,0 +1,19 @@
+run=smoke_dma_arbitration_102
+health_check=ok attempts=1
+dma_pacing_contract=pass mode=deterministic_tick window_ticks=128 max_per_window=16 has_fields=True
+dma_arbitration_contract=pass count=3 seq_deltas=1,1 sched_mono=True ts_mono=True grant_rules=True
+dma_window_cap=pass granted_count=1 max_per_window=16
+dma_bad_request_mapping=pass code=BAD_REQUEST
+dma_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+dma_internal_error_mapping=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/dma_arbitration_102_smoke_postfix_20260304_145049.txt
+run=smoke_fdc_fsm_terminal_103
+health_check=ok attempts=1
+fdc_fsm_contract=pass state=executing has_fields=True
+fdc_terminal_contract=pass count=2 seq_delta=1 ts_mono=True tick_mono=True terminal_signals=True
+fdc_bad_request_mapping=pass code=BAD_REQUEST
+fdc_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+fdc_internal_error_mapping=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/fdc_fsm_terminal_103_smoke_postfix_20260304_145049.txt

@@ -1,0 +1,88 @@
+auth_header=configured
+health_check=ok attempts=1
+determinism_runs=10
+### validate_success_run_1
+POST /api/v2/ebins/validate
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","valid":true,"status":"ok","normalized":{"machine":"atari_st","module_type":"cpu","abi_major":1,"api_contract_major":1,"dependency_count":1,"export_count":3}}}
+
+run_1_fingerprint=True|True|st.cpu.m68k|atari_st|cpu|1|1|1|3
+### validate_success_run_2
+POST /api/v2/ebins/validate
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","valid":true,"status":"ok","normalized":{"machine":"atari_st","module_type":"cpu","abi_major":1,"api_contract_major":1,"dependency_count":1,"export_count":3}}}
+
+run_2_fingerprint=True|True|st.cpu.m68k|atari_st|cpu|1|1|1|3
+### validate_success_run_3
+POST /api/v2/ebins/validate
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","valid":true,"status":"ok","normalized":{"machine":"atari_st","module_type":"cpu","abi_major":1,"api_contract_major":1,"dependency_count":1,"export_count":3}}}
+
+run_3_fingerprint=True|True|st.cpu.m68k|atari_st|cpu|1|1|1|3
+### validate_success_run_4
+POST /api/v2/ebins/validate
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","valid":true,"status":"ok","normalized":{"machine":"atari_st","module_type":"cpu","abi_major":1,"api_contract_major":1,"dependency_count":1,"export_count":3}}}
+
+run_4_fingerprint=True|True|st.cpu.m68k|atari_st|cpu|1|1|1|3
+### validate_success_run_5
+POST /api/v2/ebins/validate
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","valid":true,"status":"ok","normalized":{"machine":"atari_st","module_type":"cpu","abi_major":1,"api_contract_major":1,"dependency_count":1,"export_count":3}}}
+
+run_5_fingerprint=True|True|st.cpu.m68k|atari_st|cpu|1|1|1|3
+### validate_success_run_6
+POST /api/v2/ebins/validate
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","valid":true,"status":"ok","normalized":{"machine":"atari_st","module_type":"cpu","abi_major":1,"api_contract_major":1,"dependency_count":1,"export_count":3}}}
+
+run_6_fingerprint=True|True|st.cpu.m68k|atari_st|cpu|1|1|1|3
+### validate_success_run_7
+POST /api/v2/ebins/validate
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","valid":true,"status":"ok","normalized":{"machine":"atari_st","module_type":"cpu","abi_major":1,"api_contract_major":1,"dependency_count":1,"export_count":3}}}
+
+run_7_fingerprint=True|True|st.cpu.m68k|atari_st|cpu|1|1|1|3
+### validate_success_run_8
+POST /api/v2/ebins/validate
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","valid":true,"status":"ok","normalized":{"machine":"atari_st","module_type":"cpu","abi_major":1,"api_contract_major":1,"dependency_count":1,"export_count":3}}}
+
+run_8_fingerprint=True|True|st.cpu.m68k|atari_st|cpu|1|1|1|3
+### validate_success_run_9
+POST /api/v2/ebins/validate
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","valid":true,"status":"ok","normalized":{"machine":"atari_st","module_type":"cpu","abi_major":1,"api_contract_major":1,"dependency_count":1,"export_count":3}}}
+
+run_9_fingerprint=True|True|st.cpu.m68k|atari_st|cpu|1|1|1|3
+### validate_success_run_10
+POST /api/v2/ebins/validate
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","valid":true,"status":"ok","normalized":{"machine":"atari_st","module_type":"cpu","abi_major":1,"api_contract_major":1,"dependency_count":1,"export_count":3}}}
+
+run_10_fingerprint=True|True|st.cpu.m68k|atari_st|cpu|1|1|1|3
+determinism_check=pass
+### validate_missing_module_id
+POST /api/v2/ebins/validate
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"ebin","retryable":false,"details":{"field":"module_id","reason":"required non-empty string"}}}
+
+missing_required_check=pass code=BAD_REQUEST field=module_id
+### validate_bad_module_type
+POST /api/v2/ebins/validate
+HTTP 400
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":false,"details":{"field":"module_type","reason":"unsupported module type"}}}
+
+module_type_check=pass code=EBIN_INVALID
+### validate_bad_sha
+POST /api/v2/ebins/validate
+HTTP 400
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":false,"details":{"field":"payload_sha256","reason":"must be 64-char hex string"}}}
+
+sha_check=pass code=EBIN_INVALID
+### validate_abi_mismatch
+POST /api/v2/ebins/validate
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_ABI_MISMATCH","category":"ebin","retryable":false,"details":{"field":"abi_version","reason":"unsupported major ABI; expected 1.x.x"}}}
+
+abi_mismatch_check=pass code=EBIN_ABI_MISMATCH

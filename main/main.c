@@ -249,10 +249,12 @@ void app_main(void)
     // Initialize input subsystem
     esptari_input_init();
 
-    // Initialize web server (if network is up)
-    if (network_ready) {
-        esptari_web_init(CONFIG_ESPTARI_WEB_PORT);
+    // Initialize web server regardless of network readiness.
+    // If transport comes up later, routes are already available.
+    if (!network_ready) {
+        ESP_LOGW(TAG, "Starting web server in degraded mode (network not ready yet)");
     }
+    esptari_web_init(CONFIG_ESPTARI_WEB_PORT);
 
     // Initialize A/V subsystems
     esptari_video_init();

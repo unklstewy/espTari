@@ -63,6 +63,15 @@ Recommended production mode:
 
 - Bearer token in `Authorization: Bearer <token>`
 
+Runtime configuration controls (Kconfig):
+
+- `CONFIG_ESPTARI_API_AUTH_MODE_DEV_OPEN`
+- `CONFIG_ESPTARI_API_AUTH_MODE_TOKEN`
+- `CONFIG_ESPTARI_API_TOKEN_CLIENT_ID`
+- `CONFIG_ESPTARI_API_TOKEN_CLIENT_SECRET`
+- `CONFIG_ESPTARI_API_TOKEN_DEFAULT_SCOPE`
+- `CONFIG_ESPTARI_API_TOKEN_TTL_SECONDS`
+
 ## 3.2 Authorization scopes
 
 Minimum scopes:
@@ -76,7 +85,71 @@ Minimum scopes:
 - `input:read`
 - `input:write`
 
-## 3.3 Path hardening
+Scope-to-surface mapping (minimum):
+
+- `engine:control`: lifecycle/session transitions, media attach/eject, checkpoint/state mutations, stream control, conformance mutating endpoints.
+- `inspect:read`: engine status/session reads, inspect snapshot/stream surfaces, debug clock state, read-only metrics.
+- `stream:read`: video/audio/engine stream read surfaces and stream telemetry.
+- `files:read` + `files:write`: file and catalog sync CRUD surfaces.
+- `input:read` + `input:write`: input device/capture/mapping read-write surfaces.
+- `ebin:manage`: EBIN validate/resolve/load/unload/catalog/rescan surfaces.
+
+## 3.3 Token mint contract
+
+Token mode exposes:
+
+- `POST /api/v2/auth/token`
+
+Request body:
+
+```json
+{
+  "grant_type": "client_credentials",
+  "client_id": "esptari-smoke",
+  "client_secret": "esptari-smoke-secret",
+  "scope": "ebin:manage"
+}
+```
+
+Success (`200`):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "access_token": "tk_...",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "scope": "ebin:manage"
+  }
+}
+```
+
+Deterministic error behavior:
+
+- Invalid request shape/unsupported grant: `400 BAD_REQUEST`
+- Invalid client credentials: `401 UNAUTHORIZED`
+- In `dev-open` mode, token mint route is disabled and returns deterministic `400 BAD_REQUEST` with auth-mode reason details.
+
+## 3.4 Contract verification evidence (2026-03-04)
+
+Token auth enforcement is verified across all protected routes with matrix criteria:
+
+- no token -> `401`
+- wrong-scope token -> `403`
+- correct-scope token -> non-auth-denied response (not `401`/`403`)
+
+Evidence artifacts:
+
+- `captures/auth_route_matrix_20260304_145513.txt`
+- `captures/auth_route_matrix_20260304_145652.txt`
+- `captures/ebin_s10_phase_a_20260304_145043.txt`
+
+Reusable verifier:
+
+- `tools/smoke_auth_route_matrix.sh`
+
+## 3.5 Path hardening
 
 All file endpoints must enforce:
 

@@ -9,6 +9,7 @@
 #include "cJSON.h"
 #include "esp_err.h"
 #include "esptari_input.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_http_utils.h"
 #include "esptari_web_mappings_item.h"
 #include "esptari_web_mappings_runtime.h"
@@ -120,19 +121,11 @@ static esp_err_t mappings_list_handler(httpd_req_t *req)
 
 void esptari_web_mappings_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t mappings_create = {.uri = "/api/v2/input/mappings", .method = HTTP_POST, .handler = mappings_create_handler, .user_ctx = NULL};
-    httpd_uri_t mappings_list = {.uri = "/api/v2/input/mappings", .method = HTTP_GET, .handler = mappings_list_handler, .user_ctx = NULL};
-    httpd_uri_t mappings_item_get = {.uri = "/api/v2/input/mappings/*", .method = HTTP_GET, .handler = esptari_web_mappings_get_handler, .user_ctx = NULL};
-    httpd_uri_t mappings_item_patch = {.uri = "/api/v2/input/mappings/*", .method = HTTP_PATCH, .handler = esptari_web_mappings_patch_handler, .user_ctx = NULL};
-    httpd_uri_t mappings_item_delete = {.uri = "/api/v2/input/mappings/*", .method = HTTP_DELETE, .handler = esptari_web_mappings_delete_handler, .user_ctx = NULL};
-    httpd_uri_t mappings_active = {.uri = "/api/v2/input/mappings/active", .method = HTTP_GET, .handler = esptari_web_mappings_active_handler, .user_ctx = NULL};
-    httpd_uri_t mappings_apply = {.uri = "/api/v2/input/mappings/apply", .method = HTTP_POST, .handler = esptari_web_mappings_apply_handler, .user_ctx = NULL};
-
-    httpd_register_uri_handler(server_handle, &mappings_create);
-    httpd_register_uri_handler(server_handle, &mappings_list);
-    httpd_register_uri_handler(server_handle, &mappings_active);
-    httpd_register_uri_handler(server_handle, &mappings_apply);
-    httpd_register_uri_handler(server_handle, &mappings_item_get);
-    httpd_register_uri_handler(server_handle, &mappings_item_patch);
-    httpd_register_uri_handler(server_handle, &mappings_item_delete);
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/mappings", HTTP_POST, mappings_create_handler, "input:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/mappings", HTTP_GET, mappings_list_handler, "input:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/mappings/active", HTTP_GET, esptari_web_mappings_active_handler, "input:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/mappings/apply", HTTP_POST, esptari_web_mappings_apply_handler, "input:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/mappings/*", HTTP_GET, esptari_web_mappings_get_handler, "input:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/mappings/*", HTTP_PATCH, esptari_web_mappings_patch_handler, "input:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/mappings/*", HTTP_DELETE, esptari_web_mappings_delete_handler, "input:write"));
 }

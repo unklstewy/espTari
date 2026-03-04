@@ -107,10 +107,10 @@ AI-speed policy:
 | T-089 | EPIC-05 | Implement filtered bus/memory stream and load validation run | P1 | S | S4 | Backlog | T-088 |
 | T-090 | EPIC-05 | Implement stream backpressure counters and watermark metrics | P1 | XS | S4 | Done | T-083, T-085, T-089 |
 | T-091 | EPIC-05 | Expose backpressure telemetry via API and event streams | P1 | S | S4 | Done | T-090 |
-| T-092 | EPIC-06 | Build conformance harness scaffold and test manifest loader | P1 | S | S4 | In Progress | T-075, T-083, T-085 |
-| T-093 | EPIC-06 | Implement evidence artifact collection and report packaging flow | P1 | S | S4 | In Progress | T-092 |
-| T-094 | EPIC-06 | Implement acceptance checklist execution runner | P0 | S | S4 | Ready | T-093 |
-| T-095 | EPIC-06 | Implement review pack generation and signoff bundle assembly | P0 | XS | S4 | Ready | T-094 |
+| T-092 | EPIC-06 | Build conformance harness scaffold and test manifest loader | P1 | S | S4 | Done | T-075, T-083, T-085 |
+| T-093 | EPIC-06 | Implement evidence artifact collection and report packaging flow | P1 | S | S4 | Done | T-092 |
+| T-094 | EPIC-06 | Implement acceptance checklist execution runner | P0 | S | S4 | Done | T-093 |
+| T-095 | EPIC-06 | Implement review pack generation and signoff bundle assembly | P0 | XS | S4 | Done | T-094 |
 | T-096 | EPIC-07 | Implement GLUE/MMU/SHIFTER register and memory window model | P0 | S | S2 | Backlog | T-077 |
 | T-097 | EPIC-07 | Implement GLUE/MMU/SHIFTER arbitration and timing integration checks | P0 | S | S2 | Backlog | T-096 |
 | T-098 | EPIC-07 | Implement MFP register and timer model contracts | P0 | S | S2 | Backlog | T-077 |
@@ -125,14 +125,14 @@ AI-speed policy:
 | T-107 | EPIC-07 | Implement interrupt wiring integration checks across subsystems | P0 | S | S3 | Backlog | T-106 |
 | T-108 | EPIC-07 | Define startup defaults and power-on register baseline table | P0 | XS | S3 | Backlog | T-107 |
 | T-109 | EPIC-07 | Implement reset/startup sequence executor and verification checks | P0 | S | S3 | Backlog | T-108 |
-| T-110 | EPIC-07 | Build subsystem conformance test scaffold and fixture model | P0 | S | S4 | Ready | T-109 |
-| T-111 | EPIC-07 | Implement per-subsystem acceptance suites and reporting output | P0 | S | S4 | Ready | T-110 |
-| T-112 | EPIC-01 | Implement suspend-save request contract wiring and transition checks | P0 | S | S4 | Backlog | T-055, T-093 |
-| T-113 | EPIC-01 | Implement restore-resume transition guards and error semantics | P0 | S | S4 | Backlog | T-112 |
-| T-114 | EPIC-05 | Define restore compatibility rule matrix (schema/abi/profile) | P0 | XS | S4 | Backlog | T-044 |
-| T-115 | EPIC-05 | Implement restore compatibility validator and error mapping | P0 | S | S4 | Backlog | T-114 |
-| T-116 | EPIC-05 | Implement performance SLO metric collectors and sampling pipeline | P0 | S | S4 | Ready | T-083, T-085, T-091 |
-| T-117 | EPIC-05 | Expose SLO endpoints and threshold breach alarm events | P0 | S | S4 | Ready | T-116 |
+| T-110 | EPIC-07 | Build subsystem conformance test scaffold and fixture model | P0 | S | S4 | Done | T-109 |
+| T-111 | EPIC-07 | Implement per-subsystem acceptance suites and reporting output | P0 | S | S4 | Done | T-110 |
+| T-112 | EPIC-01 | Implement suspend-save request contract wiring and transition checks | P0 | S | S4 | Done | T-055, T-093 |
+| T-113 | EPIC-01 | Implement restore-resume transition guards and error semantics | P0 | S | S4 | Done | T-112 |
+| T-114 | EPIC-05 | Define restore compatibility rule matrix (schema/abi/profile) | P0 | XS | S4 | Done | T-044 |
+| T-115 | EPIC-05 | Implement restore compatibility validator and error mapping | P0 | S | S4 | Done | T-114 |
+| T-116 | EPIC-05 | Implement performance SLO metric collectors and sampling pipeline | P0 | S | S4 | Done | T-083, T-085, T-091 |
+| T-117 | EPIC-05 | Expose SLO endpoints and threshold breach alarm events | P0 | S | S4 | Done | T-116 |
 | T-118 | EPIC-05 | Define realtime/slow-motion clock control model and bounds | P1 | XS | S4 | Backlog | T-077 |
 | T-119 | EPIC-05 | Implement clock mode API and deterministic mode transition flow | P1 | S | S4 | Backlog | T-118 |
 | T-120 | EPIC-05 | Implement single-step execution control API and scheduler hook | P1 | S | S4 | Backlog | T-119, T-087, T-089 |

@@ -1,0 +1,27 @@
+run=smoke_acia_framing_100
+health_check=ok attempts=1
+acia_bridge_contract=pass bridge=True mode=True profile=True
+acia_frames_monotonicity_a=pass host_seq=True st_seq=True host_ts=True st_ts=True
+acia_frames_limit_guard=pass code=BAD_REQUEST
+acia_frames_session_guard=pass code=ENGINE_NOT_RUNNING
+acia_bridge_failfast=pass code=INTERNAL_ERROR
+acia_frm01_failfast=pass code=INTERNAL_ERROR
+acia_frm02_failfast=pass code=INTERNAL_ERROR
+acia_frm03_failfast=pass code=INTERNAL_ERROR
+acia_frm04_failfast=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/acia_framing_100_smoke_postfix_20260304_145047.txt
+run=smoke_ikbd_timing_101
+health_check=ok attempts=1
+ikbd_bridge_contract=pass bridge=True parser=True acia=True
+ikbd_keyboard_contract=pass checks=True type=True seq=True ts=True gap=True acia=True
+ikbd_mouse_contract=pass checks=True type=True seq=True ts=True gap=True acia=True
+ikbd_packet_type_guard=pass code=BAD_REQUEST
+ikbd_session_guard=pass code=ENGINE_NOT_RUNNING
+ikbd_bridge_failfast=pass code=INTERNAL_ERROR
+ikbd_pkt01_failfast=pass code=INTERNAL_ERROR
+ikbd_pkt02_failfast=pass code=INTERNAL_ERROR
+ikbd_pkt03_failfast=pass code=INTERNAL_ERROR
+ikbd_pkt04_failfast=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/ikbd_timing_101_smoke_postfix_20260304_145048.txt

@@ -5,6 +5,7 @@
 
 #include "esp_timer.h"
 #include "esptari_core.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_debug_mode.h"
 #include "esptari_web_debug_state.h"
 #include "esptari_web_debug_step.h"
@@ -116,26 +117,7 @@ static esp_err_t esptari_web_debug_clock_state_handler(httpd_req_t *req)
 
 void esptari_web_debug_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t debug_clock_mode = {
-        .uri = "/api/v2/debug/clock/mode",
-        .method = HTTP_POST,
-        .handler = esptari_web_debug_clock_mode_handler,
-        .user_ctx = NULL,
-    };
-    httpd_uri_t debug_clock_step = {
-        .uri = "/api/v2/debug/clock/step",
-        .method = HTTP_POST,
-        .handler = esptari_web_debug_clock_step_handler,
-        .user_ctx = NULL,
-    };
-    httpd_uri_t debug_clock_state = {
-        .uri = "/api/v2/debug/clock/state",
-        .method = HTTP_GET,
-        .handler = esptari_web_debug_clock_state_handler,
-        .user_ctx = NULL,
-    };
-
-    httpd_register_uri_handler(server_handle, &debug_clock_mode);
-    httpd_register_uri_handler(server_handle, &debug_clock_step);
-    httpd_register_uri_handler(server_handle, &debug_clock_state);
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/debug/clock/mode", HTTP_POST, esptari_web_debug_clock_mode_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/debug/clock/step", HTTP_POST, esptari_web_debug_clock_step_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/debug/clock/state", HTTP_GET, esptari_web_debug_clock_state_handler, "inspect:read"));
 }

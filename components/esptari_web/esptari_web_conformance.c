@@ -9,6 +9,7 @@
 #include "cJSON.h"
 #include "esp_timer.h"
 #include "esptari_core.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_http_utils.h"
 
 #define send_json esptari_web_send_json
@@ -1099,29 +1100,16 @@ static esp_err_t conformance_subsystems_suites_report_handler(httpd_req_t *req)
 
 void esptari_web_conformance_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t conformance_session = {.uri = "/api/v2/conformance/harness/session", .method = HTTP_POST, .handler = conformance_harness_session_handler, .user_ctx = NULL};
-    httpd_uri_t conformance_manifest = {.uri = "/api/v2/conformance/manifests/load", .method = HTTP_POST, .handler = conformance_manifest_load_handler, .user_ctx = NULL};
-    httpd_uri_t conformance_collect = {.uri = "/api/v2/conformance/harness/evidence/collect", .method = HTTP_POST, .handler = conformance_evidence_collect_handler, .user_ctx = NULL};
-    httpd_uri_t conformance_report = {.uri = "/api/v2/conformance/harness/report/package", .method = HTTP_POST, .handler = conformance_report_package_handler, .user_ctx = NULL};
-    httpd_uri_t conformance_checklist_run = {.uri = "/api/v2/conformance/harness/checklist/run", .method = HTTP_POST, .handler = conformance_checklist_run_handler, .user_ctx = NULL};
-    httpd_uri_t conformance_checklist_status = {.uri = "/api/v2/conformance/harness/checklist/run/status", .method = HTTP_GET, .handler = conformance_checklist_status_handler, .user_ctx = NULL};
-    httpd_uri_t conformance_review_pack = {.uri = "/api/v2/conformance/harness/review-pack/generate", .method = HTTP_POST, .handler = conformance_review_pack_generate_handler, .user_ctx = NULL};
-    httpd_uri_t conformance_signoff_bundle = {.uri = "/api/v2/conformance/harness/signoff-bundle/assemble", .method = HTTP_POST, .handler = conformance_signoff_bundle_assemble_handler, .user_ctx = NULL};
-    httpd_uri_t conformance_subsystem_scaffold = {.uri = "/api/v2/conformance/subsystems/scaffold", .method = HTTP_POST, .handler = conformance_subsystems_scaffold_handler, .user_ctx = NULL};
-    httpd_uri_t conformance_fixture_model = {.uri = "/api/v2/conformance/subsystems/fixtures/model", .method = HTTP_GET, .handler = conformance_subsystems_fixture_model_handler, .user_ctx = NULL};
-    httpd_uri_t conformance_suites_run = {.uri = "/api/v2/conformance/subsystems/suites/run", .method = HTTP_POST, .handler = conformance_subsystems_suites_run_handler, .user_ctx = NULL};
-    httpd_uri_t conformance_suites_report = {.uri = "/api/v2/conformance/subsystems/suites/report", .method = HTTP_GET, .handler = conformance_subsystems_suites_report_handler, .user_ctx = NULL};
-
-    httpd_register_uri_handler(server_handle, &conformance_session);
-    httpd_register_uri_handler(server_handle, &conformance_manifest);
-    httpd_register_uri_handler(server_handle, &conformance_collect);
-    httpd_register_uri_handler(server_handle, &conformance_report);
-    httpd_register_uri_handler(server_handle, &conformance_checklist_run);
-    httpd_register_uri_handler(server_handle, &conformance_checklist_status);
-    httpd_register_uri_handler(server_handle, &conformance_review_pack);
-    httpd_register_uri_handler(server_handle, &conformance_signoff_bundle);
-    httpd_register_uri_handler(server_handle, &conformance_subsystem_scaffold);
-    httpd_register_uri_handler(server_handle, &conformance_fixture_model);
-    httpd_register_uri_handler(server_handle, &conformance_suites_run);
-    httpd_register_uri_handler(server_handle, &conformance_suites_report);
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/harness/session", HTTP_POST, conformance_harness_session_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/manifests/load", HTTP_POST, conformance_manifest_load_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/harness/evidence/collect", HTTP_POST, conformance_evidence_collect_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/harness/report/package", HTTP_POST, conformance_report_package_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/harness/checklist/run", HTTP_POST, conformance_checklist_run_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/harness/checklist/run/status", HTTP_GET, conformance_checklist_status_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/harness/review-pack/generate", HTTP_POST, conformance_review_pack_generate_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/harness/signoff-bundle/assemble", HTTP_POST, conformance_signoff_bundle_assemble_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/subsystems/scaffold", HTTP_POST, conformance_subsystems_scaffold_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/subsystems/fixtures/model", HTTP_GET, conformance_subsystems_fixture_model_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/subsystems/suites/run", HTTP_POST, conformance_subsystems_suites_run_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/conformance/subsystems/suites/report", HTTP_GET, conformance_subsystems_suites_report_handler, "inspect:read"));
 }

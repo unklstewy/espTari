@@ -1,0 +1,8 @@
+health_check=ok attempts=1
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 403
+{"ok":false,"error":{"code":"FORBIDDEN","category":"auth","retryable":false,"details":{"required_scope":"engine:control","granted_scope":"ebin:manage"}}}
+
+Step failed: session_reset HTTP=403
+{"ok":false,"error":{"code":"FORBIDDEN","category":"auth","retryable":false,"details":{"required_scope":"engine:control","granted_scope":"ebin:manage"}}}

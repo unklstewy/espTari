@@ -1,0 +1,127 @@
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+### session_reset_run_1
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":1979756320}}
+
+### session_start_run_1
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### integration_trace_run_1_1
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208159,"cycle_counter":112552596,"chipset_order":["glue","mmu","shifter"],"bus_owner":"cpu","wait_cycles":2,"event_timestamp_us":1710000026881}}}
+
+### integration_trace_run_1_2
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208162,"cycle_counter":112552608,"chipset_order":["glue","mmu","shifter"],"bus_owner":"dma","wait_cycles":3,"event_timestamp_us":1710000026918}}}
+
+### integration_trace_run_1_3
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208165,"cycle_counter":112552620,"chipset_order":["glue","mmu","shifter"],"bus_owner":"glue","wait_cycles":1,"event_timestamp_us":1710000026955}}}
+
+### integration_trace_run_1_4
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208168,"cycle_counter":112552632,"chipset_order":["glue","mmu","shifter"],"bus_owner":"mmu","wait_cycles":2,"event_timestamp_us":1710000026992}}}
+
+### integration_trace_run_1_5
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208171,"cycle_counter":112552644,"chipset_order":["glue","mmu","shifter"],"bus_owner":"shifter","wait_cycles":3,"event_timestamp_us":1710000027029}}}
+
+### dma_arbitration_trace_run_1
+GET /api/v2/inspect/chipset/dma/arbitration?session_id=ses_local&limit=3
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","events":[{"request_seq":55308,"requester":"fdc","arbitration_round":51,"grant_state":"granted","scheduled_tick":912707,"granted_tick":912707,"timestamp_us":1710000031148},{"request_seq":55309,"requester":"blitter","arbitration_round":52,"grant_state":"deferred","scheduled_tick":912708,"granted_tick":null,"timestamp_us":1710000031152},{"request_seq":55310,"requester":"memory_refresh","arbitration_round":53,"grant_state":"denied","scheduled_tick":912709,"granted_tick":null,"timestamp_us":1710000031156}]}}
+
+run_1_signature=owner_norm=0,1,2,3,4;wait_norm=0,1,2,0,1;dma_grants=granted,deferred,denied;dma_requesters=fdc,blitter,memory_refresh
+### session_reset_run_2
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":1981435330}}
+
+### session_start_run_2
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### integration_trace_run_2_1
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208174,"cycle_counter":112552656,"chipset_order":["glue","mmu","shifter"],"bus_owner":"cpu","wait_cycles":1,"event_timestamp_us":1710000027066}}}
+
+### integration_trace_run_2_2
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208177,"cycle_counter":112552668,"chipset_order":["glue","mmu","shifter"],"bus_owner":"dma","wait_cycles":2,"event_timestamp_us":1710000027103}}}
+
+### integration_trace_run_2_3
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208180,"cycle_counter":112552680,"chipset_order":["glue","mmu","shifter"],"bus_owner":"glue","wait_cycles":3,"event_timestamp_us":1710000027140}}}
+
+### integration_trace_run_2_4
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208183,"cycle_counter":112552692,"chipset_order":["glue","mmu","shifter"],"bus_owner":"mmu","wait_cycles":1,"event_timestamp_us":1710000027177}}}
+
+### integration_trace_run_2_5
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208186,"cycle_counter":112552704,"chipset_order":["glue","mmu","shifter"],"bus_owner":"shifter","wait_cycles":2,"event_timestamp_us":1710000027214}}}
+
+### dma_arbitration_trace_run_2
+GET /api/v2/inspect/chipset/dma/arbitration?session_id=ses_local&limit=3
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","events":[{"request_seq":55311,"requester":"fdc","arbitration_round":54,"grant_state":"granted","scheduled_tick":912710,"granted_tick":912710,"timestamp_us":1710000031160},{"request_seq":55312,"requester":"blitter","arbitration_round":55,"grant_state":"deferred","scheduled_tick":912711,"granted_tick":null,"timestamp_us":1710000031164},{"request_seq":55313,"requester":"memory_refresh","arbitration_round":56,"grant_state":"denied","scheduled_tick":912712,"granted_tick":null,"timestamp_us":1710000031168}]}}
+
+run_2_signature=owner_norm=0,1,2,3,4;wait_norm=0,1,2,0,1;dma_grants=granted,deferred,denied;dma_requesters=fdc,blitter,memory_refresh
+### session_reset_run_3
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":1982930337}}
+
+### session_start_run_3
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### integration_trace_run_3_1
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208189,"cycle_counter":112552716,"chipset_order":["glue","mmu","shifter"],"bus_owner":"cpu","wait_cycles":3,"event_timestamp_us":1710000027251}}}
+
+### integration_trace_run_3_2
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208192,"cycle_counter":112552728,"chipset_order":["glue","mmu","shifter"],"bus_owner":"dma","wait_cycles":1,"event_timestamp_us":1710000027288}}}
+
+### integration_trace_run_3_3
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208195,"cycle_counter":112552740,"chipset_order":["glue","mmu","shifter"],"bus_owner":"glue","wait_cycles":2,"event_timestamp_us":1710000027325}}}
+
+### integration_trace_run_3_4
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208198,"cycle_counter":112552752,"chipset_order":["glue","mmu","shifter"],"bus_owner":"mmu","wait_cycles":3,"event_timestamp_us":1710000027362}}}
+
+### integration_trace_run_3_5
+GET /api/v2/inspect/chipset/windows/integration?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"CHIP-TIM-01":"pass","CHIP-TIM-02":"pass","CHIP-TIM-03":"pass","CHIP-TIM-04":"pass"},"last_integration":{"tick_counter":450208201,"cycle_counter":112552764,"chipset_order":["glue","mmu","shifter"],"bus_owner":"shifter","wait_cycles":1,"event_timestamp_us":1710000027399}}}
+
+### dma_arbitration_trace_run_3
+GET /api/v2/inspect/chipset/dma/arbitration?session_id=ses_local&limit=3
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","events":[{"request_seq":55314,"requester":"fdc","arbitration_round":57,"grant_state":"granted","scheduled_tick":912713,"granted_tick":912713,"timestamp_us":1710000031172},{"request_seq":55315,"requester":"blitter","arbitration_round":58,"grant_state":"deferred","scheduled_tick":912714,"granted_tick":null,"timestamp_us":1710000031176},{"request_seq":55316,"requester":"memory_refresh","arbitration_round":59,"grant_state":"denied","scheduled_tick":912715,"granted_tick":null,"timestamp_us":1710000031180}]}}
+
+run_3_signature=owner_norm=0,1,2,3,4;wait_norm=0,1,2,0,1;dma_grants=granted,deferred,denied;dma_requesters=fdc,blitter,memory_refresh
+determinism_check=pass

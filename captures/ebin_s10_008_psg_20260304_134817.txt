@@ -1,0 +1,23 @@
+run=smoke_psg_audio_104
+health_check=ok attempts=1
+psg_register_window_contract=pass base=True window=True regs=True
+psg_audio_contract=pass conf=True seq=True ts=True tick=True level=True shape=True
+psg_audio_limit_guard=pass code=BAD_REQUEST
+psg_registers_session_guard=pass code=ENGINE_NOT_RUNNING
+psg_aud01_failfast=pass code=INTERNAL_ERROR
+psg_aud02_failfast=pass code=INTERNAL_ERROR
+psg_aud03_failfast=pass code=INTERNAL_ERROR
+psg_aud04_failfast=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/psg_audio_104_smoke_postfix_20260304_134817.txt
+run=smoke_psg_gpio_105
+health_check=ok attempts=1
+psg_gpio_state_shape=pass port_a_direction=output port_b_direction=input
+psg_gpio_event_ordering=pass count=2 seq_delta=1 ts_mono=true tick_mono=true
+psg_gpio_output_contract=pass event0_after=127 expected_port_a=127
+psg_gpio_input_contract=pass before=16 after=48 source=external_signal
+psg_gpio_bad_request_mapping=pass code=BAD_REQUEST
+psg_gpio_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+psg_gpio_internal_error_mapping=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/psg_gpio_105_smoke_postfix_20260304_134818.txt

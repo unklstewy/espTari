@@ -20,10 +20,11 @@
 | B | [B_startup_reset_quirks.md](B_startup_reset_quirks.md) | Power-on defaults and undocumented quirks |
 | C | [C_model_delta_summary.md](C_model_delta_summary.md) | ST vs Mega ST vs STe vs Mega STe deltas |
 | D | [D_evidence_closure_requirements.md](D_evidence_closure_requirements.md) | Evidence needed for 100% claim |
+| E | [E_api_auth_contract_verification_2026-03-04.md](E_api_auth_contract_verification_2026-03-04.md) | Token-auth contract verification and route-matrix evidence |
 
 ## Directed edges
 
-- 01 -> 02 -> 03 -> 04 -> 05 -> 06 -> 07 -> 08 -> 09 -> 10 -> A -> B -> C -> D
+- 01 -> 02 -> 03 -> 04 -> 05 -> 06 -> 07 -> 08 -> 09 -> 10 -> A -> B -> C -> D -> E
 - 05 -> A (timing rules feed interrupt hierarchy)
 - 08 -> B (boot dependencies tied to startup defaults)
 - 03 -> C (component model behavior varies by machine)
@@ -48,6 +49,7 @@
 | “Power-on/reset quirk?” | B |
 | “Model-specific difference?” | C |
 | “What evidence is still missing?” | D |
+| “How is token auth contract verified?” | E |
 
 ## Minimal traversal algorithm
 

@@ -9,6 +9,7 @@
 #include "esp_err.h"
 #include "esp_timer.h"
 #include "esptari_core.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_http_utils.h"
 
 #define send_json esptari_web_send_json
@@ -2578,65 +2579,34 @@ static esp_err_t checkpoint_load_handler(httpd_req_t *req)
 
 void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t registers_snapshot = {.uri = "/api/v2/inspect/registers/snapshot", .method = HTTP_GET, .handler = registers_snapshot_handler, .user_ctx = NULL};
-    httpd_uri_t bus_snapshot = {.uri = "/api/v2/inspect/bus/snapshot", .method = HTTP_GET, .handler = bus_snapshot_handler, .user_ctx = NULL};
-    httpd_uri_t memory_snapshot = {.uri = "/api/v2/inspect/memory/snapshot", .method = HTTP_GET, .handler = memory_snapshot_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_windows_registers = {.uri = "/api/v2/inspect/chipset/windows/registers", .method = HTTP_GET, .handler = inspect_chipset_windows_registers_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_windows_memory = {.uri = "/api/v2/inspect/chipset/windows/memory", .method = HTTP_GET, .handler = inspect_chipset_windows_memory_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_windows_timers = {.uri = "/api/v2/inspect/chipset/windows/timers", .method = HTTP_GET, .handler = inspect_chipset_windows_timers_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_mfp_interrupts = {.uri = "/api/v2/inspect/chipset/mfp/interrupts", .method = HTTP_GET, .handler = inspect_chipset_mfp_interrupts_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_windows_integration = {.uri = "/api/v2/inspect/chipset/windows/integration", .method = HTTP_GET, .handler = inspect_chipset_windows_integration_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_acia_bridge = {.uri = "/api/v2/inspect/chipset/acia/bridge", .method = HTTP_GET, .handler = inspect_chipset_acia_bridge_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_acia_frames = {.uri = "/api/v2/inspect/chipset/acia/frames", .method = HTTP_GET, .handler = inspect_chipset_acia_frames_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_ikbd_bridge = {.uri = "/api/v2/inspect/chipset/ikbd/bridge", .method = HTTP_GET, .handler = inspect_chipset_ikbd_bridge_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_ikbd_packets = {.uri = "/api/v2/inspect/chipset/ikbd/packets", .method = HTTP_GET, .handler = inspect_chipset_ikbd_packets_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_interrupts_hierarchy = {.uri = "/api/v2/inspect/chipset/interrupts/hierarchy", .method = HTTP_GET, .handler = inspect_chipset_interrupts_hierarchy_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_interrupts_routes = {.uri = "/api/v2/inspect/chipset/interrupts/routes", .method = HTTP_GET, .handler = inspect_chipset_interrupts_routes_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_interrupts_wiring = {.uri = "/api/v2/inspect/chipset/interrupts/wiring", .method = HTTP_GET, .handler = inspect_chipset_interrupts_wiring_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_interrupts_wiring_checks = {.uri = "/api/v2/inspect/chipset/interrupts/wiring/checks", .method = HTTP_GET, .handler = inspect_chipset_interrupts_wiring_checks_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_startup_defaults = {.uri = "/api/v2/inspect/chipset/startup/defaults", .method = HTTP_GET, .handler = inspect_chipset_startup_defaults_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_startup_baseline = {.uri = "/api/v2/inspect/chipset/startup/baseline", .method = HTTP_GET, .handler = inspect_chipset_startup_baseline_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_startup_sequence = {.uri = "/api/v2/inspect/chipset/startup/sequence", .method = HTTP_GET, .handler = inspect_chipset_startup_sequence_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_startup_verification = {.uri = "/api/v2/inspect/chipset/startup/verification", .method = HTTP_GET, .handler = inspect_chipset_startup_verification_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_dma_pacing = {.uri = "/api/v2/inspect/chipset/dma/pacing", .method = HTTP_GET, .handler = inspect_chipset_dma_pacing_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_dma_arbitration = {.uri = "/api/v2/inspect/chipset/dma/arbitration", .method = HTTP_GET, .handler = inspect_chipset_dma_arbitration_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_fdc_fsm = {.uri = "/api/v2/inspect/chipset/fdc/fsm", .method = HTTP_GET, .handler = inspect_chipset_fdc_fsm_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_chipset_fdc_terminal = {.uri = "/api/v2/inspect/chipset/fdc/terminal", .method = HTTP_GET, .handler = inspect_chipset_fdc_terminal_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_psg_registers = {.uri = "/api/v2/inspect/chipset/psg/registers", .method = HTTP_GET, .handler = inspect_psg_registers_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_psg_audio = {.uri = "/api/v2/inspect/chipset/psg/audio", .method = HTTP_GET, .handler = inspect_psg_audio_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_psg_gpio_state = {.uri = "/api/v2/inspect/chipset/psg/gpio", .method = HTTP_GET, .handler = inspect_psg_gpio_state_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_psg_gpio_events = {.uri = "/api/v2/inspect/chipset/psg/gpio/events", .method = HTTP_GET, .handler = inspect_psg_gpio_events_handler, .user_ctx = NULL};
-    httpd_uri_t checkpoint_create = {.uri = "/api/v2/engine/checkpoint/create", .method = HTTP_POST, .handler = checkpoint_create_handler, .user_ctx = NULL};
-    httpd_uri_t checkpoint_load = {.uri = "/api/v2/engine/checkpoint/load", .method = HTTP_POST, .handler = checkpoint_load_handler, .user_ctx = NULL};
-
-    httpd_register_uri_handler(server_handle, &registers_snapshot);
-    httpd_register_uri_handler(server_handle, &bus_snapshot);
-    httpd_register_uri_handler(server_handle, &memory_snapshot);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_windows_registers);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_windows_memory);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_windows_timers);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_mfp_interrupts);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_windows_integration);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_acia_bridge);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_acia_frames);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_ikbd_bridge);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_ikbd_packets);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_hierarchy);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_routes);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_wiring);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_wiring_checks);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_startup_defaults);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_startup_baseline);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_startup_sequence);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_startup_verification);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_dma_pacing);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_dma_arbitration);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_fsm);
-    httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_terminal);
-    httpd_register_uri_handler(server_handle, &inspect_psg_registers);
-    httpd_register_uri_handler(server_handle, &inspect_psg_audio);
-    httpd_register_uri_handler(server_handle, &inspect_psg_gpio_state);
-    httpd_register_uri_handler(server_handle, &inspect_psg_gpio_events);
-    httpd_register_uri_handler(server_handle, &checkpoint_create);
-    httpd_register_uri_handler(server_handle, &checkpoint_load);
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/registers/snapshot", HTTP_GET, registers_snapshot_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/bus/snapshot", HTTP_GET, bus_snapshot_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/memory/snapshot", HTTP_GET, memory_snapshot_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/windows/registers", HTTP_GET, inspect_chipset_windows_registers_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/windows/memory", HTTP_GET, inspect_chipset_windows_memory_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/windows/timers", HTTP_GET, inspect_chipset_windows_timers_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/mfp/interrupts", HTTP_GET, inspect_chipset_mfp_interrupts_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/windows/integration", HTTP_GET, inspect_chipset_windows_integration_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/acia/bridge", HTTP_GET, inspect_chipset_acia_bridge_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/acia/frames", HTTP_GET, inspect_chipset_acia_frames_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/ikbd/bridge", HTTP_GET, inspect_chipset_ikbd_bridge_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/ikbd/packets", HTTP_GET, inspect_chipset_ikbd_packets_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/interrupts/hierarchy", HTTP_GET, inspect_chipset_interrupts_hierarchy_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/interrupts/routes", HTTP_GET, inspect_chipset_interrupts_routes_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/interrupts/wiring", HTTP_GET, inspect_chipset_interrupts_wiring_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/interrupts/wiring/checks", HTTP_GET, inspect_chipset_interrupts_wiring_checks_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/startup/defaults", HTTP_GET, inspect_chipset_startup_defaults_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/startup/baseline", HTTP_GET, inspect_chipset_startup_baseline_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/startup/sequence", HTTP_GET, inspect_chipset_startup_sequence_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/startup/verification", HTTP_GET, inspect_chipset_startup_verification_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/dma/pacing", HTTP_GET, inspect_chipset_dma_pacing_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/dma/arbitration", HTTP_GET, inspect_chipset_dma_arbitration_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/fdc/fsm", HTTP_GET, inspect_chipset_fdc_fsm_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/fdc/terminal", HTTP_GET, inspect_chipset_fdc_terminal_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/psg/registers", HTTP_GET, inspect_psg_registers_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/psg/audio", HTTP_GET, inspect_psg_audio_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/psg/gpio", HTTP_GET, inspect_psg_gpio_state_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/chipset/psg/gpio/events", HTTP_GET, inspect_psg_gpio_events_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/engine/checkpoint/create", HTTP_POST, checkpoint_create_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/engine/checkpoint/load", HTTP_POST, checkpoint_load_handler, "engine:control"));
 }

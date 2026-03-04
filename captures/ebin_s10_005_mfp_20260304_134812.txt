@@ -1,0 +1,20 @@
+run=smoke_mfp_windows_098
+health_check=ok attempts=1
+mfp_register_contract=pass group=mfp reg_fields=True
+mfp_timer_contract=pass count=4 has_A=True fields=True
+mfp_bad_request_mapping=pass code=BAD_REQUEST
+mfp_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+mfp_filter_invalid_mapping=pass code=INSPECT_FILTER_INVALID
+Smoke PASS
+Evidence: captures/mfp_windows_098_smoke_postfix_20260304_134812.txt
+run=smoke_mfp_irq_099
+health_check=ok attempts=1
+mfp_irq_contract=pass checks=True src=True line=True vector=True
+mfp_irq_monotonicity=pass ts1=1710000028051 ts2=1710000028080
+mfp_irq_group_guard=pass code=BAD_REQUEST
+mfp_irq_timer_guard=pass code=INSPECT_FILTER_INVALID
+mfp_irq_session_guard=pass code=ENGINE_NOT_RUNNING
+mfp_irq_vector_failfast=pass code=INTERNAL_ERROR
+mfp_irq_timing_failfast=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/mfp_irq_099_smoke_postfix_20260304_134814.txt

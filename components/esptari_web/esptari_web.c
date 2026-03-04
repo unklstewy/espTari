@@ -1,6 +1,7 @@
 #include "esptari_web.h"
 
 #include "esp_log.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_catalog_sync.h"
 #include "esptari_web_catalog.h"
 #include "esptari_web_conformance.h"
@@ -37,6 +38,7 @@ void esptari_web_init(uint16_t port)
         return;
     }
 
+    esptari_web_auth_register_routes(server_handle);
     esptari_web_core_status_register_routes(server_handle);
     esptari_web_lifecycle_register_routes(server_handle);
     esptari_web_media_register_routes(server_handle);

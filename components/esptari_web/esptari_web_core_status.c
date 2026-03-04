@@ -6,6 +6,7 @@
 
 #include "esp_timer.h"
 #include "esptari_core.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_debug.h"
 #include "esptari_web_http_utils.h"
 #include "esptari_web_stream.h"
@@ -87,10 +88,8 @@ static esp_err_t session_state_handler(httpd_req_t *req)
 void esptari_web_core_status_register_routes(httpd_handle_t server_handle)
 {
     httpd_uri_t health = {.uri = "/api/v2/engine/health", .method = HTTP_GET, .handler = health_handler, .user_ctx = NULL};
-    httpd_uri_t status = {.uri = "/api/v2/engine/status", .method = HTTP_GET, .handler = status_handler, .user_ctx = NULL};
-    httpd_uri_t session_state = {.uri = "/api/v2/engine/session", .method = HTTP_GET, .handler = session_state_handler, .user_ctx = NULL};
 
     httpd_register_uri_handler(server_handle, &health);
-    httpd_register_uri_handler(server_handle, &status);
-    httpd_register_uri_handler(server_handle, &session_state);
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/engine/status", HTTP_GET, status_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/engine/session", HTTP_GET, session_state_handler, "inspect:read"));
 }

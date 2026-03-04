@@ -38,7 +38,8 @@ Use this table as the primary machine-navigation source (stable IDs + explicit p
 | A | Interrupt hierarchy appendix | [A_interrupt_hierarchy_vectors.md](A_interrupt_hierarchy_vectors.md) | 10 | B | Defines exact interrupt/vector ordering requirements |
 | B | Startup/reset quirks appendix | [B_startup_reset_quirks.md](B_startup_reset_quirks.md) | A | C | Defines power-on defaults and undocumented software-relevant quirks |
 | C | Model-delta appendix | [C_model_delta_summary.md](C_model_delta_summary.md) | B | D | Defines ST/Mega ST/STe/Mega STe model differences |
-| D | Evidence closure appendix | [D_evidence_closure_requirements.md](D_evidence_closure_requirements.md) | C | - | Defines evidence requirements before claiming 100% |
+| D | Evidence closure appendix | [D_evidence_closure_requirements.md](D_evidence_closure_requirements.md) | C | E | Defines evidence requirements before claiming 100% |
+| E | API auth verification appendix | [E_api_auth_contract_verification_2026-03-04.md](E_api_auth_contract_verification_2026-03-04.md) | D | - | Defines token-auth contract verification method and evidence artifacts |
 | NAV | Agent navigation graph | [NAV_GRAPH.md](NAV_GRAPH.md) | - | 01 | Defines compact routing for automated doc traversal |
 
 ## Appendices
@@ -47,6 +48,7 @@ Use this table as the primary machine-navigation source (stable IDs + explicit p
 - [Appendix B: Startup/reset/power-on assumptions and quirks](B_startup_reset_quirks.md)
 - [Appendix C: Model-delta summary](C_model_delta_summary.md)
 - [Appendix D: Evidence closure requirements](D_evidence_closure_requirements.md)
+- [Appendix E: API authentication contract verification](E_api_auth_contract_verification_2026-03-04.md)
 
 ## Reference source
 

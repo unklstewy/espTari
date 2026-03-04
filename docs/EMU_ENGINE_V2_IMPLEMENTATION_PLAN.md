@@ -129,11 +129,28 @@ Responsible for browser-consumable outputs:
 Current v2 HTTP routing is implemented in `components/esptari_web` with thin registrars and concern-split handlers:
 
 - Root registrar: `esptari_web.c` wires module route registrars (`core_status`, `lifecycle`, `mappings`, `stream`, `debug`, `metrics`, `catalog`).
+- Auth registrar and scope gate: `esptari_web_auth.c` / `esptari_web_auth.h` implement token mint (`POST /api/v2/auth/token`) and protected-route wrappers via `esptari_web_auth_register_protected_route(...)`.
 - Lifecycle routes: `esptari_web_lifecycle.c` (registration) with session/state handlers split into `esptari_web_lifecycle_session.c` and `esptari_web_lifecycle_state.c`.
 - Mapping routes: `esptari_web_mappings.c` (create/list + registration), `esptari_web_mappings_runtime.c` (active/apply), `esptari_web_mappings_item.c` (item GET/PATCH/DELETE).
 - Catalog routes: `esptari_web_catalog.c` (registration), `esptari_web_catalog_read.c` (GET routing), `esptari_web_catalog_write.c` (POST routing), with write concerns split into `esptari_web_catalog_write_download.c` and `esptari_web_catalog_write_maintenance.c`; shared catalog state/helpers live in `esptari_web_catalog_state.c` and `esptari_web_catalog_utils.c`.
 - Debug routes: `esptari_web_debug.c` now exposes `POST /api/v2/debug/clock/mode`, `POST /api/v2/debug/clock/step`, and `GET /api/v2/debug/clock/state`.
 - Stream routes: `esptari_web_stream.c` now exposes `GET /api/v2/stream/video`, `GET /api/v2/stream/audio`, `GET /api/v2/stream/telemetry/backpressure`, and inspect stream endpoints.
+
+Authentication mode selection is runtime-configured through Kconfig:
+
+- `CONFIG_ESPTARI_API_AUTH_MODE_DEV_OPEN`
+- `CONFIG_ESPTARI_API_AUTH_MODE_TOKEN`
+
+Token mode credentials/scope defaults are configured by:
+
+- `CONFIG_ESPTARI_API_TOKEN_CLIENT_ID`
+- `CONFIG_ESPTARI_API_TOKEN_CLIENT_SECRET`
+- `CONFIG_ESPTARI_API_TOKEN_DEFAULT_SCOPE`
+- `CONFIG_ESPTARI_API_TOKEN_TTL_SECONDS`
+
+Verification utility:
+
+- `tools/smoke_auth_route_matrix.sh` validates `401`/`403`/allowed behavior across all protected routes.
 
 This decomposition is the baseline structure for future atomic refactors in the web API component.
 

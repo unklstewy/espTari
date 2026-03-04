@@ -10,6 +10,7 @@
 #include "esp_err.h"
 #include "esp_timer.h"
 #include "esptari_core.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_http_utils.h"
 
 static bool perf_collectors_active;
@@ -435,17 +436,10 @@ static esp_err_t metrics_alarms_handler(httpd_req_t *req)
 
 void esptari_web_metrics_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t metrics_performance = {.uri = "/api/v2/metrics/performance", .method = HTTP_GET, .handler = metrics_performance_handler, .user_ctx = NULL};
-    httpd_uri_t metrics_history = {.uri = "/api/v2/metrics/performance/history", .method = HTTP_GET, .handler = metrics_history_handler, .user_ctx = NULL};
-    httpd_uri_t metrics_collectors_config = {.uri = "/api/v2/metrics/performance/collectors/config", .method = HTTP_POST, .handler = metrics_collectors_config_handler, .user_ctx = NULL};
-    httpd_uri_t metrics_samples = {.uri = "/api/v2/metrics/performance/samples", .method = HTTP_GET, .handler = metrics_samples_handler, .user_ctx = NULL};
-    httpd_uri_t metrics_thresholds = {.uri = "/api/v2/metrics/performance/thresholds", .method = HTTP_GET, .handler = metrics_thresholds_handler, .user_ctx = NULL};
-    httpd_uri_t metrics_alarms = {.uri = "/api/v2/metrics/performance/alarms", .method = HTTP_GET, .handler = metrics_alarms_handler, .user_ctx = NULL};
-
-    httpd_register_uri_handler(server_handle, &metrics_performance);
-    httpd_register_uri_handler(server_handle, &metrics_history);
-    httpd_register_uri_handler(server_handle, &metrics_collectors_config);
-    httpd_register_uri_handler(server_handle, &metrics_samples);
-    httpd_register_uri_handler(server_handle, &metrics_thresholds);
-    httpd_register_uri_handler(server_handle, &metrics_alarms);
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/metrics/performance", HTTP_GET, metrics_performance_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/metrics/performance/history", HTTP_GET, metrics_history_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/metrics/performance/collectors/config", HTTP_POST, metrics_collectors_config_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/metrics/performance/samples", HTTP_GET, metrics_samples_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/metrics/performance/thresholds", HTTP_GET, metrics_thresholds_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/metrics/performance/alarms", HTTP_GET, metrics_alarms_handler, "inspect:read"));
 }

@@ -1,0 +1,97 @@
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+### session_reset_run_1
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":256454354}}
+
+### session_start_run_1
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### startup_defaults_run_1
+GET /api/v2/inspect/chipset/startup/defaults?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","machine_profile":"atari_st_520_1040_baseline","video_standard":"pal","ram_size_kib":1024,"boot_device":"floppy","defaults_revision":"startup_rev_03","applied_tick":16,"applied_timestamp_us":1710000035388,"conformance":{"PWR-BASE-01":"pass","PWR-BASE-04":"pass"}}}
+
+### startup_baseline_run_1
+GET /api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=mfp
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","group":"mfp","registers":[{"name":"IERA","address":"0x00FFFA07","width_bits":8,"reset_value":"0x00","mask":"0xFF"},{"name":"IMRA","address":"0x00FFFA13","width_bits":8,"reset_value":"0x00","mask":"0xFF"}],"baseline_revision":"baseline_rev_07","source":"hardware_boot_table","conformance":{"PWR-BASE-01":"pass","PWR-BASE-02":"pass","PWR-BASE-03":"pass","PWR-BASE-04":"pass"}}}
+
+### startup_sequence_run_1
+GET /api/v2/inspect/chipset/startup/sequence?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","sequence_id":"boot_seq_0007","phase":"interrupt_enable","step_seq":18,"tick_counter":28,"timestamp_us":1710000035753,"verification_status":"pending","conformance":{"RST-SEQ-01":"pass","RST-SEQ-04":"pass"}}}
+
+### startup_verification_run_1
+GET /api/v2/inspect/chipset/startup/verification?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","conformance":{"RST-SEQ-02":"pass","RST-SEQ-03":"pass","RST-SEQ-04":"pass"},"events":[{"event_seq":13,"step_seq":19,"check_id":"BOOT-GLUE-RESET","component":"glue","result":"pass","expected":"GLUE=0x00","observed":"GLUE=0x00","tick_counter":28,"timestamp_us":1710000035747},{"event_seq":14,"step_seq":20,"check_id":"BOOT-MFP-RESET","component":"mfp","result":"pass","expected":"IERA=0x00","observed":"IERA=0x00","tick_counter":29,"timestamp_us":1710000035750},{"event_seq":15,"step_seq":21,"check_id":"BOOT-ACIA-RESET","component":"acia","result":"pass","expected":"ACIA_CTRL=0x15","observed":"ACIA_CTRL=0x15","tick_counter":30,"timestamp_us":1710000035753},{"event_seq":16,"step_seq":22,"check_id":"BOOT-INT-MAP","component":"psg","result":"pass","expected":"irq_order=7..1","observed":"irq_order=7..1","tick_counter":31,"timestamp_us":1710000035756}]}}
+
+run_1_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+### session_reset_run_2
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":257309377}}
+
+### session_start_run_2
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### startup_defaults_run_2
+GET /api/v2/inspect/chipset/startup/defaults?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","machine_profile":"atari_st_520_1040_baseline","video_standard":"pal","ram_size_kib":1024,"boot_device":"floppy","defaults_revision":"startup_rev_03","applied_tick":17,"applied_timestamp_us":1710000035435,"conformance":{"PWR-BASE-01":"pass","PWR-BASE-04":"pass"}}}
+
+### startup_baseline_run_2
+GET /api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=mfp
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","group":"mfp","registers":[{"name":"IERA","address":"0x00FFFA07","width_bits":8,"reset_value":"0x00","mask":"0xFF"},{"name":"IMRA","address":"0x00FFFA13","width_bits":8,"reset_value":"0x00","mask":"0xFF"}],"baseline_revision":"baseline_rev_07","source":"hardware_boot_table","conformance":{"PWR-BASE-01":"pass","PWR-BASE-02":"pass","PWR-BASE-03":"pass","PWR-BASE-04":"pass"}}}
+
+### startup_sequence_run_2
+GET /api/v2/inspect/chipset/startup/sequence?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","sequence_id":"boot_seq_0007","phase":"interrupt_enable","step_seq":23,"tick_counter":32,"timestamp_us":1710000035764,"verification_status":"pending","conformance":{"RST-SEQ-01":"pass","RST-SEQ-04":"pass"}}}
+
+### startup_verification_run_2
+GET /api/v2/inspect/chipset/startup/verification?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","conformance":{"RST-SEQ-02":"pass","RST-SEQ-03":"pass","RST-SEQ-04":"pass"},"events":[{"event_seq":17,"step_seq":24,"check_id":"BOOT-GLUE-RESET","component":"glue","result":"pass","expected":"GLUE=0x00","observed":"GLUE=0x00","tick_counter":32,"timestamp_us":1710000035758},{"event_seq":18,"step_seq":25,"check_id":"BOOT-MFP-RESET","component":"mfp","result":"pass","expected":"IERA=0x00","observed":"IERA=0x00","tick_counter":33,"timestamp_us":1710000035761},{"event_seq":19,"step_seq":26,"check_id":"BOOT-ACIA-RESET","component":"acia","result":"pass","expected":"ACIA_CTRL=0x15","observed":"ACIA_CTRL=0x15","tick_counter":34,"timestamp_us":1710000035764},{"event_seq":20,"step_seq":27,"check_id":"BOOT-INT-MAP","component":"psg","result":"pass","expected":"irq_order=7..1","observed":"irq_order=7..1","tick_counter":35,"timestamp_us":1710000035767}]}}
+
+run_2_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+### session_reset_run_3
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":258316631}}
+
+### session_start_run_3
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### startup_defaults_run_3
+GET /api/v2/inspect/chipset/startup/defaults?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","machine_profile":"atari_st_520_1040_baseline","video_standard":"pal","ram_size_kib":1024,"boot_device":"floppy","defaults_revision":"startup_rev_03","applied_tick":18,"applied_timestamp_us":1710000035482,"conformance":{"PWR-BASE-01":"pass","PWR-BASE-04":"pass"}}}
+
+### startup_baseline_run_3
+GET /api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=mfp
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","group":"mfp","registers":[{"name":"IERA","address":"0x00FFFA07","width_bits":8,"reset_value":"0x00","mask":"0xFF"},{"name":"IMRA","address":"0x00FFFA13","width_bits":8,"reset_value":"0x00","mask":"0xFF"}],"baseline_revision":"baseline_rev_07","source":"hardware_boot_table","conformance":{"PWR-BASE-01":"pass","PWR-BASE-02":"pass","PWR-BASE-03":"pass","PWR-BASE-04":"pass"}}}
+
+### startup_sequence_run_3
+GET /api/v2/inspect/chipset/startup/sequence?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","sequence_id":"boot_seq_0007","phase":"interrupt_enable","step_seq":28,"tick_counter":36,"timestamp_us":1710000035775,"verification_status":"pending","conformance":{"RST-SEQ-01":"pass","RST-SEQ-04":"pass"}}}
+
+### startup_verification_run_3
+GET /api/v2/inspect/chipset/startup/verification?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","conformance":{"RST-SEQ-02":"pass","RST-SEQ-03":"pass","RST-SEQ-04":"pass"},"events":[{"event_seq":21,"step_seq":29,"check_id":"BOOT-GLUE-RESET","component":"glue","result":"pass","expected":"GLUE=0x00","observed":"GLUE=0x00","tick_counter":36,"timestamp_us":1710000035769},{"event_seq":22,"step_seq":30,"check_id":"BOOT-MFP-RESET","component":"mfp","result":"pass","expected":"IERA=0x00","observed":"IERA=0x00","tick_counter":37,"timestamp_us":1710000035772},{"event_seq":23,"step_seq":31,"check_id":"BOOT-ACIA-RESET","component":"acia","result":"pass","expected":"ACIA_CTRL=0x15","observed":"ACIA_CTRL=0x15","tick_counter":38,"timestamp_us":1710000035775},{"event_seq":24,"step_seq":32,"check_id":"BOOT-INT-MAP","component":"psg","result":"pass","expected":"irq_order=7..1","observed":"irq_order=7..1","tick_counter":39,"timestamp_us":1710000035778}]}}
+
+run_3_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+determinism_check=pass

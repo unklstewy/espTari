@@ -12,6 +12,7 @@
 #include "esp_err.h"
 #include "esp_timer.h"
 #include "esptari_core.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_http_utils.h"
 
 #define send_json esptari_web_send_json
@@ -1061,11 +1062,7 @@ static esp_err_t state_list_handler(httpd_req_t *req)
 
 void esptari_web_persistence_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t state_save = {.uri = "/api/v2/engine/state/save", .method = HTTP_POST, .handler = state_save_handler, .user_ctx = NULL};
-    httpd_uri_t state_restore = {.uri = "/api/v2/engine/state/restore", .method = HTTP_POST, .handler = state_restore_handler, .user_ctx = NULL};
-    httpd_uri_t state_list = {.uri = "/api/v2/engine/state/list", .method = HTTP_GET, .handler = state_list_handler, .user_ctx = NULL};
-
-    httpd_register_uri_handler(server_handle, &state_save);
-    httpd_register_uri_handler(server_handle, &state_restore);
-    httpd_register_uri_handler(server_handle, &state_list);
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/engine/state/save", HTTP_POST, state_save_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/engine/state/restore", HTTP_POST, state_restore_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/engine/state/list", HTTP_GET, state_list_handler, "inspect:read"));
 }

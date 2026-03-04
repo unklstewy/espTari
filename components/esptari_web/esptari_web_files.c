@@ -9,6 +9,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 
+#include "esptari_web_auth.h"
 #include "esptari_web_http_utils.h"
 
 static const char *TAG = "esptari_web_files";
@@ -281,21 +282,13 @@ static esp_err_t handle_files_stat(httpd_req_t *req)
 
 void esptari_web_files_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t files_list = {.uri = "/api/v2/files/list", .method = HTTP_GET, .handler = handle_files_list, .user_ctx = NULL};
-    httpd_uri_t files_upload = {.uri = "/api/v2/files/upload", .method = HTTP_POST, .handler = handle_files_upload, .user_ctx = NULL};
-    httpd_uri_t files_move = {.uri = "/api/v2/files/move", .method = HTTP_POST, .handler = handle_files_move, .user_ctx = NULL};
-    httpd_uri_t files_delete = {.uri = "/api/v2/files/delete", .method = HTTP_POST, .handler = handle_files_delete, .user_ctx = NULL};
-    httpd_uri_t files_download = {.uri = "/api/v2/files/download", .method = HTTP_GET, .handler = handle_files_download, .user_ctx = NULL};
-    httpd_uri_t files_mkdir = {.uri = "/api/v2/files/mkdir", .method = HTTP_POST, .handler = handle_files_mkdir, .user_ctx = NULL};
-    httpd_uri_t files_stat = {.uri = "/api/v2/files/stat", .method = HTTP_GET, .handler = handle_files_stat, .user_ctx = NULL};
-
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &files_list));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &files_upload));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &files_move));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &files_delete));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &files_download));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &files_mkdir));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &files_stat));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/files/list", HTTP_GET, handle_files_list, "files:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/files/upload", HTTP_POST, handle_files_upload, "files:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/files/move", HTTP_POST, handle_files_move, "files:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/files/delete", HTTP_POST, handle_files_delete, "files:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/files/download", HTTP_GET, handle_files_download, "files:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/files/mkdir", HTTP_POST, handle_files_mkdir, "files:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/files/stat", HTTP_GET, handle_files_stat, "files:read"));
 
     ESP_LOGI(TAG, "Registered file manager routes");
 }

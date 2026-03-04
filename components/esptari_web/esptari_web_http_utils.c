@@ -13,8 +13,17 @@ esp_err_t esptari_web_send_json(httpd_req_t *req, const char *json, int status_c
     case 201:
         status = "201 Created";
         break;
+    case 202:
+        status = "202 Accepted";
+        break;
     case 400:
         status = "400 Bad Request";
+        break;
+    case 401:
+        status = "401 Unauthorized";
+        break;
+    case 403:
+        status = "403 Forbidden";
         break;
     case 404:
         status = "404 Not Found";

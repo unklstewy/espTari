@@ -1,0 +1,97 @@
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+### session_reset_run_1
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":3609657510}}
+
+### session_start_run_1
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### interrupt_hierarchy_run_1
+GET /api/v2/inspect/chipset/interrupts/hierarchy?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","cpu_level_order":[7,6,5,4,3,2,1],"sources":[{"source_id":"mfp","priority_level":6,"vector":38,"enabled":true},{"source_id":"acia","priority_level":4,"vector":24,"enabled":true},{"source_id":"fdc","priority_level":3,"vector":54,"enabled":true},{"source_id":"blitter","priority_level":2,"vector":48,"enabled":false},{"source_id":"vbl","priority_level":7,"vector":28,"enabled":true}],"default_vector_base":24,"last_route_seq":9901,"last_timestamp_us":1710000034028,"checks":{"INT-MAP-01":"pass"}}}
+
+### interrupt_routes_run_1
+GET /api/v2/inspect/chipset/interrupts/routes?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"INT-MAP-02":"pass","INT-MAP-03":"pass","INT-MAP-04":"pass"},"routes":[{"route_seq":9902,"source_id":"vbl","priority_level":7,"vector":28,"cpu_interrupt_line":"irq7","delivery_state":"delivered","tick_counter":913601,"timestamp_us":1710000034031},{"route_seq":9903,"source_id":"mfp","priority_level":6,"vector":38,"cpu_interrupt_line":"irq6","delivery_state":"delivered","tick_counter":913602,"timestamp_us":1710000034033},{"route_seq":9904,"source_id":"acia","priority_level":4,"vector":24,"cpu_interrupt_line":"irq4","delivery_state":"masked","tick_counter":913603,"timestamp_us":1710000034035},{"route_seq":9905,"source_id":"fdc","priority_level":3,"vector":54,"cpu_interrupt_line":"irq3","delivery_state":"deferred","tick_counter":913604,"timestamp_us":1710000034037}]}}
+
+### interrupt_wiring_run_1
+GET /api/v2/inspect/chipset/interrupts/wiring?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","subsystems":[{"subsystem_id":"mfp","source_line":"mfp_irq","cpu_interrupt_line":"irq6","vector":38,"enabled":true},{"subsystem_id":"acia","source_line":"acia_irq","cpu_interrupt_line":"irq4","vector":24,"enabled":true},{"subsystem_id":"fdc","source_line":"fdc_intrq","cpu_interrupt_line":"irq3","vector":54,"enabled":true},{"subsystem_id":"blitter","source_line":"blitter_irq","cpu_interrupt_line":"irq2","vector":48,"enabled":false},{"subsystem_id":"vbl","source_line":"vblank_irq","cpu_interrupt_line":"irq7","vector":28,"enabled":true}],"global_route_seq":9905,"last_timestamp_us":1710000034620}}
+
+### interrupt_wiring_checks_run_1
+GET /api/v2/inspect/chipset/interrupts/wiring/checks?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","conformance":{"INT-WIRE-01":"pass","INT-WIRE-02":"pass","INT-WIRE-03":"pass","INT-WIRE-04":"pass"},"checks":[{"check_seq":410,"subsystem_id":"vbl","expected_cpu_line":"irq7","observed_cpu_line":"irq7","expected_vector":28,"observed_vector":28,"result":"pass","tick_counter":913901,"timestamp_us":1710000034623},{"check_seq":411,"subsystem_id":"mfp","expected_cpu_line":"irq6","observed_cpu_line":"irq6","expected_vector":38,"observed_vector":38,"result":"pass","tick_counter":913902,"timestamp_us":1710000034625},{"check_seq":412,"subsystem_id":"acia","expected_cpu_line":"irq4","observed_cpu_line":"irq4","expected_vector":24,"observed_vector":24,"result":"pass","tick_counter":913903,"timestamp_us":1710000034627},{"check_seq":413,"subsystem_id":"fdc","expected_cpu_line":"irq3","observed_cpu_line":"irq3","expected_vector":54,"observed_vector":54,"result":"pass","tick_counter":913904,"timestamp_us":1710000034629}]}}
+
+run_1_signature=routes=vbl,mfp,acia,fdc;wiring=irq7:28,irq6:38,irq4:24,irq3:54;results=pass,pass,pass,pass
+### session_reset_run_2
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":3610506504}}
+
+### session_start_run_2
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### interrupt_hierarchy_run_2
+GET /api/v2/inspect/chipset/interrupts/hierarchy?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","cpu_level_order":[7,6,5,4,3,2,1],"sources":[{"source_id":"mfp","priority_level":6,"vector":38,"enabled":true},{"source_id":"acia","priority_level":4,"vector":24,"enabled":true},{"source_id":"fdc","priority_level":3,"vector":54,"enabled":true},{"source_id":"blitter","priority_level":2,"vector":48,"enabled":false},{"source_id":"vbl","priority_level":7,"vector":28,"enabled":true}],"default_vector_base":24,"last_route_seq":9905,"last_timestamp_us":1710000034629,"checks":{"INT-MAP-01":"pass"}}}
+
+### interrupt_routes_run_2
+GET /api/v2/inspect/chipset/interrupts/routes?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"INT-MAP-02":"pass","INT-MAP-03":"pass","INT-MAP-04":"pass"},"routes":[{"route_seq":9906,"source_id":"vbl","priority_level":7,"vector":28,"cpu_interrupt_line":"irq7","delivery_state":"delivered","tick_counter":913605,"timestamp_us":1710000034632},{"route_seq":9907,"source_id":"mfp","priority_level":6,"vector":38,"cpu_interrupt_line":"irq6","delivery_state":"delivered","tick_counter":913606,"timestamp_us":1710000034634},{"route_seq":9908,"source_id":"acia","priority_level":4,"vector":24,"cpu_interrupt_line":"irq4","delivery_state":"masked","tick_counter":913607,"timestamp_us":1710000034636},{"route_seq":9909,"source_id":"fdc","priority_level":3,"vector":54,"cpu_interrupt_line":"irq3","delivery_state":"deferred","tick_counter":913608,"timestamp_us":1710000034638}]}}
+
+### interrupt_wiring_run_2
+GET /api/v2/inspect/chipset/interrupts/wiring?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","subsystems":[{"subsystem_id":"mfp","source_line":"mfp_irq","cpu_interrupt_line":"irq6","vector":38,"enabled":true},{"subsystem_id":"acia","source_line":"acia_irq","cpu_interrupt_line":"irq4","vector":24,"enabled":true},{"subsystem_id":"fdc","source_line":"fdc_intrq","cpu_interrupt_line":"irq3","vector":54,"enabled":true},{"subsystem_id":"blitter","source_line":"blitter_irq","cpu_interrupt_line":"irq2","vector":48,"enabled":false},{"subsystem_id":"vbl","source_line":"vblank_irq","cpu_interrupt_line":"irq7","vector":28,"enabled":true}],"global_route_seq":9909,"last_timestamp_us":1710000034629}}
+
+### interrupt_wiring_checks_run_2
+GET /api/v2/inspect/chipset/interrupts/wiring/checks?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","conformance":{"INT-WIRE-01":"pass","INT-WIRE-02":"pass","INT-WIRE-03":"pass","INT-WIRE-04":"pass"},"checks":[{"check_seq":414,"subsystem_id":"vbl","expected_cpu_line":"irq7","observed_cpu_line":"irq7","expected_vector":28,"observed_vector":28,"result":"pass","tick_counter":913905,"timestamp_us":1710000034632},{"check_seq":415,"subsystem_id":"mfp","expected_cpu_line":"irq6","observed_cpu_line":"irq6","expected_vector":38,"observed_vector":38,"result":"pass","tick_counter":913906,"timestamp_us":1710000034634},{"check_seq":416,"subsystem_id":"acia","expected_cpu_line":"irq4","observed_cpu_line":"irq4","expected_vector":24,"observed_vector":24,"result":"pass","tick_counter":913907,"timestamp_us":1710000034636},{"check_seq":417,"subsystem_id":"fdc","expected_cpu_line":"irq3","observed_cpu_line":"irq3","expected_vector":54,"observed_vector":54,"result":"pass","tick_counter":913908,"timestamp_us":1710000034638}]}}
+
+run_2_signature=routes=vbl,mfp,acia,fdc;wiring=irq7:28,irq6:38,irq4:24,irq3:54;results=pass,pass,pass,pass
+### session_reset_run_3
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":3611120660}}
+
+### session_start_run_3
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### interrupt_hierarchy_run_3
+GET /api/v2/inspect/chipset/interrupts/hierarchy?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","cpu_level_order":[7,6,5,4,3,2,1],"sources":[{"source_id":"mfp","priority_level":6,"vector":38,"enabled":true},{"source_id":"acia","priority_level":4,"vector":24,"enabled":true},{"source_id":"fdc","priority_level":3,"vector":54,"enabled":true},{"source_id":"blitter","priority_level":2,"vector":48,"enabled":false},{"source_id":"vbl","priority_level":7,"vector":28,"enabled":true}],"default_vector_base":24,"last_route_seq":9909,"last_timestamp_us":1710000034638,"checks":{"INT-MAP-01":"pass"}}}
+
+### interrupt_routes_run_3
+GET /api/v2/inspect/chipset/interrupts/routes?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"INT-MAP-02":"pass","INT-MAP-03":"pass","INT-MAP-04":"pass"},"routes":[{"route_seq":9910,"source_id":"vbl","priority_level":7,"vector":28,"cpu_interrupt_line":"irq7","delivery_state":"delivered","tick_counter":913609,"timestamp_us":1710000034641},{"route_seq":9911,"source_id":"mfp","priority_level":6,"vector":38,"cpu_interrupt_line":"irq6","delivery_state":"delivered","tick_counter":913610,"timestamp_us":1710000034643},{"route_seq":9912,"source_id":"acia","priority_level":4,"vector":24,"cpu_interrupt_line":"irq4","delivery_state":"masked","tick_counter":913611,"timestamp_us":1710000034645},{"route_seq":9913,"source_id":"fdc","priority_level":3,"vector":54,"cpu_interrupt_line":"irq3","delivery_state":"deferred","tick_counter":913612,"timestamp_us":1710000034647}]}}
+
+### interrupt_wiring_run_3
+GET /api/v2/inspect/chipset/interrupts/wiring?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","subsystems":[{"subsystem_id":"mfp","source_line":"mfp_irq","cpu_interrupt_line":"irq6","vector":38,"enabled":true},{"subsystem_id":"acia","source_line":"acia_irq","cpu_interrupt_line":"irq4","vector":24,"enabled":true},{"subsystem_id":"fdc","source_line":"fdc_intrq","cpu_interrupt_line":"irq3","vector":54,"enabled":true},{"subsystem_id":"blitter","source_line":"blitter_irq","cpu_interrupt_line":"irq2","vector":48,"enabled":false},{"subsystem_id":"vbl","source_line":"vblank_irq","cpu_interrupt_line":"irq7","vector":28,"enabled":true}],"global_route_seq":9913,"last_timestamp_us":1710000034638}}
+
+### interrupt_wiring_checks_run_3
+GET /api/v2/inspect/chipset/interrupts/wiring/checks?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","conformance":{"INT-WIRE-01":"pass","INT-WIRE-02":"pass","INT-WIRE-03":"pass","INT-WIRE-04":"pass"},"checks":[{"check_seq":418,"subsystem_id":"vbl","expected_cpu_line":"irq7","observed_cpu_line":"irq7","expected_vector":28,"observed_vector":28,"result":"pass","tick_counter":913909,"timestamp_us":1710000034641},{"check_seq":419,"subsystem_id":"mfp","expected_cpu_line":"irq6","observed_cpu_line":"irq6","expected_vector":38,"observed_vector":38,"result":"pass","tick_counter":913910,"timestamp_us":1710000034643},{"check_seq":420,"subsystem_id":"acia","expected_cpu_line":"irq4","observed_cpu_line":"irq4","expected_vector":24,"observed_vector":24,"result":"pass","tick_counter":913911,"timestamp_us":1710000034645},{"check_seq":421,"subsystem_id":"fdc","expected_cpu_line":"irq3","observed_cpu_line":"irq3","expected_vector":54,"observed_vector":54,"result":"pass","tick_counter":913912,"timestamp_us":1710000034647}]}}
+
+run_3_signature=routes=vbl,mfp,acia,fdc;wiring=irq7:28,irq6:38,irq4:24,irq3:54;results=pass,pass,pass,pass
+determinism_check=pass

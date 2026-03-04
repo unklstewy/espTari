@@ -1,0 +1,18 @@
+run=smoke_chipset_windows_096
+health_check=ok attempts=1
+register_window_contract=pass windows=3 has_shifter=True reg_shape=True
+memory_window_contract=pass windows=2 mmu_linear=True shifter_banked=True
+chipset_window_bad_request_mapping=pass code=BAD_REQUEST
+chipset_window_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+chipset_window_internal_error_mapping=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/chipset_windows_096_smoke_postfix_20260304_151504.txt
+run=smoke_chipset_timing_097
+health_check=ok attempts=1
+chip_timing_contract=pass checks=True order=True bus_owner=True
+chip_timing_monotonicity=pass tick1=450208141 tick2=450208144 cycle1=112552524 cycle2=112552536 ts1=1710000026659 ts2=1710000026696
+chip_timing_engine_guard=pass code=ENGINE_NOT_RUNNING
+chip_timing_order_failfast=pass code=INTERNAL_ERROR
+chip_timing_regression_failfast=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/chipset_timing_097_smoke_postfix_20260304_151505.txt

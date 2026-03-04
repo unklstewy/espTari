@@ -8,6 +8,7 @@
 
 #include "esp_timer.h"
 #include "esptari_core.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_http_utils.h"
 #include "esptari_web_media.h"
 #include "cJSON.h"
@@ -2039,21 +2040,12 @@ void esptari_web_stream_get_runtime_snapshot(esptari_web_stream_runtime_snapshot
 
 void esptari_web_stream_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t stream_video = {.uri = "/api/v2/stream/video", .method = HTTP_GET, .handler = stream_video_handler, .user_ctx = NULL};
-    httpd_uri_t stream_audio = {.uri = "/api/v2/stream/audio", .method = HTTP_GET, .handler = stream_audio_handler, .user_ctx = NULL};
-    httpd_uri_t stream_engine = {.uri = "/api/v2/engine/stream", .method = HTTP_GET, .handler = stream_engine_handler, .user_ctx = NULL};
-    httpd_uri_t stream_control = {.uri = "/api/v2/stream/control", .method = HTTP_POST, .handler = stream_control_handler, .user_ctx = NULL};
-    httpd_uri_t stream_backpressure = {.uri = "/api/v2/stream/telemetry/backpressure", .method = HTTP_GET, .handler = stream_backpressure_telemetry_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_registers = {.uri = "/api/v2/inspect/registers/stream", .method = HTTP_GET, .handler = inspect_registers_stream_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_bus = {.uri = "/api/v2/inspect/bus/stream", .method = HTTP_GET, .handler = inspect_bus_stream_handler, .user_ctx = NULL};
-    httpd_uri_t inspect_memory = {.uri = "/api/v2/inspect/memory/stream", .method = HTTP_GET, .handler = inspect_memory_stream_handler, .user_ctx = NULL};
-
-    httpd_register_uri_handler(server_handle, &stream_video);
-    httpd_register_uri_handler(server_handle, &stream_audio);
-    httpd_register_uri_handler(server_handle, &stream_engine);
-    httpd_register_uri_handler(server_handle, &stream_control);
-    httpd_register_uri_handler(server_handle, &stream_backpressure);
-    httpd_register_uri_handler(server_handle, &inspect_registers);
-    httpd_register_uri_handler(server_handle, &inspect_bus);
-    httpd_register_uri_handler(server_handle, &inspect_memory);
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/stream/video", HTTP_GET, stream_video_handler, "stream:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/stream/audio", HTTP_GET, stream_audio_handler, "stream:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/engine/stream", HTTP_GET, stream_engine_handler, "stream:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/stream/control", HTTP_POST, stream_control_handler, "engine:control"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/stream/telemetry/backpressure", HTTP_GET, stream_backpressure_telemetry_handler, "stream:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/registers/stream", HTTP_GET, inspect_registers_stream_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/bus/stream", HTTP_GET, inspect_bus_stream_handler, "inspect:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/inspect/memory/stream", HTTP_GET, inspect_memory_stream_handler, "inspect:read"));
 }

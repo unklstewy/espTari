@@ -1,0 +1,104 @@
+base_url=http://esptari.local
+soak_loops=3
+### loop_1_startup
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+run_1_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+run_2_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+run_3_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+determinism_check=pass
+Smoke PASS
+Evidence: captures/ebin_s10_011_startup_integration_20260304_171401.txt
+loop_1_startup=pass
+### loop_1_suspend_restore
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+run_1_signature=suspend=suspended:running->suspended:integration;restore=running:suspended->running;guard=ENGINE_NOT_SUSPENDED
+run_2_signature=suspend=suspended:running->suspended:integration;restore=running:suspended->running;guard=ENGINE_NOT_SUSPENDED
+run_3_signature=suspend=suspended:running->suspended:integration;restore=running:suspended->running;guard=ENGINE_NOT_SUSPENDED
+determinism_check=pass
+Smoke PASS
+Evidence: captures/ebin_s10_012_suspend_restore_integration_20260304_171406.txt
+loop_1_suspend_restore=pass
+### loop_1_conformance
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+run_1_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+run_2_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+run_3_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+determinism_check=pass
+Smoke PASS
+Evidence: captures/ebin_s10_013_conformance_integration_20260304_171408.txt
+loop_1_conformance=pass
+### loop_2_startup
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+run_1_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+run_2_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+run_3_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+determinism_check=pass
+Smoke PASS
+Evidence: captures/ebin_s10_011_startup_integration_20260304_171412.txt
+loop_2_startup=pass
+### loop_2_suspend_restore
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+run_1_signature=suspend=suspended:running->suspended:integration;restore=running:suspended->running;guard=ENGINE_NOT_SUSPENDED
+run_2_signature=suspend=suspended:running->suspended:integration;restore=running:suspended->running;guard=ENGINE_NOT_SUSPENDED
+run_3_signature=suspend=suspended:running->suspended:integration;restore=running:suspended->running;guard=ENGINE_NOT_SUSPENDED
+determinism_check=pass
+Smoke PASS
+Evidence: captures/ebin_s10_012_suspend_restore_integration_20260304_171415.txt
+loop_2_suspend_restore=pass
+### loop_2_conformance
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+run_1_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+run_2_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+run_3_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+determinism_check=pass
+Smoke PASS
+Evidence: captures/ebin_s10_013_conformance_integration_20260304_171418.txt
+loop_2_conformance=pass
+### loop_3_startup
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+run_1_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+run_2_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+run_3_signature=video=pal;boot=floppy;revision=startup_rev_03;baseline=0x00FFFA07:0x00;0x00FFFA13:0x00;phase=interrupt_enable;status=pending;verify=BOOT-GLUE-RESET:pass;BOOT-MFP-RESET:pass;BOOT-ACIA-RESET:pass;BOOT-INT-MAP:pass
+determinism_check=pass
+Smoke PASS
+Evidence: captures/ebin_s10_011_startup_integration_20260304_171421.txt
+loop_3_startup=pass
+### loop_3_suspend_restore
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+run_1_signature=suspend=suspended:running->suspended:integration;restore=running:suspended->running;guard=ENGINE_NOT_SUSPENDED
+run_2_signature=suspend=suspended:running->suspended:integration;restore=running:suspended->running;guard=ENGINE_NOT_SUSPENDED
+run_3_signature=suspend=suspended:running->suspended:integration;restore=running:suspended->running;guard=ENGINE_NOT_SUSPENDED
+determinism_check=pass
+Smoke PASS
+Evidence: captures/ebin_s10_012_suspend_restore_integration_20260304_171424.txt
+loop_3_suspend_restore=pass
+### loop_3_conformance
+auth_header=configured
+determinism_runs=3
+health_check=ok attempts=1
+run_1_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+run_2_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+run_3_signature=manifest=1:1;artifacts=logs,metrics;suite=2:2:0;report=2:2:0;cases=timer_a_irq:pass
+determinism_check=pass
+Smoke PASS
+Evidence: captures/ebin_s10_013_conformance_integration_20260304_171425.txt
+loop_3_conformance=pass
+summary_pass=9
+summary_fail=0
+soak_decision=pass

@@ -1,0 +1,42 @@
+health_check=ok attempts=1
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":1355679792}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### dma_pacing_ok
+GET /api/v2/inspect/chipset/dma/pacing?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","pacing_mode":"deterministic_tick","request_window_ticks":128,"max_requests_per_window":16,"window_start_tick":912640,"window_end_tick":912767,"queued_requests":3,"last_request_seq":55304}}
+
+dma_pacing_contract=pass mode=deterministic_tick window_ticks=128 max_per_window=16 has_fields=True
+### dma_arbitration_ok
+GET /api/v2/inspect/chipset/dma/arbitration?session_id=ses_local&limit=3
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","events":[{"request_seq":55305,"requester":"fdc","arbitration_round":48,"grant_state":"granted","scheduled_tick":912704,"granted_tick":912704,"timestamp_us":1710000031136},{"request_seq":55306,"requester":"blitter","arbitration_round":49,"grant_state":"deferred","scheduled_tick":912705,"granted_tick":null,"timestamp_us":1710000031140},{"request_seq":55307,"requester":"memory_refresh","arbitration_round":50,"grant_state":"denied","scheduled_tick":912706,"granted_tick":null,"timestamp_us":1710000031144}]}}
+
+dma_arbitration_contract=pass count=3 seq_deltas=1,1 sched_mono=True ts_mono=True grant_rules=True
+dma_window_cap=pass granted_count=1 max_per_window=16
+### dma_arbitration_missing_limit
+GET /api/v2/inspect/chipset/dma/arbitration?session_id=ses_local
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+dma_bad_request_mapping=pass code=BAD_REQUEST
+### dma_unknown_session
+GET /api/v2/inspect/chipset/dma/pacing?session_id=ses_unknown
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}
+
+dma_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+### dma_internal_error
+GET /api/v2/inspect/chipset/dma/arbitration?session_id=ses_local&limit=3&force_dma_unavailable=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+dma_internal_error_mapping=pass code=INTERNAL_ERROR

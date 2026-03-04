@@ -8,6 +8,7 @@
 #include "cJSON.h"
 #include "esp_err.h"
 #include "esp_timer.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_http_utils.h"
 
 #define send_json esptari_web_send_json
@@ -717,23 +718,13 @@ static esp_err_t input_stream_handler(httpd_req_t *req)
 
 void esptari_web_input_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t input_devices = {.uri = "/api/v2/input/devices", .method = HTTP_GET, .handler = input_devices_handler, .user_ctx = NULL};
-    httpd_uri_t input_events_inject = {.uri = "/api/v2/input/events/inject", .method = HTTP_POST, .handler = input_events_inject_handler, .user_ctx = NULL};
-    httpd_uri_t input_capture_state = {.uri = "/api/v2/input/capture/state", .method = HTTP_GET, .handler = input_capture_state_handler, .user_ctx = NULL};
-    httpd_uri_t input_policy_enabled_uri = {.uri = "/api/v2/input/policy/enabled", .method = HTTP_POST, .handler = input_policy_enabled_handler, .user_ctx = NULL};
-    httpd_uri_t input_capture_config = {.uri = "/api/v2/input/capture/config", .method = HTTP_POST, .handler = input_capture_config_handler, .user_ctx = NULL};
-    httpd_uri_t input_capture_release = {.uri = "/api/v2/input/capture/release", .method = HTTP_POST, .handler = input_capture_release_handler, .user_ctx = NULL};
-    httpd_uri_t input_mappings_load = {.uri = "/api/v2/input/mappings/load", .method = HTTP_POST, .handler = input_mappings_load_handler, .user_ctx = NULL};
-    httpd_uri_t input_mappings_update = {.uri = "/api/v2/input/mappings/update", .method = HTTP_POST, .handler = input_mappings_update_handler, .user_ctx = NULL};
-    httpd_uri_t input_stream = {.uri = "/api/v2/input/stream", .method = HTTP_GET, .handler = input_stream_handler, .user_ctx = NULL};
-
-    httpd_register_uri_handler(server_handle, &input_devices);
-    httpd_register_uri_handler(server_handle, &input_events_inject);
-    httpd_register_uri_handler(server_handle, &input_capture_state);
-    httpd_register_uri_handler(server_handle, &input_policy_enabled_uri);
-    httpd_register_uri_handler(server_handle, &input_capture_config);
-    httpd_register_uri_handler(server_handle, &input_capture_release);
-    httpd_register_uri_handler(server_handle, &input_mappings_load);
-    httpd_register_uri_handler(server_handle, &input_mappings_update);
-    httpd_register_uri_handler(server_handle, &input_stream);
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/devices", HTTP_GET, input_devices_handler, "input:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/events/inject", HTTP_POST, input_events_inject_handler, "input:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/capture/state", HTTP_GET, input_capture_state_handler, "input:read"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/policy/enabled", HTTP_POST, input_policy_enabled_handler, "input:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/capture/config", HTTP_POST, input_capture_config_handler, "input:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/capture/release", HTTP_POST, input_capture_release_handler, "input:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/mappings/load", HTTP_POST, input_mappings_load_handler, "input:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/mappings/update", HTTP_POST, input_mappings_update_handler, "input:write"));
+    ESP_ERROR_CHECK(esptari_web_auth_register_protected_route(server_handle, "/api/v2/input/stream", HTTP_GET, input_stream_handler, "input:read"));
 }

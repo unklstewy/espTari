@@ -1,0 +1,141 @@
+gate_check=EBIN-S10-008-to-009
+base_url=http://esptari.local
+report=captures/ebin_s10_009_gate_check_20260304_151504.txt
+rerun=begin scope=A-04..A-08
+run=smoke_chipset_windows_096
+health_check=ok attempts=1
+register_window_contract=pass windows=3 has_shifter=True reg_shape=True
+memory_window_contract=pass windows=2 mmu_linear=True shifter_banked=True
+chipset_window_bad_request_mapping=pass code=BAD_REQUEST
+chipset_window_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+chipset_window_internal_error_mapping=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/chipset_windows_096_smoke_postfix_20260304_151504.txt
+run=smoke_chipset_timing_097
+health_check=ok attempts=1
+chip_timing_contract=pass checks=True order=True bus_owner=True
+chip_timing_monotonicity=pass tick1=450208141 tick2=450208144 cycle1=112552524 cycle2=112552536 ts1=1710000026659 ts2=1710000026696
+chip_timing_engine_guard=pass code=ENGINE_NOT_RUNNING
+chip_timing_order_failfast=pass code=INTERNAL_ERROR
+chip_timing_regression_failfast=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/chipset_timing_097_smoke_postfix_20260304_151505.txt
+Smoke PASS
+Evidence: captures/ebin_s10_004_glue_mmu_shifter_20260304_151504.txt
+run=smoke_mfp_windows_098
+health_check=ok attempts=1
+mfp_register_contract=pass group=mfp reg_fields=True
+mfp_timer_contract=pass count=4 has_A=True fields=True
+mfp_bad_request_mapping=pass code=BAD_REQUEST
+mfp_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+mfp_filter_invalid_mapping=pass code=INSPECT_FILTER_INVALID
+Smoke PASS
+Evidence: captures/mfp_windows_098_smoke_postfix_20260304_151505.txt
+run=smoke_mfp_irq_099
+health_check=ok attempts=1
+mfp_irq_contract=pass checks=True src=True line=True vector=True
+mfp_irq_monotonicity=pass ts1=1710000028051 ts2=1710000028080
+mfp_irq_group_guard=pass code=BAD_REQUEST
+mfp_irq_timer_guard=pass code=INSPECT_FILTER_INVALID
+mfp_irq_session_guard=pass code=ENGINE_NOT_RUNNING
+mfp_irq_vector_failfast=pass code=INTERNAL_ERROR
+mfp_irq_timing_failfast=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/mfp_irq_099_smoke_postfix_20260304_151506.txt
+Smoke PASS
+Evidence: captures/ebin_s10_005_mfp_20260304_151505.txt
+run=smoke_acia_framing_100
+health_check=ok attempts=1
+acia_bridge_contract=pass bridge=True mode=True profile=True
+acia_frames_monotonicity_a=pass host_seq=True st_seq=True host_ts=True st_ts=True
+acia_frames_limit_guard=pass code=BAD_REQUEST
+acia_frames_session_guard=pass code=ENGINE_NOT_RUNNING
+acia_bridge_failfast=pass code=INTERNAL_ERROR
+acia_frm01_failfast=pass code=INTERNAL_ERROR
+acia_frm02_failfast=pass code=INTERNAL_ERROR
+acia_frm03_failfast=pass code=INTERNAL_ERROR
+acia_frm04_failfast=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/acia_framing_100_smoke_postfix_20260304_151506.txt
+run=smoke_ikbd_timing_101
+health_check=ok attempts=1
+ikbd_bridge_contract=pass bridge=True parser=True acia=True
+ikbd_keyboard_contract=pass checks=True type=True seq=True ts=True gap=True acia=True
+ikbd_mouse_contract=pass checks=True type=True seq=True ts=True gap=True acia=True
+ikbd_packet_type_guard=pass code=BAD_REQUEST
+ikbd_session_guard=pass code=ENGINE_NOT_RUNNING
+ikbd_bridge_failfast=pass code=INTERNAL_ERROR
+ikbd_pkt01_failfast=pass code=INTERNAL_ERROR
+ikbd_pkt02_failfast=pass code=INTERNAL_ERROR
+ikbd_pkt03_failfast=pass code=INTERNAL_ERROR
+ikbd_pkt04_failfast=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/ikbd_timing_101_smoke_postfix_20260304_151507.txt
+Smoke PASS
+Evidence: captures/ebin_s10_006_acia_ikbd_20260304_151506.txt
+run=smoke_dma_arbitration_102
+health_check=ok attempts=1
+dma_pacing_contract=pass mode=deterministic_tick window_ticks=128 max_per_window=16 has_fields=True
+dma_arbitration_contract=pass count=3 seq_deltas=1,1 sched_mono=True ts_mono=True grant_rules=True
+dma_window_cap=pass granted_count=1 max_per_window=16
+dma_bad_request_mapping=pass code=BAD_REQUEST
+dma_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+dma_internal_error_mapping=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/dma_arbitration_102_smoke_postfix_20260304_151508.txt
+run=smoke_fdc_fsm_terminal_103
+health_check=ok attempts=1
+fdc_fsm_contract=pass state=executing has_fields=True
+fdc_terminal_contract=pass count=2 seq_delta=1 ts_mono=True tick_mono=True terminal_signals=True
+fdc_bad_request_mapping=pass code=BAD_REQUEST
+fdc_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+fdc_internal_error_mapping=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/fdc_fsm_terminal_103_smoke_postfix_20260304_151508.txt
+Smoke PASS
+Evidence: captures/ebin_s10_007_dma_fdc_20260304_151508.txt
+run=smoke_psg_audio_104
+health_check=ok attempts=1
+psg_register_window_contract=pass base=True window=True regs=True
+psg_audio_contract=pass conf=True seq=True ts=True tick=True level=True shape=True
+psg_audio_limit_guard=pass code=BAD_REQUEST
+psg_registers_session_guard=pass code=ENGINE_NOT_RUNNING
+psg_aud01_failfast=pass code=INTERNAL_ERROR
+psg_aud02_failfast=pass code=INTERNAL_ERROR
+psg_aud03_failfast=pass code=INTERNAL_ERROR
+psg_aud04_failfast=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/psg_audio_104_smoke_postfix_20260304_151509.txt
+run=smoke_psg_gpio_105
+health_check=ok attempts=1
+psg_gpio_state_shape=pass port_a_direction=output port_b_direction=input
+psg_gpio_event_ordering=pass count=2 seq_delta=1 ts_mono=true tick_mono=true
+psg_gpio_output_contract=pass event0_after=127 expected_port_a=127
+psg_gpio_input_contract=pass before=16 after=48 source=external_signal
+psg_gpio_bad_request_mapping=pass code=BAD_REQUEST
+psg_gpio_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+psg_gpio_internal_error_mapping=pass code=INTERNAL_ERROR
+Smoke PASS
+Evidence: captures/psg_gpio_105_smoke_postfix_20260304_151510.txt
+Smoke PASS
+Evidence: captures/ebin_s10_008_psg_20260304_151509.txt
+rerun=end
+EBIN-S10-004.evidence=fail reason=missing_smoke_pass first=captures/ebin_s10_004_glue_mmu_shifter_20260304_151456.txt second=captures/ebin_s10_004_glue_mmu_shifter_20260304_151504.txt
+EBIN-S10-005.evidence=fail reason=missing_smoke_pass first=captures/ebin_s10_005_mfp_20260304_151456.txt second=captures/ebin_s10_005_mfp_20260304_151505.txt
+EBIN-S10-006.evidence=fail reason=missing_smoke_pass first=captures/ebin_s10_006_acia_ikbd_20260304_151456.txt second=captures/ebin_s10_006_acia_ikbd_20260304_151506.txt
+EBIN-S10-007.evidence=fail reason=missing_smoke_pass first=captures/ebin_s10_007_dma_fdc_20260304_151456.txt second=captures/ebin_s10_007_dma_fdc_20260304_151508.txt
+EBIN-S10-008.evidence=fail reason=missing_smoke_pass first=captures/ebin_s10_008_psg_20260304_151456.txt second=captures/ebin_s10_008_psg_20260304_151509.txt
+recovery_safety=pass capture=captures/ebin_s10_003_rollback_fallback_lock_20260304_145044.txt rollback_count=3 fallback_count=3
+contract_drift_detected=file:docs/EMU_ENGINE_V2_API_SPEC.md
+contract_drift_detected=file:docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md
+contract_drift=warn mode=non_strict
+traceability_row=pass id=EBIN-S10-004
+traceability_row=pass id=EBIN-S10-005
+traceability_row=pass id=EBIN-S10-006
+traceability_row=pass id=EBIN-S10-007
+traceability_row=pass id=EBIN-S10-008
+traceability=pass
+manual_confirmation=pass
+decision=non_go
+scope=EBIN-S10-009 start eligibility only
+summary_failures=5

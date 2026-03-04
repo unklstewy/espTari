@@ -154,7 +154,8 @@ esp_err_t esptari_net_init(void)
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&cfg);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        return err;
+        ESP_LOGW(TAG, "Wi-Fi init failed (%s); continuing without Wi-Fi", esp_err_to_name(err));
+        return ESP_OK;
     }
 
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_wifi_set_storage(WIFI_STORAGE_RAM));
@@ -171,17 +172,20 @@ esp_err_t esptari_net_init(void)
 
     err = esp_wifi_set_mode(WIFI_MODE_STA);
     if (err != ESP_OK) {
-        return err;
+        ESP_LOGW(TAG, "Wi-Fi set mode failed (%s); continuing without Wi-Fi", esp_err_to_name(err));
+        return ESP_OK;
     }
 
     err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
     if (err != ESP_OK) {
-        return err;
+        ESP_LOGW(TAG, "Wi-Fi set config failed (%s); continuing without Wi-Fi", esp_err_to_name(err));
+        return ESP_OK;
     }
 
     err = esp_wifi_start();
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        return err;
+        ESP_LOGW(TAG, "Wi-Fi start failed (%s); continuing without Wi-Fi", esp_err_to_name(err));
+        return ESP_OK;
     }
 #else
     ESP_LOGI(TAG, "Wi-Fi disabled by configuration");

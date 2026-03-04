@@ -105,6 +105,52 @@ menu "espTari Configuration"
         help
             Port number for the A/V streaming WebSocket endpoint.
 
+    menu "API Authentication"
+
+        choice ESPTARI_API_AUTH_MODE
+            prompt "API authentication mode"
+            default ESPTARI_API_AUTH_MODE_DEV_OPEN
+            help
+                Select authentication mode for control-plane API endpoints.
+
+            config ESPTARI_API_AUTH_MODE_DEV_OPEN
+                bool "dev-open (LAN test mode)"
+
+            config ESPTARI_API_AUTH_MODE_TOKEN
+                bool "token (bearer token required)"
+        endchoice
+
+        config ESPTARI_API_TOKEN_CLIENT_ID
+            string "Token client_id"
+            default "esptari-smoke"
+            depends on ESPTARI_API_AUTH_MODE_TOKEN
+            help
+                Client ID accepted by POST /api/v2/auth/token.
+
+        config ESPTARI_API_TOKEN_CLIENT_SECRET
+            string "Token client_secret"
+            default "esptari-smoke-secret"
+            depends on ESPTARI_API_AUTH_MODE_TOKEN
+            help
+                Client secret accepted by POST /api/v2/auth/token.
+
+        config ESPTARI_API_TOKEN_DEFAULT_SCOPE
+            string "Default token scope"
+            default "ebin:manage"
+            depends on ESPTARI_API_AUTH_MODE_TOKEN
+            help
+                Default scope granted when token request omits scope.
+
+        config ESPTARI_API_TOKEN_TTL_SECONDS
+            int "Token TTL seconds"
+            range 60 86400
+            default 3600
+            depends on ESPTARI_API_AUTH_MODE_TOKEN
+            help
+                Access token lifetime in seconds.
+
+    endmenu
+
     config ESPTARI_AUTO_START
         bool "Auto-start emulation on boot"
         default n

@@ -1,0 +1,71 @@
+health_check=ok attempts=1
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":1354737667}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### ikbd_bridge_state
+GET /api/v2/inspect/chipset/ikbd/bridge?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","bridge_state":"attached","parser_mode":"atari_st_ikbd","acia_channel_mode":"duplex","rx_queue_depth":2,"tx_queue_depth":1,"last_packet_seq":12419,"last_timestamp_us":1710000031141}}
+
+ikbd_bridge_contract=pass bridge=True parser=True acia=True
+### ikbd_packets_keyboard
+GET /api/v2/inspect/chipset/ikbd/packets?session_id=ses_local&limit=4&packet_type=keyboard_scancode
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"IKBD-PKT-01":"pass","IKBD-PKT-02":"pass","IKBD-PKT-03":"pass","IKBD-PKT-04":"pass"},"packets":[{"packet_seq":12418,"packet_type":"keyboard_scancode","direction":"host_to_st","payload_hex":"0x1C","acia_frame_seq":9202,"inter_packet_gap_us":170,"timestamp_us":1710000031292},{"packet_seq":12419,"packet_type":"keyboard_scancode","direction":"host_to_st","payload_hex":"0x1D","acia_frame_seq":9203,"inter_packet_gap_us":170,"timestamp_us":1710000031462},{"packet_seq":12420,"packet_type":"keyboard_scancode","direction":"host_to_st","payload_hex":"0x1E","acia_frame_seq":9204,"inter_packet_gap_us":170,"timestamp_us":1710000031632},{"packet_seq":12421,"packet_type":"keyboard_scancode","direction":"host_to_st","payload_hex":"0x1F","acia_frame_seq":9205,"inter_packet_gap_us":170,"timestamp_us":1710000031802}]}}
+
+ikbd_keyboard_contract=pass checks=True type=True seq=True ts=True gap=True acia=True
+### ikbd_packets_mouse
+GET /api/v2/inspect/chipset/ikbd/packets?session_id=ses_local&limit=4&packet_type=mouse_packet
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","checks":{"IKBD-PKT-01":"pass","IKBD-PKT-02":"pass","IKBD-PKT-03":"pass","IKBD-PKT-04":"pass"},"packets":[{"packet_seq":12414,"packet_type":"mouse_packet","direction":"st_to_host","payload_hex":"0xF80801","acia_frame_seq":9206,"inter_packet_gap_us":244,"timestamp_us":1710000031206},{"packet_seq":12415,"packet_type":"mouse_packet","direction":"st_to_host","payload_hex":"0xF80902","acia_frame_seq":9207,"inter_packet_gap_us":244,"timestamp_us":1710000031450},{"packet_seq":12416,"packet_type":"mouse_packet","direction":"st_to_host","payload_hex":"0xF80A03","acia_frame_seq":9208,"inter_packet_gap_us":244,"timestamp_us":1710000031694},{"packet_seq":12417,"packet_type":"mouse_packet","direction":"st_to_host","payload_hex":"0xF80B04","acia_frame_seq":9209,"inter_packet_gap_us":244,"timestamp_us":1710000031938}]}}
+
+ikbd_mouse_contract=pass checks=True type=True seq=True ts=True gap=True acia=True
+### ikbd_packets_missing_type
+GET /api/v2/inspect/chipset/ikbd/packets?session_id=ses_local&limit=2
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+ikbd_packet_type_guard=pass code=BAD_REQUEST
+### ikbd_packets_unknown_session
+GET /api/v2/inspect/chipset/ikbd/packets?session_id=ses_unknown&limit=2&packet_type=keyboard_scancode
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}
+
+ikbd_session_guard=pass code=ENGINE_NOT_RUNNING
+### ikbd_bridge_unavailable_failfast
+GET /api/v2/inspect/chipset/ikbd/bridge?session_id=ses_local&force_parser_unavailable=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+ikbd_bridge_failfast=pass code=INTERNAL_ERROR
+### ikbd_pkt01_failfast
+GET /api/v2/inspect/chipset/ikbd/packets?session_id=ses_local&limit=2&packet_type=keyboard_scancode&force_sequence_regression=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"IKBD-PKT-01"}}}
+
+ikbd_pkt01_failfast=pass code=INTERNAL_ERROR
+### ikbd_pkt02_failfast
+GET /api/v2/inspect/chipset/ikbd/packets?session_id=ses_local&limit=2&packet_type=keyboard_scancode&force_timestamp_regression=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"IKBD-PKT-02"}}}
+
+ikbd_pkt02_failfast=pass code=INTERNAL_ERROR
+### ikbd_pkt03_failfast
+GET /api/v2/inspect/chipset/ikbd/packets?session_id=ses_local&limit=2&packet_type=keyboard_scancode&force_gap_mismatch=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"IKBD-PKT-03"}}}
+
+ikbd_pkt03_failfast=pass code=INTERNAL_ERROR
+### ikbd_pkt04_failfast
+GET /api/v2/inspect/chipset/ikbd/packets?session_id=ses_local&limit=2&packet_type=keyboard_scancode&force_unresolved_frame=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"IKBD-PKT-04"}}}
+
+ikbd_pkt04_failfast=pass code=INTERNAL_ERROR

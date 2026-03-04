@@ -1,0 +1,4 @@
+run=smoke_psg_audio_104
+health_check=ok attempts=1
+Step failed: session_reset HTTP=403
+{"ok":false,"error":{"code":"FORBIDDEN","category":"auth","retryable":false,"details":{"required_scope":"engine:control","granted_scope":"ebin:manage"}}}
