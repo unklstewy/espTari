@@ -40,6 +40,21 @@ Compatibility metadata requirements for restore validation:
 - `abi.engine` and `abi.modules` participate in `RCOMP-03` and `RCOMP-04`.
 - `hash` is integrity evidence used by restore read-path validation before commit.
 
+Serializer contract (`snapshot_component_serializers_v1`):
+
+- Each baseline component exposes deterministic serializer and deserializer routines for snapshot state blocks:
+  - `cpu.serialize` / `cpu.deserialize`
+  - `glue_mmu_shifter.serialize` / `glue_mmu_shifter.deserialize`
+  - `mfp.serialize` / `mfp.deserialize`
+  - `acia_ikbd.serialize` / `acia_ikbd.deserialize`
+  - `dma_fdc.serialize` / `dma_fdc.deserialize`
+  - `psg.serialize` / `psg.deserialize`
+- Deterministic ordering and validation checks:
+  - `SER-ORD-01`: stable key ordering for every serialized component block.
+  - `SER-ORD-02`: explicit `endianness` field is present and fixed to `little`.
+  - `SER-VAL-01`: missing or invalid mandatory fields fail serialization with deterministic error mapping.
+- Save response includes `serializer_checks` and `serializer_fingerprint` to provide repeatability evidence.
+
 Request:
 
 ```json

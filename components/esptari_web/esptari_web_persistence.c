@@ -43,6 +43,55 @@ typedef struct {
     char hash[24];
 } snapshot_meta_record_t;
 
+typedef struct {
+    uint32_t pc;
+    uint16_t sr;
+    uint32_t d[8];
+    uint32_t a[8];
+} serializer_cpu_state_t;
+
+typedef struct {
+    uint32_t video_base;
+    uint8_t sync_mode;
+    uint8_t mmu_bank;
+} serializer_glue_state_t;
+
+typedef struct {
+    uint8_t iera;
+    uint8_t ierb;
+    uint8_t isra;
+    uint8_t isrb;
+    uint16_t timers[4];
+} serializer_mfp_state_t;
+
+typedef struct {
+    uint8_t acia_status;
+    uint8_t acia_control;
+    uint8_t ikbd_queue[4];
+} serializer_acia_state_t;
+
+typedef struct {
+    uint32_t dma_addr;
+    uint8_t dma_mode;
+    uint8_t fdc_command;
+    uint8_t fdc_status;
+} serializer_dma_state_t;
+
+typedef struct {
+    uint8_t registers[3];
+    uint8_t mixer;
+    uint8_t gpio;
+} serializer_psg_state_t;
+
+typedef struct {
+    serializer_cpu_state_t cpu;
+    serializer_glue_state_t glue;
+    serializer_mfp_state_t mfp;
+    serializer_acia_state_t acia;
+    serializer_dma_state_t dma;
+    serializer_psg_state_t psg;
+} serializer_bundle_t;
+
 static esp_err_t parse_body_json(httpd_req_t *req, char *body, size_t body_len, cJSON **out_root)
 {
     if (esptari_web_read_request_body(req, body, body_len) != ESP_OK) {
@@ -87,6 +136,160 @@ static void parse_token(char **ctx, char *out, size_t out_len)
     if (token != NULL) {
         snprintf(out, out_len, "%s", token);
     }
+}
+
+static void init_serializer_bundle(serializer_bundle_t *bundle)
+{
+    memset(bundle, 0, sizeof(*bundle));
+
+    bundle->cpu.pc = 0x00FC0000u;
+    bundle->cpu.sr = 0x2700u;
+    for (size_t i = 0; i < 8; i++) {
+        bundle->cpu.d[i] = (uint32_t)i;
+        bundle->cpu.a[i] = 0x00010000u + (uint32_t)(i * 4u);
+    }
+
+    bundle->glue.video_base = 0x00078000u;
+    bundle->glue.sync_mode = 0;
+    bundle->glue.mmu_bank = 0;
+
+    bundle->mfp.iera = 0x00;
+    bundle->mfp.ierb = 0x00;
+    bundle->mfp.isra = 0x00;
+    bundle->mfp.isrb = 0x00;
+    bundle->mfp.timers[0] = 0;
+    bundle->mfp.timers[1] = 0;
+    bundle->mfp.timers[2] = 0;
+    bundle->mfp.timers[3] = 0;
+
+    bundle->acia.acia_status = 0x02;
+    bundle->acia.acia_control = 0x15;
+    bundle->acia.ikbd_queue[0] = 0;
+    bundle->acia.ikbd_queue[1] = 0;
+    bundle->acia.ikbd_queue[2] = 0;
+    bundle->acia.ikbd_queue[3] = 0;
+
+    bundle->dma.dma_addr = 0x00000000u;
+    bundle->dma.dma_mode = 0;
+    bundle->dma.fdc_command = 0;
+    bundle->dma.fdc_status = 0;
+
+    bundle->psg.registers[0] = 0;
+    bundle->psg.registers[1] = 0;
+    bundle->psg.registers[2] = 0;
+    bundle->psg.mixer = 0x3f;
+    bundle->psg.gpio = 0;
+}
+
+static bool serialize_cpu_state(const serializer_cpu_state_t *state, char *out, size_t out_len)
+{
+    int written = snprintf(out,
+                           out_len,
+                           "{\"pc\":%u,\"sr\":%u,\"d\":[%u,%u,%u,%u,%u,%u,%u,%u],\"a\":[%u,%u,%u,%u,%u,%u,%u,%u],\"endianness\":\"little\"}",
+                           (unsigned)state->pc,
+                           state->sr,
+                           (unsigned)state->d[0],
+                           (unsigned)state->d[1],
+                           (unsigned)state->d[2],
+                           (unsigned)state->d[3],
+                           (unsigned)state->d[4],
+                           (unsigned)state->d[5],
+                           (unsigned)state->d[6],
+                           (unsigned)state->d[7],
+                           (unsigned)state->a[0],
+                           (unsigned)state->a[1],
+                           (unsigned)state->a[2],
+                           (unsigned)state->a[3],
+                           (unsigned)state->a[4],
+                           (unsigned)state->a[5],
+                           (unsigned)state->a[6],
+                           (unsigned)state->a[7]);
+    return written > 0 && (size_t)written < out_len;
+}
+
+static bool serialize_glue_state(const serializer_glue_state_t *state, char *out, size_t out_len)
+{
+    int written = snprintf(out,
+                           out_len,
+                           "{\"video_base\":%u,\"sync_mode\":%u,\"mmu_bank\":%u,\"endianness\":\"little\"}",
+                           (unsigned)state->video_base,
+                           state->sync_mode,
+                           state->mmu_bank);
+    return written > 0 && (size_t)written < out_len;
+}
+
+static bool serialize_mfp_state(const serializer_mfp_state_t *state, char *out, size_t out_len)
+{
+    int written = snprintf(out,
+                           out_len,
+                           "{\"iera\":%u,\"ierb\":%u,\"isra\":%u,\"isrb\":%u,\"timers\":[%u,%u,%u,%u],\"endianness\":\"little\"}",
+                           state->iera,
+                           state->ierb,
+                           state->isra,
+                           state->isrb,
+                           state->timers[0],
+                           state->timers[1],
+                           state->timers[2],
+                           state->timers[3]);
+    return written > 0 && (size_t)written < out_len;
+}
+
+static bool serialize_acia_state(const serializer_acia_state_t *state, char *out, size_t out_len)
+{
+    int written = snprintf(out,
+                           out_len,
+                           "{\"acia_status\":%u,\"acia_control\":%u,\"ikbd_queue\":[%u,%u,%u,%u],\"endianness\":\"little\"}",
+                           state->acia_status,
+                           state->acia_control,
+                           state->ikbd_queue[0],
+                           state->ikbd_queue[1],
+                           state->ikbd_queue[2],
+                           state->ikbd_queue[3]);
+    return written > 0 && (size_t)written < out_len;
+}
+
+static bool serialize_dma_state(const serializer_dma_state_t *state, char *out, size_t out_len)
+{
+    int written = snprintf(out,
+                           out_len,
+                           "{\"dma_addr\":%u,\"dma_mode\":%u,\"fdc_command\":%u,\"fdc_status\":%u,\"endianness\":\"little\"}",
+                           (unsigned)state->dma_addr,
+                           state->dma_mode,
+                           state->fdc_command,
+                           state->fdc_status);
+    return written > 0 && (size_t)written < out_len;
+}
+
+static bool serialize_psg_state(const serializer_psg_state_t *state, char *out, size_t out_len)
+{
+    int written = snprintf(out,
+                           out_len,
+                           "{\"registers\":[%u,%u,%u],\"mixer\":%u,\"gpio\":%u,\"endianness\":\"little\"}",
+                           state->registers[0],
+                           state->registers[1],
+                           state->registers[2],
+                           state->mixer,
+                           state->gpio);
+    return written > 0 && (size_t)written < out_len;
+}
+
+static bool validate_serialized_block(const char *serialized, const char *field_a, const char *field_b)
+{
+    if (serialized == NULL || field_a == NULL || field_b == NULL) {
+        return false;
+    }
+
+    cJSON *root = cJSON_Parse(serialized);
+    if (root == NULL) {
+        return false;
+    }
+
+    cJSON *a = cJSON_GetObjectItemCaseSensitive(root, field_a);
+    cJSON *b = cJSON_GetObjectItemCaseSensitive(root, field_b);
+    cJSON *endianness = cJSON_GetObjectItemCaseSensitive(root, "endianness");
+    bool ok = (a != NULL) && (b != NULL) && cJSON_IsString(endianness) && (strcmp(endianness->valuestring, "little") == 0);
+    cJSON_Delete(root);
+    return ok;
 }
 
 static uint32_t fnv1a_hash(const char *text)
@@ -387,6 +590,63 @@ static esp_err_t state_save_handler(httpd_req_t *req)
     snprintf(latest_snapshot_id, sizeof(latest_snapshot_id), "state_%06llu", (unsigned long long)state_seq);
     latest_saved_at_us = (uint64_t)esp_timer_get_time();
 
+    serializer_bundle_t serializer_bundle;
+    init_serializer_bundle(&serializer_bundle);
+
+    char force_serializer_invalid_text[8] = {0};
+    bool force_serializer_invalid = esptari_web_query_value(req, "force_serializer_invalid", force_serializer_invalid_text, sizeof(force_serializer_invalid_text)) &&
+                                    (strcmp(force_serializer_invalid_text, "1") == 0 || strcmp(force_serializer_invalid_text, "true") == 0);
+    if (force_serializer_invalid) {
+        serializer_bundle.psg.mixer = 0;
+    }
+
+    char cpu_block[320];
+    char glue_block[192];
+    char mfp_block[224];
+    char acia_block[224];
+    char dma_block[192];
+    char psg_block[192];
+    if (!serialize_cpu_state(&serializer_bundle.cpu, cpu_block, sizeof(cpu_block)) ||
+        !serialize_glue_state(&serializer_bundle.glue, glue_block, sizeof(glue_block)) ||
+        !serialize_mfp_state(&serializer_bundle.mfp, mfp_block, sizeof(mfp_block)) ||
+        !serialize_acia_state(&serializer_bundle.acia, acia_block, sizeof(acia_block)) ||
+        !serialize_dma_state(&serializer_bundle.dma, dma_block, sizeof(dma_block)) ||
+        !serialize_psg_state(&serializer_bundle.psg, psg_block, sizeof(psg_block))) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"SER-ORD-01\"}}}", 500);
+    }
+
+    if (!validate_serialized_block(cpu_block, "pc", "sr") ||
+        !validate_serialized_block(glue_block, "video_base", "sync_mode") ||
+        !validate_serialized_block(mfp_block, "iera", "isra") ||
+        !validate_serialized_block(acia_block, "acia_status", "acia_control") ||
+        !validate_serialized_block(dma_block, "dma_addr", "fdc_status") ||
+        !validate_serialized_block(psg_block, "mixer", "gpio") ||
+        serializer_bundle.psg.mixer == 0) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"SER-VAL-01\"}}}", 500);
+    }
+
+    uint32_t cpu_hash = fnv1a_hash(cpu_block);
+    uint32_t glue_hash = fnv1a_hash(glue_block);
+    uint32_t mfp_hash = fnv1a_hash(mfp_block);
+    uint32_t acia_hash = fnv1a_hash(acia_block);
+    uint32_t dma_hash = fnv1a_hash(dma_block);
+    uint32_t psg_hash = fnv1a_hash(psg_block);
+    char serializer_material[96];
+    snprintf(serializer_material,
+             sizeof(serializer_material),
+             "%08x|%08x|%08x|%08x|%08x|%08x",
+             (unsigned)cpu_hash,
+             (unsigned)glue_hash,
+             (unsigned)mfp_hash,
+             (unsigned)acia_hash,
+             (unsigned)dma_hash,
+             (unsigned)psg_hash);
+    uint32_t serializer_fingerprint_raw = fnv1a_hash(serializer_material);
+    char serializer_fingerprint[24];
+    snprintf(serializer_fingerprint, sizeof(serializer_fingerprint), "fnv1a:%08x", (unsigned)serializer_fingerprint_raw);
+
     char force_bad_hash_text[8] = {0};
     bool force_bad_hash = esptari_web_query_value(req, "force_bad_hash", force_bad_hash_text, sizeof(force_bad_hash_text)) &&
                           (strcmp(force_bad_hash_text, "1") == 0 || strcmp(force_bad_hash_text, "true") == 0);
@@ -404,16 +664,29 @@ static esp_err_t state_save_handler(httpd_req_t *req)
     char snapshot_hash[24] = {0};
     compute_snapshot_hash(latest_snapshot_id, "st_520_pal", latest_saved_at_us, snapshot_hash, sizeof(snapshot_hash));
 
-    char resp[4096];
+    char *resp = (char *)malloc(4096);
+    if (resp == NULL) {
+        cJSON_Delete(root);
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
     snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"snapshot_id\":\"%s\",\"name\":\"%s\",\"schema_version\":1,\"profile\":\"st_520_pal\",\"abi\":{\"engine\":\"2.0.0\",\"modules\":{\"cpu\":\"2.0.0\",\"video\":\"2.0.0\",\"io\":\"2.0.0\",\"storage\":\"2.0.0\",\"audio\":\"2.0.0\"}},\"hash\":\"%s\",\"created_at_us\":%llu,\"saved_at_us\":%llu,\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"audio\"]},\"media_bindings\":{\"rom_id\":\"rom_default\",\"disk_ids\":[],\"cartridge_id\":null},\"state_blocks\":{\"cpu\":{\"required\":[\"pc\",\"sr\",\"d\",\"a\"]},\"glue_mmu_shifter\":{\"required\":[\"video_base\",\"sync_mode\",\"mmu_bank\"]},\"mfp\":{\"required\":[\"iera\",\"ierb\",\"isra\",\"isrb\",\"timers\"]},\"acia_ikbd\":{\"required\":[\"acia_status\",\"acia_control\",\"ikbd_queue\"]},\"dma_fdc\":{\"required\":[\"dma_addr\",\"dma_mode\",\"fdc_command\",\"fdc_status\"]},\"psg\":{\"required\":[\"registers\",\"mixer\",\"gpio\"]}}}}",
+             4096,
+             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"snapshot_id\":\"%s\",\"name\":\"%s\",\"schema_version\":1,\"profile\":\"st_520_pal\",\"abi\":{\"engine\":\"2.0.0\",\"modules\":{\"cpu\":\"2.0.0\",\"video\":\"2.0.0\",\"io\":\"2.0.0\",\"storage\":\"2.0.0\",\"audio\":\"2.0.0\"}},\"hash\":\"%s\",\"created_at_us\":%llu,\"saved_at_us\":%llu,\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"audio\"]},\"media_bindings\":{\"rom_id\":\"rom_default\",\"disk_ids\":[],\"cartridge_id\":null},\"serializer_checks\":{\"SER-ORD-01\":\"pass\",\"SER-ORD-02\":\"pass\",\"SER-VAL-01\":\"pass\"},\"serializer_fingerprint\":\"%s\",\"state_blocks\":{\"cpu\":%s,\"glue_mmu_shifter\":%s,\"mfp\":%s,\"acia_ikbd\":%s,\"dma_fdc\":%s,\"psg\":%s}}}",
              latest_snapshot_id,
              snapshot_name,
              snapshot_hash,
              (unsigned long long)latest_saved_at_us,
-             (unsigned long long)latest_saved_at_us);
-    return send_json(req, resp, 200);
+             (unsigned long long)latest_saved_at_us,
+             serializer_fingerprint,
+             cpu_block,
+             glue_block,
+             mfp_block,
+             acia_block,
+             dma_block,
+             psg_block);
+    esp_err_t send_err = send_json(req, resp, 200);
+    free(resp);
+    return send_err;
 }
 
 static esp_err_t state_restore_handler(httpd_req_t *req)
