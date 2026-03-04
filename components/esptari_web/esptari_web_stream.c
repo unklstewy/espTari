@@ -92,11 +92,14 @@ static char stream_video_contract_json_buf[1024];
 static char stream_video_meta_sample_json_buf[640];
 static char stream_audio_contract_json_buf[1024];
 static char stream_audio_meta_sample_json_buf[640];
+static char stream_register_contract_json_buf[1536];
+static char stream_register_filter_json_buf[768];
+static char stream_register_sample_json_buf[768];
 static char stream_video_payload_emitter_json_buf[1024];
 static char stream_video_payload_sample_json_buf[256];
 static char stream_audio_payload_emitter_json_buf[1024];
 static char stream_audio_payload_sample_json_buf[256];
-static char stream_response_buf[14336];
+static char stream_response_buf[16384];
 static video_pacing_state_t video_pacing_state = {
     .mode = VIDEO_PACING_REALTIME,
     .target_fps = 50,
@@ -227,6 +230,149 @@ static void update_backpressure_metrics(stream_backpressure_metrics_t *metrics,
 static bool starts_with_unknown(const char *value)
 {
     return value != NULL && strncmp(value, "unknown", 7) == 0;
+}
+
+typedef enum {
+    SELECTOR_LIST_VALID = 0,
+    SELECTOR_LIST_BAD_REQUEST,
+    SELECTOR_LIST_UNKNOWN,
+} selector_list_validation_t;
+
+static selector_list_validation_t validate_selector_list(const char *value)
+{
+    if (value == NULL || value[0] == '\0') {
+        return SELECTOR_LIST_BAD_REQUEST;
+    }
+
+    const char *cursor = value;
+    while (*cursor != '\0') {
+        while (*cursor == ' ' || *cursor == '\t') {
+            cursor++;
+        }
+
+        if (*cursor == ',') {
+            return SELECTOR_LIST_BAD_REQUEST;
+        }
+
+        const char *start = cursor;
+        while (*cursor != '\0' && *cursor != ',') {
+            cursor++;
+        }
+        const char *end = cursor;
+        while (end > start && (end[-1] == ' ' || end[-1] == '\t')) {
+            end--;
+        }
+
+        if (end <= start) {
+            return SELECTOR_LIST_BAD_REQUEST;
+        }
+
+        size_t token_len = (size_t)(end - start);
+        if (token_len >= 64) {
+            return SELECTOR_LIST_BAD_REQUEST;
+        }
+
+        char token[64] = {0};
+        memcpy(token, start, token_len);
+        token[token_len] = '\0';
+        if (starts_with_unknown(token)) {
+            return SELECTOR_LIST_UNKNOWN;
+        }
+
+        if (*cursor == ',') {
+            cursor++;
+            if (*cursor == '\0') {
+                return SELECTOR_LIST_BAD_REQUEST;
+            }
+        }
+    }
+
+    return SELECTOR_LIST_VALID;
+}
+
+static bool append_json_array_item(char *buffer, size_t buffer_size, size_t *cursor, const char *value)
+{
+    if (buffer == NULL || cursor == NULL || value == NULL) {
+        return false;
+    }
+
+    int written = snprintf(buffer + *cursor, buffer_size - *cursor, "\"%s\"", value);
+    if (written <= 0 || (size_t)written >= (buffer_size - *cursor)) {
+        return false;
+    }
+
+    *cursor += (size_t)written;
+    return true;
+}
+
+static bool selector_list_to_json_array(const char *value, char *buffer, size_t buffer_size)
+{
+    if (buffer == NULL || buffer_size == 0) {
+        return false;
+    }
+
+    if (value == NULL || value[0] == '\0') {
+        strlcpy(buffer, "[]", buffer_size);
+        return true;
+    }
+
+    selector_list_validation_t validation = validate_selector_list(value);
+    if (validation != SELECTOR_LIST_VALID) {
+        return false;
+    }
+
+    size_t cursor = 0;
+    int written = snprintf(buffer + cursor, buffer_size - cursor, "[");
+    if (written <= 0 || (size_t)written >= (buffer_size - cursor)) {
+        return false;
+    }
+    cursor += (size_t)written;
+
+    bool first = true;
+    const char *scan = value;
+    while (*scan != '\0') {
+        while (*scan == ' ' || *scan == '\t') {
+            scan++;
+        }
+
+        const char *start = scan;
+        while (*scan != '\0' && *scan != ',') {
+            scan++;
+        }
+
+        const char *end = scan;
+        while (end > start && (end[-1] == ' ' || end[-1] == '\t')) {
+            end--;
+        }
+
+        size_t len = (size_t)(end - start);
+        char token[64] = {0};
+        memcpy(token, start, len);
+        token[len] = '\0';
+
+        if (!first) {
+            written = snprintf(buffer + cursor, buffer_size - cursor, ",");
+            if (written <= 0 || (size_t)written >= (buffer_size - cursor)) {
+                return false;
+            }
+            cursor += (size_t)written;
+        }
+
+        if (!append_json_array_item(buffer, buffer_size, &cursor, token)) {
+            return false;
+        }
+        first = false;
+
+        if (*scan == ',') {
+            scan++;
+        }
+    }
+
+    written = snprintf(buffer + cursor, buffer_size - cursor, "]");
+    if (written <= 0 || (size_t)written >= (buffer_size - cursor)) {
+        return false;
+    }
+    return true;
 }
 
 static bool is_unknown_selector(httpd_req_t *req)
@@ -409,6 +555,58 @@ static esp_err_t validate_audio_metadata_contract(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t validate_register_snapshot_contract(httpd_req_t *req)
+{
+    char value[256] = {0};
+    bool mode_interval = false;
+
+    if (query_value(req, "mode", value, sizeof(value))) {
+        if (strcmp(value, "event") == 0) {
+            mode_interval = false;
+        } else if (strcmp(value, "interval") == 0) {
+            mode_interval = true;
+        } else {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    bool has_interval = query_value(req, "interval_us", value, sizeof(value));
+    if (has_interval) {
+        char *end = NULL;
+        unsigned long interval_us = strtoul(value, &end, 10);
+        if (end == value || *end != '\0' || interval_us == 0UL) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+        if (!mode_interval) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    } else if (mode_interval) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    if (query_value(req, "changed_only", value, sizeof(value))) {
+        if (!(strcmp(value, "true") == 0 || strcmp(value, "false") == 0 || strcmp(value, "1") == 0 || strcmp(value, "0") == 0)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    const char *selectors[] = {"components", "registers", "register_prefixes"};
+    for (size_t i = 0; i < sizeof(selectors) / sizeof(selectors[0]); i++) {
+        if (!query_value(req, selectors[i], value, sizeof(value))) {
+            continue;
+        }
+        selector_list_validation_t selector_status = validate_selector_list(value);
+        if (selector_status == SELECTOR_LIST_UNKNOWN) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INSPECT_FILTER_INVALID\"}}", 400);
+        }
+        if (selector_status != SELECTOR_LIST_VALID) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    return ESP_OK;
+}
+
 static esp_err_t stream_guard_running(httpd_req_t *req)
 {
     esptari_session_status_t status;
@@ -582,6 +780,11 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
         if (audio_contract_err != ESP_OK) {
             return audio_contract_err;
         }
+    } else if (stream == STREAM_KIND_REGISTERS) {
+        esp_err_t register_contract_err = validate_register_snapshot_contract(req);
+        if (register_contract_err != ESP_OK) {
+            return register_contract_err;
+        }
     }
 
     stream_event_seq++;
@@ -708,6 +911,9 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     strlcpy(stream_video_meta_sample_json_buf, "null", sizeof(stream_video_meta_sample_json_buf));
     strlcpy(stream_audio_contract_json_buf, "null", sizeof(stream_audio_contract_json_buf));
     strlcpy(stream_audio_meta_sample_json_buf, "null", sizeof(stream_audio_meta_sample_json_buf));
+    strlcpy(stream_register_contract_json_buf, "null", sizeof(stream_register_contract_json_buf));
+    strlcpy(stream_register_filter_json_buf, "null", sizeof(stream_register_filter_json_buf));
+    strlcpy(stream_register_sample_json_buf, "null", sizeof(stream_register_sample_json_buf));
     strlcpy(stream_video_payload_emitter_json_buf, "null", sizeof(stream_video_payload_emitter_json_buf));
     strlcpy(stream_video_payload_sample_json_buf, "null", sizeof(stream_video_payload_sample_json_buf));
     strlcpy(stream_audio_payload_emitter_json_buf, "null", sizeof(stream_audio_payload_emitter_json_buf));
@@ -781,6 +987,62 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
                  (unsigned long long)audio_emitter_state.sequence_violations,
                  (unsigned long long)audio_emitter_state.pairing_violations,
                  audio_emitter_state.last_error_code);
+    } else if (stream == STREAM_KIND_REGISTERS) {
+        char components_query[256] = {0};
+        char registers_query[256] = {0};
+        char prefixes_query[256] = {0};
+        char mode_query[16] = {0};
+        char interval_query[32] = {0};
+        char changed_only_query[8] = {0};
+        char components_json[256] = {0};
+        char registers_json[256] = {0};
+        char prefixes_json[256] = {0};
+        const char *mode = "event";
+        const char *changed_only = "true";
+        const char *interval_us = "null";
+
+        bool has_components = query_value(req, "components", components_query, sizeof(components_query));
+        bool has_registers = query_value(req, "registers", registers_query, sizeof(registers_query));
+        bool has_prefixes = query_value(req, "register_prefixes", prefixes_query, sizeof(prefixes_query));
+        bool has_mode = query_value(req, "mode", mode_query, sizeof(mode_query));
+        bool has_interval = query_value(req, "interval_us", interval_query, sizeof(interval_query));
+        bool has_changed_only = query_value(req, "changed_only", changed_only_query, sizeof(changed_only_query));
+
+        if (has_mode) {
+            mode = mode_query;
+        }
+        if (has_interval) {
+            interval_us = interval_query;
+        }
+        if (has_changed_only) {
+            changed_only = (strcmp(changed_only_query, "1") == 0 || strcmp(changed_only_query, "true") == 0) ? "true" : "false";
+        }
+
+        if (!selector_list_to_json_array(has_components ? components_query : NULL, components_json, sizeof(components_json)) ||
+            !selector_list_to_json_array(has_registers ? registers_query : NULL, registers_json, sizeof(registers_json)) ||
+            !selector_list_to_json_array(has_prefixes ? prefixes_query : NULL, prefixes_json, sizeof(prefixes_json))) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+
+        snprintf(stream_register_contract_json_buf,
+                 sizeof(stream_register_contract_json_buf),
+                 "{\"channel\":\"registers.snapshot.v1\",\"schema\":\"register_snapshot_v1\",\"required_fields\":[\"type\",\"schema_version\",\"session_id\",\"tick\",\"cycle\",\"component\",\"register\",\"old_value\",\"new_value\",\"value_encoding\",\"value_bits\"],\"value_encoding_enum\":[\"hex\",\"signed\",\"unsigned\"],\"ordering\":\"tick_cycle_ascending\",\"selectors\":{\"components\":\"allowlist\",\"registers\":\"exact_allowlist\",\"register_prefixes\":\"prefix_allowlist\",\"changed_only\":\"suppress_old_equals_new\",\"mode_enum\":[\"event\",\"interval\"],\"interval_us\":\"required_when_mode_interval\"}}" );
+        snprintf(stream_register_filter_json_buf,
+                 sizeof(stream_register_filter_json_buf),
+                 "{\"components\":%s,\"registers\":%s,\"register_prefixes\":%s,\"changed_only\":%s,\"mode\":\"%s\",\"interval_us\":%s}",
+                 components_json,
+                 registers_json,
+                 prefixes_json,
+                 changed_only,
+                 mode,
+                 interval_us);
+        snprintf(stream_register_sample_json_buf,
+                 sizeof(stream_register_sample_json_buf),
+                 "{\"type\":\"register_update\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"tick\":%llu,\"cycle\":%llu,\"component\":\"cpu\",\"register\":\"PC\",\"old_value\":\"0x00FC1234\",\"new_value\":\"0x00FC1236\",\"value_encoding\":\"hex\",\"value_bits\":32}",
+                 (unsigned long long)stream_event_seq,
+                 (unsigned long long)timestamp_us,
+                 (unsigned long long)(stream_event_seq * 2ULL),
+                 (unsigned long long)stream_event_seq);
     }
     if (stream == STREAM_KIND_ENGINE) {
         const esptari_web_media_attach_event_t *events = NULL;
@@ -868,7 +1130,7 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     }
 
     snprintf(stream_response_buf, sizeof(stream_response_buf),
-             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"audio_metadata_contract\":%s,\"audio_chunk_meta_sample\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"audio_payload_emitter\":%s,\"audio_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"audio_metadata_contract\":%s,\"audio_chunk_meta_sample\":%s,\"register_snapshot_contract\":%s,\"register_filter_selectors\":%s,\"register_update_sample\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"audio_payload_emitter\":%s,\"audio_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
              stream_name,
              (unsigned long long)stream_event_seq,
              (unsigned long long)timestamp_us,
@@ -904,6 +1166,9 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
              stream_video_meta_sample_json_buf,
              stream_audio_contract_json_buf,
              stream_audio_meta_sample_json_buf,
+             stream_register_contract_json_buf,
+             stream_register_filter_json_buf,
+             stream_register_sample_json_buf,
              stream_video_payload_emitter_json_buf,
              stream_video_payload_sample_json_buf,
              stream_audio_payload_emitter_json_buf,

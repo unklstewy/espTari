@@ -487,6 +487,8 @@ Browser input capture policy:
 - packet fields:
   - component, register name, value, old value, cycle stamp, tick stamp
 - Register snapshot schema + selective filter-field contract (`register_snapshot_v1`, selector fields `components`/`registers`/`register_prefixes`, `changed_only`, and filter guards) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `10.4` and is the canonical source.
+- Runtime projection for contract verification is exposed on `GET /api/v2/inspect/registers/stream` via `register_snapshot_contract`, `register_filter_selectors`, and `register_update_sample` fields in stream probe responses.
+- Deterministic filter guards are enforced on `GET /api/v2/inspect/registers/stream`: invalid selector list shapes, invalid `changed_only` values, unsupported `mode`, or invalid `interval_us` rules return `BAD_REQUEST`; unresolved selector semantics (`unknown*`) return `INSPECT_FILTER_INVALID`.
 - Register snapshot stream publisher + validation-check contract (publisher pipeline ordering, required `event_seq`/`event_timestamp_us`, checks `REG-PUB-01..04`, and deterministic failure mapping) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `10.4` and is the canonical source.
 
 ### Bus/memory trace stream
