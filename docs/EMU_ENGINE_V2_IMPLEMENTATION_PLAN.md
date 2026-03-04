@@ -572,6 +572,7 @@ Browser input capture policy:
   - Implemented: `GET /api/v2/inspect/registers/snapshot`, `GET /api/v2/inspect/bus/snapshot`, `GET /api/v2/inspect/memory/snapshot`, `POST /api/v2/engine/checkpoint/create`, `POST /api/v2/engine/checkpoint/load`
 - **6.7 Machine state persistence APIs**: COMPLETE
   - Implemented: `POST /api/v2/engine/state/save`, `POST /api/v2/engine/state/restore`, `GET /api/v2/engine/state/list`
+  - `GET /api/v2/engine/state/list` now serves persisted index metadata (`snapshot_id`, `name`, `profile`, `saved_at_us`, `state`) with deterministic query filters (`session_id`, optional `profile`, `saved_after_us`, `saved_before_us`) and corruption disclosure via `data.index_warnings.corrupted_entries`.
 - **6.8 Performance metrics APIs**: COMPLETE
   - Implemented: `GET /api/v2/metrics/performance`, `GET /api/v2/metrics/performance/history`, `POST /api/v2/metrics/performance/collectors/config`, `GET /api/v2/metrics/performance/samples`, `GET /api/v2/metrics/performance/thresholds`, `GET /api/v2/metrics/performance/alarms`
 - **6.9 Debug clock-control APIs**: COMPLETE

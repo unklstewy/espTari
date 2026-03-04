@@ -1,0 +1,44 @@
+health_check=ok attempts=3
+# T-042 snapshot index/list smoke 20260303_211707
+## list baseline
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 119
+
+{"ok":true,"data":{"session_id":"ses_local","total_entries":0,"index_warnings":{"corrupted_entries":0},"snapshots":[]}}
+## save snapshot alpha
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 112
+
+{"ok":true,"data":{"session_id":"ses_local","snapshot_id":"state_000002","name":"alpha","saved_at_us":16769686}}
+## save snapshot beta
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 111
+
+{"ok":true,"data":{"session_id":"ses_local","snapshot_id":"state_000003","name":"beta","saved_at_us":16817342}}
+## list full
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 341
+
+{"ok":true,"data":{"session_id":"ses_local","total_entries":2,"index_warnings":{"corrupted_entries":0},"snapshots":[{"snapshot_id":"state_000002","profile":"st_520_pal","name":"alpha","saved_at_us":16769686,"state":"available"},{"snapshot_id":"state_000003","profile":"st_520_pal","name":"beta","saved_at_us":16817342,"state":"available"}]}}
+## list profile filter
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 341
+
+{"ok":true,"data":{"session_id":"ses_local","total_entries":2,"index_warnings":{"corrupted_entries":0},"snapshots":[{"snapshot_id":"state_000002","profile":"st_520_pal","name":"alpha","saved_at_us":16769686,"state":"available"},{"snapshot_id":"state_000003","profile":"st_520_pal","name":"beta","saved_at_us":16817342,"state":"available"}]}}
+## list saved_after filter
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 230
+
+{"ok":true,"data":{"session_id":"ses_local","total_entries":1,"index_warnings":{"corrupted_entries":0},"snapshots":[{"snapshot_id":"state_000004","profile":"st_520_pal","name":"gamma","saved_at_us":16923110,"state":"available"}]}}
+## list bad filter
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 43
+
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
