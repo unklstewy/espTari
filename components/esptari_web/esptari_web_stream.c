@@ -53,6 +53,18 @@ typedef struct {
     uint64_t last_emit_us;
 } video_pacing_state_t;
 
+typedef enum {
+    AUDIO_PACING_REALTIME = 0,
+    AUDIO_PACING_FIXED_HZ,
+} audio_pacing_mode_t;
+
+typedef struct {
+    audio_pacing_mode_t mode;
+    uint32_t target_hz;
+    uint32_t max_burst_chunks;
+    uint64_t last_emit_us;
+} audio_pacing_state_t;
+
 typedef struct {
     uint64_t last_frame_id;
     uint64_t emitted_pairs;
@@ -61,6 +73,15 @@ typedef struct {
     uint32_t last_payload_bytes;
     char last_error_code[32];
 } video_payload_emitter_state_t;
+
+typedef struct {
+    uint64_t last_chunk_id;
+    uint64_t emitted_pairs;
+    uint64_t sequence_violations;
+    uint64_t pairing_violations;
+    uint32_t last_payload_bytes;
+    char last_error_code[32];
+} audio_payload_emitter_state_t;
 
 static uint64_t stream_event_seq;
 static uint64_t slo_alarm_seq;
@@ -73,14 +94,23 @@ static char stream_audio_contract_json_buf[1024];
 static char stream_audio_meta_sample_json_buf[640];
 static char stream_video_payload_emitter_json_buf[1024];
 static char stream_video_payload_sample_json_buf[256];
-static char stream_response_buf[12288];
+static char stream_audio_payload_emitter_json_buf[1024];
+static char stream_audio_payload_sample_json_buf[256];
+static char stream_response_buf[14336];
 static video_pacing_state_t video_pacing_state = {
     .mode = VIDEO_PACING_REALTIME,
     .target_fps = 50,
     .max_burst_frames = 1,
     .last_emit_us = 0,
 };
+static audio_pacing_state_t audio_pacing_state = {
+    .mode = AUDIO_PACING_REALTIME,
+    .target_hz = 240,
+    .max_burst_chunks = 1,
+    .last_emit_us = 0,
+};
 static video_payload_emitter_state_t video_emitter_state;
+static audio_payload_emitter_state_t audio_emitter_state;
 static stream_backpressure_metrics_t stream_metrics[STREAM_KIND_COUNT] = {
     [STREAM_KIND_VIDEO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
     [STREAM_KIND_AUDIO] = {.queue_capacity = STREAM_QUEUE_CAPACITY, .queue_depth = STREAM_QUEUE_DEPTH_IDLE, .high_watermark_depth = STREAM_QUEUE_DEPTH_IDLE},
@@ -267,6 +297,14 @@ static const char *video_pacing_mode_name(video_pacing_mode_t mode)
     return "realtime";
 }
 
+static const char *audio_pacing_mode_name(audio_pacing_mode_t mode)
+{
+    if (mode == AUDIO_PACING_FIXED_HZ) {
+        return "fixed_hz";
+    }
+    return "realtime";
+}
+
 static bool parse_video_pacing_mode(const char *value, video_pacing_mode_t *out_mode)
 {
     if (value == NULL || out_mode == NULL) {
@@ -278,6 +316,22 @@ static bool parse_video_pacing_mode(const char *value, video_pacing_mode_t *out_
     }
     if (strcmp(value, "fixed_fps") == 0) {
         *out_mode = VIDEO_PACING_FIXED_FPS;
+        return true;
+    }
+    return false;
+}
+
+static bool parse_audio_pacing_mode(const char *value, audio_pacing_mode_t *out_mode)
+{
+    if (value == NULL || out_mode == NULL) {
+        return false;
+    }
+    if (strcmp(value, "realtime") == 0) {
+        *out_mode = AUDIO_PACING_REALTIME;
+        return true;
+    }
+    if (strcmp(value, "fixed_hz") == 0) {
+        *out_mode = AUDIO_PACING_FIXED_HZ;
         return true;
     }
     return false;
@@ -390,62 +444,120 @@ static esp_err_t stream_control_handler(httpd_req_t *req)
               esptari_web_json_get_string(root, "stream", &stream) &&
               esptari_web_json_get_string(root, "pacing_mode", &pacing_mode);
     if (!ok || type == NULL || stream == NULL || pacing_mode == NULL ||
-        strcmp(type, "set_rate_limit") != 0 || strcmp(stream, "video") != 0) {
+        strcmp(type, "set_rate_limit") != 0) {
         cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
-
-    video_pacing_mode_t mode;
-    if (!parse_video_pacing_mode(pacing_mode, &mode)) {
-        cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-    }
-
-    uint32_t target_fps = video_pacing_state.target_fps;
-    uint32_t max_burst_frames = video_pacing_state.max_burst_frames;
-
-    if (mode == VIDEO_PACING_FIXED_FPS) {
-        cJSON *target_fps_item = cJSON_GetObjectItemCaseSensitive(root, "target_fps");
-        if (!cJSON_IsNumber(target_fps_item)) {
-            cJSON_Delete(root);
-            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-        }
-        int target_fps_value = target_fps_item->valueint;
-        if (target_fps_value < 1 || target_fps_value > 240) {
-            cJSON_Delete(root);
-            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-        }
-        target_fps = (uint32_t)target_fps_value;
-    }
-
-    cJSON *max_burst_item = cJSON_GetObjectItemCaseSensitive(root, "max_burst_frames");
-    if (max_burst_item != NULL) {
-        if (!cJSON_IsNumber(max_burst_item)) {
-            cJSON_Delete(root);
-            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-        }
-        int max_burst_value = max_burst_item->valueint;
-        if (max_burst_value < 1 || max_burst_value > 8) {
-            cJSON_Delete(root);
-            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
-        }
-        max_burst_frames = (uint32_t)max_burst_value;
-    }
-
-    video_pacing_state.mode = mode;
-    video_pacing_state.target_fps = target_fps;
-    video_pacing_state.max_burst_frames = max_burst_frames;
-    cJSON_Delete(root);
 
     char resp[384];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"stream\":\"video\",\"type\":\"set_rate_limit\",\"pacing\":{\"pacing_mode\":\"%s\",\"target_fps\":%lu,\"max_burst_frames\":%lu},\"applied_at_us\":%llu}}",
-             video_pacing_mode_name(video_pacing_state.mode),
-             (unsigned long)video_pacing_state.target_fps,
-             (unsigned long)video_pacing_state.max_burst_frames,
-             (unsigned long long)esp_timer_get_time());
-    return send_json(req, resp, 200);
+    if (strcmp(stream, "video") == 0) {
+        video_pacing_mode_t mode;
+        if (!parse_video_pacing_mode(pacing_mode, &mode)) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+
+        uint32_t target_fps = video_pacing_state.target_fps;
+        uint32_t max_burst_frames = video_pacing_state.max_burst_frames;
+
+        if (mode == VIDEO_PACING_FIXED_FPS) {
+            cJSON *target_fps_item = cJSON_GetObjectItemCaseSensitive(root, "target_fps");
+            if (!cJSON_IsNumber(target_fps_item)) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+            int target_fps_value = target_fps_item->valueint;
+            if (target_fps_value < 1 || target_fps_value > 240) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+            target_fps = (uint32_t)target_fps_value;
+        }
+
+        cJSON *max_burst_item = cJSON_GetObjectItemCaseSensitive(root, "max_burst_frames");
+        if (max_burst_item != NULL) {
+            if (!cJSON_IsNumber(max_burst_item)) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+            int max_burst_value = max_burst_item->valueint;
+            if (max_burst_value < 1 || max_burst_value > 8) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+            max_burst_frames = (uint32_t)max_burst_value;
+        }
+
+        video_pacing_state.mode = mode;
+        video_pacing_state.target_fps = target_fps;
+        video_pacing_state.max_burst_frames = max_burst_frames;
+
+        snprintf(resp,
+                 sizeof(resp),
+                 "{\"ok\":true,\"data\":{\"stream\":\"video\",\"type\":\"set_rate_limit\",\"pacing\":{\"pacing_mode\":\"%s\",\"target_fps\":%lu,\"max_burst_frames\":%lu},\"applied_at_us\":%llu}}",
+                 video_pacing_mode_name(video_pacing_state.mode),
+                 (unsigned long)video_pacing_state.target_fps,
+                 (unsigned long)video_pacing_state.max_burst_frames,
+                 (unsigned long long)esp_timer_get_time());
+        cJSON_Delete(root);
+        return send_json(req, resp, 200);
+    }
+
+    if (strcmp(stream, "audio") == 0) {
+        audio_pacing_mode_t mode;
+        if (!parse_audio_pacing_mode(pacing_mode, &mode)) {
+            cJSON_Delete(root);
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+
+        uint32_t target_hz = audio_pacing_state.target_hz;
+        uint32_t max_burst_chunks = audio_pacing_state.max_burst_chunks;
+
+        if (mode == AUDIO_PACING_FIXED_HZ) {
+            cJSON *target_hz_item = cJSON_GetObjectItemCaseSensitive(root, "target_hz");
+            if (!cJSON_IsNumber(target_hz_item)) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+            int target_hz_value = target_hz_item->valueint;
+            if (target_hz_value < 1 || target_hz_value > 48000) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+            target_hz = (uint32_t)target_hz_value;
+        }
+
+        cJSON *max_burst_item = cJSON_GetObjectItemCaseSensitive(root, "max_burst_chunks");
+        if (max_burst_item != NULL) {
+            if (!cJSON_IsNumber(max_burst_item)) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+            int max_burst_value = max_burst_item->valueint;
+            if (max_burst_value < 1 || max_burst_value > 16) {
+                cJSON_Delete(root);
+                return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+            }
+            max_burst_chunks = (uint32_t)max_burst_value;
+        }
+
+        audio_pacing_state.mode = mode;
+        audio_pacing_state.target_hz = target_hz;
+        audio_pacing_state.max_burst_chunks = max_burst_chunks;
+
+        snprintf(resp,
+                 sizeof(resp),
+                 "{\"ok\":true,\"data\":{\"stream\":\"audio\",\"type\":\"set_rate_limit\",\"pacing\":{\"pacing_mode\":\"%s\",\"target_hz\":%lu,\"max_burst_chunks\":%lu},\"applied_at_us\":%llu}}",
+                 audio_pacing_mode_name(audio_pacing_state.mode),
+                 (unsigned long)audio_pacing_state.target_hz,
+                 (unsigned long)audio_pacing_state.max_burst_chunks,
+                 (unsigned long long)esp_timer_get_time());
+        cJSON_Delete(root);
+        return send_json(req, resp, 200);
+    }
+
+    cJSON_Delete(root);
+    return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
 }
 
 static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
@@ -482,9 +594,13 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
 
     bool force_payload_mismatch = false;
     bool force_frame_regression = false;
+    bool force_audio_payload_mismatch = false;
+    bool force_audio_chunk_regression = false;
     bool rate_limited = false;
     uint64_t effective_frame_id = stream_event_seq;
+    uint64_t effective_chunk_id = stream_event_seq;
     uint32_t payload_bytes = 512000;
+    uint32_t audio_payload_bytes = 4096;
 
     char backpressure[16] = {0};
     bool pressure_active = query_value(req, "backpressure", backpressure, sizeof(backpressure)) && strcmp(backpressure, "1") == 0;
@@ -515,6 +631,35 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
         if (video_emitter_state.last_frame_id > 0 && effective_frame_id <= video_emitter_state.last_frame_id) {
             video_emitter_state.sequence_violations++;
             strlcpy(video_emitter_state.last_error_code, "VID-EMIT-01", sizeof(video_emitter_state.last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    } else if (stream == STREAM_KIND_AUDIO) {
+        char mismatch_query[8] = {0};
+        char regression_query[8] = {0};
+        force_audio_payload_mismatch = query_value(req, "force_audio_payload_mismatch", mismatch_query, sizeof(mismatch_query)) && strcmp(mismatch_query, "1") == 0;
+        force_audio_chunk_regression = query_value(req, "force_audio_chunk_regression", regression_query, sizeof(regression_query)) && strcmp(regression_query, "1") == 0;
+
+        if (force_audio_payload_mismatch) {
+            audio_emitter_state.pairing_violations++;
+            strlcpy(audio_emitter_state.last_error_code, "INTERNAL_ERROR", sizeof(audio_emitter_state.last_error_code));
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        if (audio_pacing_state.mode == AUDIO_PACING_FIXED_HZ && audio_pacing_state.target_hz > 0) {
+            uint64_t min_interval_us = 1000000ULL / (uint64_t)audio_pacing_state.target_hz;
+            if (audio_pacing_state.last_emit_us > 0 && (timestamp_us - audio_pacing_state.last_emit_us) < min_interval_us) {
+                rate_limited = true;
+            }
+        }
+
+        effective_chunk_id = audio_emitter_state.last_chunk_id + 1ULL;
+        if (force_audio_chunk_regression && audio_emitter_state.last_chunk_id > 0) {
+            effective_chunk_id = audio_emitter_state.last_chunk_id;
+        }
+
+        if (audio_emitter_state.last_chunk_id > 0 && effective_chunk_id <= audio_emitter_state.last_chunk_id) {
+            audio_emitter_state.sequence_violations++;
+            strlcpy(audio_emitter_state.last_error_code, "AUD-EMIT-01", sizeof(audio_emitter_state.last_error_code));
             return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
         }
     }
@@ -565,6 +710,8 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     strlcpy(stream_audio_meta_sample_json_buf, "null", sizeof(stream_audio_meta_sample_json_buf));
     strlcpy(stream_video_payload_emitter_json_buf, "null", sizeof(stream_video_payload_emitter_json_buf));
     strlcpy(stream_video_payload_sample_json_buf, "null", sizeof(stream_video_payload_sample_json_buf));
+    strlcpy(stream_audio_payload_emitter_json_buf, "null", sizeof(stream_audio_payload_emitter_json_buf));
+    strlcpy(stream_audio_payload_sample_json_buf, "null", sizeof(stream_audio_payload_sample_json_buf));
     if (stream == STREAM_KIND_VIDEO) {
         if (video_emitter_state.last_error_code[0] == '\0') {
             strlcpy(video_emitter_state.last_error_code, "none", sizeof(video_emitter_state.last_error_code));
@@ -609,6 +756,31 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
                  "{\"type\":\"audio_chunk_meta\",\"schema_version\":1,\"channel\":\"audio.metadata.v1\",\"session_id\":\"ses_local\",\"chunk_id\":%llu,\"timestamp_us\":%llu,\"sample_rate\":48000,\"channels\":2,\"format\":\"PCM_S16LE\",\"frames\":1024,\"payload_bytes\":4096}",
                  (unsigned long long)stream_event_seq,
                  (unsigned long long)timestamp_us);
+        if (audio_emitter_state.last_error_code[0] == '\0') {
+            strlcpy(audio_emitter_state.last_error_code, "none", sizeof(audio_emitter_state.last_error_code));
+        }
+        audio_emitter_state.last_chunk_id = effective_chunk_id;
+        audio_emitter_state.last_payload_bytes = audio_payload_bytes;
+        audio_emitter_state.emitted_pairs++;
+        audio_pacing_state.last_emit_us = timestamp_us;
+
+        snprintf(stream_audio_payload_sample_json_buf,
+                 sizeof(stream_audio_payload_sample_json_buf),
+                 "{\"chunk_id\":%llu,\"payload_bytes\":%lu,\"binary_payload_emitted\":true}",
+                 (unsigned long long)effective_chunk_id,
+                 (unsigned long)audio_payload_bytes);
+        snprintf(stream_audio_payload_emitter_json_buf,
+                 sizeof(stream_audio_payload_emitter_json_buf),
+                 "{\"checks\":{\"AUD-EMIT-01\":\"pass\",\"AUD-EMIT-02\":\"pass\",\"AUD-EMIT-03\":\"pass\"},\"pacing\":{\"pacing_mode\":\"%s\",\"target_hz\":%lu,\"max_burst_chunks\":%lu,\"throttle_active\":%s},\"state\":{\"last_chunk_id\":%llu,\"emitted_pairs\":%llu,\"sequence_violations\":%llu,\"pairing_violations\":%llu,\"last_error\":\"%s\"}}",
+                 audio_pacing_mode_name(audio_pacing_state.mode),
+                 (unsigned long)audio_pacing_state.target_hz,
+                 (unsigned long)audio_pacing_state.max_burst_chunks,
+                 rate_limited ? "true" : "false",
+                 (unsigned long long)audio_emitter_state.last_chunk_id,
+                 (unsigned long long)audio_emitter_state.emitted_pairs,
+                 (unsigned long long)audio_emitter_state.sequence_violations,
+                 (unsigned long long)audio_emitter_state.pairing_violations,
+                 audio_emitter_state.last_error_code);
     }
     if (stream == STREAM_KIND_ENGINE) {
         const esptari_web_media_attach_event_t *events = NULL;
@@ -696,7 +868,7 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     }
 
     snprintf(stream_response_buf, sizeof(stream_response_buf),
-             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"audio_metadata_contract\":%s,\"audio_chunk_meta_sample\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"audio_metadata_contract\":%s,\"audio_chunk_meta_sample\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"audio_payload_emitter\":%s,\"audio_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
              stream_name,
              (unsigned long long)stream_event_seq,
              (unsigned long long)timestamp_us,
@@ -734,6 +906,8 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
              stream_audio_meta_sample_json_buf,
              stream_video_payload_emitter_json_buf,
              stream_video_payload_sample_json_buf,
+             stream_audio_payload_emitter_json_buf,
+             stream_audio_payload_sample_json_buf,
              stream_media_attach_events_json_buf,
              stream_media_disk_state_events_json_buf,
              (unsigned long long)slo_alarm_seq,

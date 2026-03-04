@@ -465,6 +465,8 @@ Browser input capture policy:
 - Runtime projection for contract verification is exposed on `GET /api/v2/stream/audio` via `audio_metadata_contract` and `audio_chunk_meta_sample` fields in stream probe responses.
 - Deterministic metadata guards are enforced on `GET /api/v2/stream/audio` query validation: non-`1` `metadata_schema_version` returns `UNSUPPORTED_VERSION`; invalid `format` or non-positive `sample_rate`/`channels`/`frames`/`payload_bytes` return `BAD_REQUEST`.
 - Audio payload stream emitter + pacing control contract (emitter checks `AUD-EMIT-01..03`, `set_rate_limit` audio pacing schema, and deterministic pacing/backpressure guard behavior) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `10.3` and is the canonical source.
+- Runtime pacing control endpoint supports `POST /api/v2/stream/control` for `type=set_rate_limit` and `stream=audio`, with `pacing_mode`, `target_hz`, and `max_burst_chunks` validation enforcing deterministic `BAD_REQUEST`/`ENGINE_NOT_RUNNING` guards.
+- `GET /api/v2/stream/audio` now projects payload-emitter diagnostics via `audio_payload_emitter` and `audio_payload_sample`, including sequencing checks (`AUD-EMIT-01..03`), pacing state, and deterministic fail-fast integrity behavior (`INTERNAL_ERROR`) under forced pairing/ordering violations.
 
 ### Engine status/health event stream
 
