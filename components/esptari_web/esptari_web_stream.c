@@ -108,11 +108,15 @@ static char stream_register_contract_json_buf[1536];
 static char stream_register_filter_json_buf[768];
 static char stream_register_sample_json_buf[768];
 static char stream_register_publisher_json_buf[1024];
+static char stream_bus_filter_contract_json_buf[1280];
+static char stream_bus_filter_selectors_json_buf[768];
+static char stream_memory_filter_contract_json_buf[1408];
+static char stream_memory_filter_selectors_json_buf[896];
 static char stream_video_payload_emitter_json_buf[1024];
 static char stream_video_payload_sample_json_buf[256];
 static char stream_audio_payload_emitter_json_buf[1024];
 static char stream_audio_payload_sample_json_buf[256];
-static char stream_response_buf[16384];
+static char stream_response_buf[32768];
 static video_pacing_state_t video_pacing_state = {
     .mode = VIDEO_PACING_REALTIME,
     .target_fps = 50,
@@ -251,6 +255,11 @@ typedef enum {
     SELECTOR_LIST_BAD_REQUEST,
     SELECTOR_LIST_UNKNOWN,
 } selector_list_validation_t;
+
+typedef struct {
+    uint32_t start;
+    uint32_t end;
+} address_range_t;
 
 static selector_list_validation_t validate_selector_list(const char *value)
 {
@@ -460,6 +469,144 @@ static bool selector_list_contains_prefix(const char *value, const char *candida
     }
 
     return false;
+}
+
+static bool csv_token_in_allowed_set(const char *token, const char *const *allowed, size_t allowed_count)
+{
+    if (token == NULL || allowed == NULL) {
+        return false;
+    }
+
+    for (size_t index = 0; index < allowed_count; index++) {
+        if (strcmp(token, allowed[index]) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static selector_list_validation_t validate_enum_list(const char *value,
+                                                     const char *const *allowed,
+                                                     size_t allowed_count)
+{
+    if (value == NULL || value[0] == '\0') {
+        return SELECTOR_LIST_BAD_REQUEST;
+    }
+
+    const char *cursor = value;
+    while (*cursor != '\0') {
+        while (*cursor == ' ' || *cursor == '\t') {
+            cursor++;
+        }
+
+        const char *start = cursor;
+        while (*cursor != '\0' && *cursor != ',') {
+            cursor++;
+        }
+        const char *end = cursor;
+        while (end > start && (end[-1] == ' ' || end[-1] == '\t')) {
+            end--;
+        }
+
+        size_t token_len = (size_t)(end - start);
+        if (token_len == 0 || token_len >= 64) {
+            return SELECTOR_LIST_BAD_REQUEST;
+        }
+
+        char token[64] = {0};
+        memcpy(token, start, token_len);
+        token[token_len] = '\0';
+        if (!csv_token_in_allowed_set(token, allowed, allowed_count)) {
+            return SELECTOR_LIST_BAD_REQUEST;
+        }
+
+        if (*cursor == ',') {
+            cursor++;
+            if (*cursor == '\0') {
+                return SELECTOR_LIST_BAD_REQUEST;
+            }
+        }
+    }
+
+    return SELECTOR_LIST_VALID;
+}
+
+static selector_list_validation_t parse_and_validate_address_ranges(const char *value,
+                                                                    address_range_t *ranges,
+                                                                    size_t max_ranges,
+                                                                    size_t *out_count)
+{
+    if (value == NULL || value[0] == '\0' || ranges == NULL || out_count == NULL || max_ranges == 0) {
+        return SELECTOR_LIST_BAD_REQUEST;
+    }
+
+    *out_count = 0;
+    const char *cursor = value;
+    while (*cursor != '\0') {
+        while (*cursor == ' ' || *cursor == '\t') {
+            cursor++;
+        }
+
+        const char *start = cursor;
+        while (*cursor != '\0' && *cursor != ',') {
+            cursor++;
+        }
+        const char *end = cursor;
+        while (end > start && (end[-1] == ' ' || end[-1] == '\t')) {
+            end--;
+        }
+
+        size_t token_len = (size_t)(end - start);
+        if (token_len == 0 || token_len >= 64 || *out_count >= max_ranges) {
+            return SELECTOR_LIST_BAD_REQUEST;
+        }
+
+        char token[64] = {0};
+        memcpy(token, start, token_len);
+        token[token_len] = '\0';
+
+        char *dash = strchr(token, '-');
+        if (dash == NULL || dash == token || dash[1] == '\0') {
+            return SELECTOR_LIST_BAD_REQUEST;
+        }
+        *dash = '\0';
+
+        char *start_end = NULL;
+        char *range_end = NULL;
+        unsigned long parsed_start = strtoul(token, &start_end, 0);
+        unsigned long parsed_end = strtoul(dash + 1, &range_end, 0);
+        if (start_end == token || *start_end != '\0' ||
+            range_end == dash + 1 || *range_end != '\0' ||
+            parsed_start > 0xFFFFFFFFUL || parsed_end > 0xFFFFFFFFUL) {
+            return SELECTOR_LIST_BAD_REQUEST;
+        }
+
+        if (parsed_start > parsed_end) {
+            return SELECTOR_LIST_BAD_REQUEST;
+        }
+
+        ranges[*out_count].start = (uint32_t)parsed_start;
+        ranges[*out_count].end = (uint32_t)parsed_end;
+        (*out_count)++;
+
+        if (*cursor == ',') {
+            cursor++;
+            if (*cursor == '\0') {
+                return SELECTOR_LIST_BAD_REQUEST;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < *out_count; i++) {
+        for (size_t j = i + 1; j < *out_count; j++) {
+            if (!(ranges[i].end < ranges[j].start || ranges[j].end < ranges[i].start)) {
+                return SELECTOR_LIST_BAD_REQUEST;
+            }
+        }
+    }
+
+    return SELECTOR_LIST_VALID;
 }
 
 static bool is_unknown_selector(httpd_req_t *req)
@@ -694,6 +841,114 @@ static esp_err_t validate_register_snapshot_contract(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t validate_bus_filter_contract(httpd_req_t *req)
+{
+    char value[256] = {0};
+
+    if (query_value(req, "type", value, sizeof(value))) {
+        if (!(strcmp(value, "subscribe") == 0 || strcmp(value, "set_filter") == 0)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (query_value(req, "address_ranges", value, sizeof(value))) {
+        address_range_t ranges[16];
+        size_t range_count = 0;
+        if (parse_and_validate_address_ranges(value, ranges, sizeof(ranges) / sizeof(ranges[0]), &range_count) != SELECTOR_LIST_VALID) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (query_value(req, "access_types", value, sizeof(value))) {
+        static const char *const allowed_access[] = {"read", "write", "iack", "dma"};
+        if (validate_enum_list(value, allowed_access, sizeof(allowed_access) / sizeof(allowed_access[0])) != SELECTOR_LIST_VALID) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (query_value(req, "level", value, sizeof(value))) {
+        if (!(strcmp(value, "info") == 0 || strcmp(value, "debug") == 0)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (query_value(req, "max_events_per_sec", value, sizeof(value))) {
+        char *end = NULL;
+        unsigned long max_events_per_sec = strtoul(value, &end, 10);
+        if (end == value || *end != '\0' || max_events_per_sec == 0UL) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (query_value(req, "components", value, sizeof(value))) {
+        selector_list_validation_t selector_status = validate_selector_list(value);
+        if (selector_status == SELECTOR_LIST_UNKNOWN) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INSPECT_FILTER_INVALID\"}}", 400);
+        }
+        if (selector_status != SELECTOR_LIST_VALID) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    return ESP_OK;
+}
+
+static esp_err_t validate_memory_filter_contract(httpd_req_t *req)
+{
+    char value[256] = {0};
+
+    if (query_value(req, "type", value, sizeof(value))) {
+        if (!(strcmp(value, "subscribe") == 0 || strcmp(value, "set_filter") == 0)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (query_value(req, "address_ranges", value, sizeof(value))) {
+        address_range_t ranges[16];
+        size_t range_count = 0;
+        if (parse_and_validate_address_ranges(value, ranges, sizeof(ranges) / sizeof(ranges[0]), &range_count) != SELECTOR_LIST_VALID) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (query_value(req, "access_types", value, sizeof(value))) {
+        static const char *const allowed_access[] = {"read", "write"};
+        if (validate_enum_list(value, allowed_access, sizeof(allowed_access) / sizeof(allowed_access[0])) != SELECTOR_LIST_VALID) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (query_value(req, "level", value, sizeof(value))) {
+        if (!(strcmp(value, "info") == 0 || strcmp(value, "debug") == 0)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    if (query_value(req, "max_events_per_sec", value, sizeof(value))) {
+        char *end = NULL;
+        unsigned long max_events_per_sec = strtoul(value, &end, 10);
+        if (end == value || *end != '\0' || max_events_per_sec == 0UL) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    const char *selectors[] = {"components", "regions", "mapped_targets"};
+    for (size_t i = 0; i < sizeof(selectors) / sizeof(selectors[0]); i++) {
+        if (!query_value(req, selectors[i], value, sizeof(value))) {
+            continue;
+        }
+        selector_list_validation_t selector_status = validate_selector_list(value);
+        if (selector_status == SELECTOR_LIST_UNKNOWN) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INSPECT_FILTER_INVALID\"}}", 400);
+        }
+        if (selector_status != SELECTOR_LIST_VALID) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+    }
+
+    return ESP_OK;
+}
+
 static esp_err_t stream_guard_running(httpd_req_t *req)
 {
     esptari_session_status_t status;
@@ -872,6 +1127,16 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
         if (register_contract_err != ESP_OK) {
             return register_contract_err;
         }
+    } else if (stream == STREAM_KIND_BUS) {
+        esp_err_t bus_filter_err = validate_bus_filter_contract(req);
+        if (bus_filter_err != ESP_OK) {
+            return bus_filter_err;
+        }
+    } else if (stream == STREAM_KIND_MEMORY) {
+        esp_err_t memory_filter_err = validate_memory_filter_contract(req);
+        if (memory_filter_err != ESP_OK) {
+            return memory_filter_err;
+        }
     }
 
     stream_event_seq++;
@@ -1002,6 +1267,10 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     strlcpy(stream_register_filter_json_buf, "null", sizeof(stream_register_filter_json_buf));
     strlcpy(stream_register_sample_json_buf, "null", sizeof(stream_register_sample_json_buf));
     strlcpy(stream_register_publisher_json_buf, "null", sizeof(stream_register_publisher_json_buf));
+    strlcpy(stream_bus_filter_contract_json_buf, "null", sizeof(stream_bus_filter_contract_json_buf));
+    strlcpy(stream_bus_filter_selectors_json_buf, "null", sizeof(stream_bus_filter_selectors_json_buf));
+    strlcpy(stream_memory_filter_contract_json_buf, "null", sizeof(stream_memory_filter_contract_json_buf));
+    strlcpy(stream_memory_filter_selectors_json_buf, "null", sizeof(stream_memory_filter_selectors_json_buf));
     strlcpy(stream_video_payload_emitter_json_buf, "null", sizeof(stream_video_payload_emitter_json_buf));
     strlcpy(stream_video_payload_sample_json_buf, "null", sizeof(stream_video_payload_sample_json_buf));
     strlcpy(stream_audio_payload_emitter_json_buf, "null", sizeof(stream_audio_payload_emitter_json_buf));
@@ -1243,6 +1512,83 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
                  (unsigned long long)register_publisher_state.check_failures_selector,
                  (unsigned long long)register_publisher_state.check_failures_changed_only,
                  register_publisher_state.last_error_code);
+    } else if (stream == STREAM_KIND_BUS || stream == STREAM_KIND_MEMORY) {
+        char type_query[32] = {0};
+        char address_ranges_query[256] = {0};
+        char access_types_query[256] = {0};
+        char components_query[256] = {0};
+        char level_query[32] = {0};
+        char max_events_query[32] = {0};
+        char regions_query[256] = {0};
+        char mapped_targets_query[256] = {0};
+
+        char address_ranges_json[256] = {0};
+        char access_types_json[256] = {0};
+        char components_json[256] = {0};
+        char regions_json[256] = {0};
+        char mapped_targets_json[256] = {0};
+
+        const char *filter_type = "subscribe";
+        const char *filter_level = "info";
+        const char *max_events = "null";
+
+        if (query_value(req, "type", type_query, sizeof(type_query))) {
+            filter_type = type_query;
+        }
+        if (query_value(req, "level", level_query, sizeof(level_query))) {
+            filter_level = level_query;
+        }
+        if (query_value(req, "max_events_per_sec", max_events_query, sizeof(max_events_query))) {
+            max_events = max_events_query;
+        }
+
+        if (!selector_list_to_json_array(query_value(req, "address_ranges", address_ranges_query, sizeof(address_ranges_query)) ? address_ranges_query : NULL,
+                                         address_ranges_json,
+                                         sizeof(address_ranges_json)) ||
+            !selector_list_to_json_array(query_value(req, "access_types", access_types_query, sizeof(access_types_query)) ? access_types_query : NULL,
+                                         access_types_json,
+                                         sizeof(access_types_json)) ||
+            !selector_list_to_json_array(query_value(req, "components", components_query, sizeof(components_query)) ? components_query : NULL,
+                                         components_json,
+                                         sizeof(components_json)) ||
+            !selector_list_to_json_array(query_value(req, "regions", regions_query, sizeof(regions_query)) ? regions_query : NULL,
+                                         regions_json,
+                                         sizeof(regions_json)) ||
+            !selector_list_to_json_array(query_value(req, "mapped_targets", mapped_targets_query, sizeof(mapped_targets_query)) ? mapped_targets_query : NULL,
+                                         mapped_targets_json,
+                                         sizeof(mapped_targets_json))) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+        }
+
+        if (stream == STREAM_KIND_BUS) {
+            snprintf(stream_bus_filter_contract_json_buf,
+                     sizeof(stream_bus_filter_contract_json_buf),
+                     "{\"schema\":\"bus_filter_v1\",\"type_enum\":[\"subscribe\",\"set_filter\"],\"fields\":[\"address_ranges\",\"access_types\",\"components\",\"level\",\"max_events_per_sec\"],\"access_types_enum\":[\"read\",\"write\",\"iack\",\"dma\"],\"level_enum\":[\"info\",\"debug\"],\"address_ranges\":\"0x<start>-0x<end> inclusive, start<=end, non-overlapping\",\"atomic_update\":true}");
+            snprintf(stream_bus_filter_selectors_json_buf,
+                     sizeof(stream_bus_filter_selectors_json_buf),
+                     "{\"type\":\"%s\",\"address_ranges\":%s,\"access_types\":%s,\"components\":%s,\"level\":\"%s\",\"max_events_per_sec\":%s}",
+                     filter_type,
+                     address_ranges_json,
+                     access_types_json,
+                     components_json,
+                     filter_level,
+                     max_events);
+        } else {
+            snprintf(stream_memory_filter_contract_json_buf,
+                     sizeof(stream_memory_filter_contract_json_buf),
+                     "{\"schema\":\"memory_filter_v1\",\"type_enum\":[\"subscribe\",\"set_filter\"],\"fields\":[\"regions\",\"address_ranges\",\"access_types\",\"components\",\"mapped_targets\",\"level\",\"max_events_per_sec\"],\"access_types_enum\":[\"read\",\"write\"],\"level_enum\":[\"info\",\"debug\"],\"address_ranges\":\"0x<start>-0x<end> inclusive, start<=end\",\"atomic_update\":true}");
+            snprintf(stream_memory_filter_selectors_json_buf,
+                     sizeof(stream_memory_filter_selectors_json_buf),
+                     "{\"type\":\"%s\",\"regions\":%s,\"address_ranges\":%s,\"access_types\":%s,\"components\":%s,\"mapped_targets\":%s,\"level\":\"%s\",\"max_events_per_sec\":%s}",
+                     filter_type,
+                     regions_json,
+                     address_ranges_json,
+                     access_types_json,
+                     components_json,
+                     mapped_targets_json,
+                     filter_level,
+                     max_events);
+        }
     }
     if (stream == STREAM_KIND_ENGINE) {
         const esptari_web_media_attach_event_t *events = NULL;
@@ -1330,7 +1676,7 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
     }
 
     snprintf(stream_response_buf, sizeof(stream_response_buf),
-             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"audio_metadata_contract\":%s,\"audio_chunk_meta_sample\":%s,\"register_snapshot_contract\":%s,\"register_filter_selectors\":%s,\"register_update_sample\":%s,\"register_publisher\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"audio_payload_emitter\":%s,\"audio_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
+             "{\"ok\":true,\"data\":{\"stream\":\"%s\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"delivery\":{\"degraded\":%s,\"reason\":\"%s\",\"dropped_events_since_last\":%lu,\"coalesced_updates\":%lu,\"throttle_active\":%s},\"backpressure\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu},\"backpressure_event\":{\"type\":\"stream_backpressure_telemetry\",\"schema_version\":1,\"session_id\":\"ses_local\",\"event_seq\":%llu,\"event_timestamp_us\":%llu,\"stream\":\"%s\",\"metrics\":{\"queue_depth\":%lu,\"queue_capacity\":%lu,\"dropped_events\":%llu,\"dropped_events_since_last\":%lu,\"throttle_active\":%s,\"high_watermark_depth\":%lu,\"high_watermark_ratio\":%.3f,\"overflow_events_total\":%llu,\"throttle_transitions_total\":%llu,\"sample_timestamp_us\":%llu}},\"video_metadata_contract\":%s,\"video_frame_meta_sample\":%s,\"audio_metadata_contract\":%s,\"audio_chunk_meta_sample\":%s,\"register_snapshot_contract\":%s,\"register_filter_selectors\":%s,\"register_update_sample\":%s,\"register_publisher\":%s,\"bus_filter_contract\":%s,\"bus_filter_selectors\":%s,\"memory_filter_contract\":%s,\"memory_filter_selectors\":%s,\"video_payload_emitter\":%s,\"video_payload_sample\":%s,\"audio_payload_emitter\":%s,\"audio_payload_sample\":%s,\"media_attach_status_events\":%s,\"media_disk_state_events\":%s,\"slo_alarm\":{\"seq\":%llu,\"state\":\"%s\",\"severity\":\"%s\"}}}",
              stream_name,
              (unsigned long long)stream_event_seq,
              (unsigned long long)timestamp_us,
@@ -1370,6 +1716,10 @@ static esp_err_t emit_stream_probe(httpd_req_t *req, stream_kind_t stream)
              stream_register_filter_json_buf,
              stream_register_sample_json_buf,
              stream_register_publisher_json_buf,
+             stream_bus_filter_contract_json_buf,
+             stream_bus_filter_selectors_json_buf,
+             stream_memory_filter_contract_json_buf,
+             stream_memory_filter_selectors_json_buf,
              stream_video_payload_emitter_json_buf,
              stream_video_payload_sample_json_buf,
              stream_audio_payload_emitter_json_buf,

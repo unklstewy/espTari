@@ -503,6 +503,8 @@ Browser input capture policy:
   - component source
   - sampling level (full, reduced)
 - Bus/memory filter request model + guard-rule contract (`bus_filter_v1`, `memory_filter_v1`, atomic `subscribe`/`set_filter` updates, and deterministic guard failures to `BAD_REQUEST`/`ENGINE_NOT_RUNNING`/`INSPECT_FILTER_INVALID`) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` sections `10.5` and `10.6` and is the canonical source.
+- Runtime projection for bus/memory filter-model verification is exposed via `GET /api/v2/inspect/bus/stream` and `GET /api/v2/inspect/memory/stream` through `bus_filter_contract`/`bus_filter_selectors` and `memory_filter_contract`/`memory_filter_selectors` fields in stream probe responses.
+- Deterministic guard rules are enforced on bus/memory stream filter query validation: invalid `type`, malformed/overlapping `address_ranges`, unknown enum values (`access_types`, `level`), or non-positive `max_events_per_sec` return `BAD_REQUEST`; unresolved selector semantics (`unknown*` list items) return `INSPECT_FILTER_INVALID`.
 - Filtered bus/memory stream publisher + load-validation contract (publisher checks `BUS-FLT-01..04` and `MEM-FLT-01..04`, required `event_seq`/`event_timestamp_us`, and deterministic load-run validation artifact) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` sections `10.5` and `10.6` and is the canonical source.
 
 ## 6.6 Snapshot APIs
