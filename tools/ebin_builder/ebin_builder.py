@@ -15,6 +15,7 @@ import subprocess
 import sys
 import os
 import tempfile
+import uuid
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple
@@ -206,30 +207,29 @@ def extract_sections(config: EbinConfig, elf_file: str) -> Tuple[bytes, bytes, i
             size = int(match.group(4), 16)
             sections[name] = {'addr': addr, 'offset': offset, 'size': size}
     
-    # Extract .text + .rodata as unified code section
-    # (.rodata must be contiguous with .text for PC-relative addressing to work)
-    code_bin = tempfile.mktemp(suffix='.bin')
-    cmd = [objcopy, '-O', 'binary', '-j', '.text', '-j', '.rodata', elf_file, code_bin]
-    subprocess.run(cmd, check=True)
-    with open(code_bin, 'rb') as f:
-        code_data = f.read()
-    os.unlink(code_bin)
-    
-    # Extract .data + .got + .got.plt as unified data section
-    # The GOT must be contiguous with .data so PC-relative auipc+lw reaches it.
-    # We include all writable non-BSS sections in a single binary extraction.
-    data_bin = tempfile.mktemp(suffix='.bin')
-    data_sections = ['-j', '.data']
-    if '.got' in sections:
-        data_sections += ['-j', '.got']
-    cmd = [objcopy, '-O', 'binary'] + data_sections + [elf_file, data_bin]
-    result = subprocess.run(cmd, capture_output=True)
-    if result.returncode == 0 and os.path.exists(data_bin):
-        with open(data_bin, 'rb') as f:
-            data_data = f.read()
-        os.unlink(data_bin)
-    else:
-        data_data = b''
+    with tempfile.TemporaryDirectory() as sec_tmp:
+        # Extract .text + .rodata as unified code section
+        # (.rodata must be contiguous with .text for PC-relative addressing to work)
+        code_bin = os.path.join(sec_tmp, 'code.bin')
+        cmd = [objcopy, '-O', 'binary', '-j', '.text', '-j', '.rodata', elf_file, code_bin]
+        subprocess.run(cmd, check=True)
+        with open(code_bin, 'rb') as f:
+            code_data = f.read()
+
+        # Extract .data + .got + .got.plt as unified data section
+        # The GOT must be contiguous with .data so PC-relative auipc+lw reaches it.
+        # We include all writable non-BSS sections in a single binary extraction.
+        data_bin = os.path.join(sec_tmp, 'data.bin')
+        data_sections = ['-j', '.data']
+        if '.got' in sections:
+            data_sections += ['-j', '.got']
+        cmd = [objcopy, '-O', 'binary'] + data_sections + [elf_file, data_bin]
+        result = subprocess.run(cmd, capture_output=True)
+        if result.returncode == 0 and os.path.exists(data_bin):
+            with open(data_bin, 'rb') as f:
+                data_data = f.read()
+        else:
+            data_data = b''
     
     # Get BSS size
     bss_size = sections.get('.bss', {}).get('size', 0)
@@ -504,6 +504,32 @@ SECTIONS
         f.write(script)
 
 
+def atomic_write_bytes(output_path: str, payload: bytes) -> None:
+    """Atomically write payload to output_path."""
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    temp_name = f'.{destination.name}.tmp.{uuid.uuid4().hex}'
+    temp_path = destination.parent / temp_name
+
+    try:
+        with open(temp_path, 'wb') as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        os.replace(temp_path, destination)
+
+        dir_fd = os.open(destination.parent, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
 def main():
     parser = argparse.ArgumentParser(description='Build EBIN component files')
     parser.add_argument('sources', nargs='+', help='C source files')
@@ -586,9 +612,8 @@ def main():
     # Build EBIN
     ebin_data = build_ebin(config, code, data, bss_size, entry_offset, relocations)
     
-    # Write output
-    with open(args.output, 'wb') as f:
-        f.write(ebin_data)
+    # Write output atomically
+    atomic_write_bytes(args.output, ebin_data)
     
     print(f"Built {args.output}: {len(ebin_data)} bytes")
     print(f"  Code: {len(code)} bytes, Data: {len(data)} bytes, BSS: {bss_size} bytes")
