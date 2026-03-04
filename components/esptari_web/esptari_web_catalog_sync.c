@@ -71,11 +71,18 @@ typedef struct {
 
 typedef struct {
     bool has_active_module;
+    bool has_last_known_good;
     char active_module_id[64];
     char active_abi_version[16];
+    char last_known_good_module_id[64];
+    char last_known_good_abi_version[16];
     char state[24];
     char last_stage[24];
     char last_error_reason[96];
+    char last_fault_code[48];
+    char last_recovery_action[64];
+    char last_recovered_module_id[64];
+    uint64_t last_fault_at_us;
     uint64_t transition_seq;
     uint64_t updated_at_us;
 } ebin_runtime_state_t;
@@ -92,11 +99,18 @@ static uint64_t s_schedule_seq;
 static esptari_recovery_report_t s_recovery_report;
 static ebin_runtime_state_t s_ebin_runtime = {
     .has_active_module = false,
+    .has_last_known_good = false,
     .active_module_id = "",
     .active_abi_version = "",
+    .last_known_good_module_id = "",
+    .last_known_good_abi_version = "",
     .state = "idle",
     .last_stage = "",
     .last_error_reason = "",
+    .last_fault_code = "",
+    .last_recovery_action = "none",
+    .last_recovered_module_id = "",
+    .last_fault_at_us = 0,
     .transition_seq = 0,
     .updated_at_us = 0,
 };
@@ -403,6 +417,8 @@ static void runtime_mark_stage(const char *state, const char *stage)
         snprintf(s_ebin_runtime.last_stage, sizeof(s_ebin_runtime.last_stage), "%s", stage);
     }
     s_ebin_runtime.last_error_reason[0] = '\0';
+    snprintf(s_ebin_runtime.last_recovery_action, sizeof(s_ebin_runtime.last_recovery_action), "%s", "none");
+    s_ebin_runtime.last_recovered_module_id[0] = '\0';
     s_ebin_runtime.transition_seq++;
     s_ebin_runtime.updated_at_us = scheduler_now_us();
 }
@@ -417,8 +433,121 @@ static void runtime_mark_failure(const char *stage, const char *reason)
              sizeof(s_ebin_runtime.last_error_reason),
              "%s",
              reason != NULL ? reason : "failure");
+    snprintf(s_ebin_runtime.last_recovery_action,
+             sizeof(s_ebin_runtime.last_recovery_action),
+             "%s",
+             "pending_recovery");
+    s_ebin_runtime.last_recovered_module_id[0] = '\0';
     s_ebin_runtime.transition_seq++;
     s_ebin_runtime.updated_at_us = scheduler_now_us();
+    s_ebin_runtime.last_fault_at_us = s_ebin_runtime.updated_at_us;
+}
+
+static void runtime_set_active_module(const char *module_id, const char *abi_version)
+{
+    s_ebin_runtime.has_active_module = true;
+    snprintf(s_ebin_runtime.active_module_id,
+             sizeof(s_ebin_runtime.active_module_id),
+             "%s",
+             module_id != NULL ? module_id : "");
+    snprintf(s_ebin_runtime.active_abi_version,
+             sizeof(s_ebin_runtime.active_abi_version),
+             "%s",
+             abi_version != NULL ? abi_version : "");
+}
+
+static void runtime_commit_last_known_good(const char *module_id, const char *abi_version)
+{
+    if (module_id == NULL || module_id[0] == '\0') {
+        return;
+    }
+    s_ebin_runtime.has_last_known_good = true;
+    snprintf(s_ebin_runtime.last_known_good_module_id,
+             sizeof(s_ebin_runtime.last_known_good_module_id),
+             "%s",
+             module_id);
+    snprintf(s_ebin_runtime.last_known_good_abi_version,
+             sizeof(s_ebin_runtime.last_known_good_abi_version),
+             "%s",
+             abi_version != NULL ? abi_version : "");
+}
+
+static void runtime_apply_activation_recovery(bool prev_has_active_module,
+                                              const char *prev_active_module_id,
+                                              const char *prev_active_abi_version,
+                                              bool force_fallback)
+{
+    const char *fallback_module_id = "st.cpu.m68k";
+    const char *fallback_abi_version = "1.0.0";
+
+    if (force_fallback && catalog_contains_module_id(fallback_module_id)) {
+        runtime_set_active_module(fallback_module_id, fallback_abi_version);
+        snprintf(s_ebin_runtime.state, sizeof(s_ebin_runtime.state), "%s", "running");
+        snprintf(s_ebin_runtime.last_recovery_action,
+                 sizeof(s_ebin_runtime.last_recovery_action),
+                 "%s",
+                 "fallback_module_set_activated");
+        snprintf(s_ebin_runtime.last_recovered_module_id,
+                 sizeof(s_ebin_runtime.last_recovered_module_id),
+                 "%s",
+                 fallback_module_id);
+        runtime_commit_last_known_good(fallback_module_id, fallback_abi_version);
+        return;
+    }
+
+    if (prev_has_active_module && prev_active_module_id != NULL && prev_active_module_id[0] != '\0') {
+        runtime_set_active_module(prev_active_module_id, prev_active_abi_version);
+        snprintf(s_ebin_runtime.state, sizeof(s_ebin_runtime.state), "%s", "running");
+        snprintf(s_ebin_runtime.last_recovery_action,
+                 sizeof(s_ebin_runtime.last_recovery_action),
+                 "%s",
+                 "rollback_previous_active_module");
+        snprintf(s_ebin_runtime.last_recovered_module_id,
+                 sizeof(s_ebin_runtime.last_recovered_module_id),
+                 "%s",
+                 prev_active_module_id);
+        runtime_commit_last_known_good(prev_active_module_id, prev_active_abi_version);
+        return;
+    }
+
+    if (s_ebin_runtime.has_last_known_good && s_ebin_runtime.last_known_good_module_id[0] != '\0') {
+        runtime_set_active_module(s_ebin_runtime.last_known_good_module_id, s_ebin_runtime.last_known_good_abi_version);
+        snprintf(s_ebin_runtime.state, sizeof(s_ebin_runtime.state), "%s", "running");
+        snprintf(s_ebin_runtime.last_recovery_action,
+                 sizeof(s_ebin_runtime.last_recovery_action),
+                 "%s",
+                 "rollback_last_known_good_snapshot");
+        snprintf(s_ebin_runtime.last_recovered_module_id,
+                 sizeof(s_ebin_runtime.last_recovered_module_id),
+                 "%s",
+                 s_ebin_runtime.last_known_good_module_id);
+        return;
+    }
+
+    if (catalog_contains_module_id(fallback_module_id)) {
+        runtime_set_active_module(fallback_module_id, fallback_abi_version);
+        snprintf(s_ebin_runtime.state, sizeof(s_ebin_runtime.state), "%s", "running");
+        snprintf(s_ebin_runtime.last_recovery_action,
+                 sizeof(s_ebin_runtime.last_recovery_action),
+                 "%s",
+                 "fallback_module_set_activated");
+        snprintf(s_ebin_runtime.last_recovered_module_id,
+                 sizeof(s_ebin_runtime.last_recovered_module_id),
+                 "%s",
+                 fallback_module_id);
+        runtime_commit_last_known_good(fallback_module_id, fallback_abi_version);
+        return;
+    }
+
+    s_ebin_runtime.has_active_module = false;
+    s_ebin_runtime.active_module_id[0] = '\0';
+    s_ebin_runtime.active_abi_version[0] = '\0';
+    snprintf(s_ebin_runtime.state, sizeof(s_ebin_runtime.state), "%s", "idle");
+    snprintf(s_ebin_runtime.last_recovery_action,
+             sizeof(s_ebin_runtime.last_recovery_action),
+             "%s",
+             "recovery_to_idle_no_fallback");
+    s_ebin_runtime.last_recovered_module_id[0] = '\0';
 }
 
 static esp_err_t send_ebin_orchestration_error(httpd_req_t *req,
@@ -428,16 +557,54 @@ static esp_err_t send_ebin_orchestration_error(httpd_req_t *req,
                                                const char *reason,
                                                const char *module_id)
 {
-    char payload[768];
-    snprintf(payload,
-             sizeof(payload),
-             "{\"ok\":false,\"error\":{\"code\":\"%s\",\"category\":\"ebin\",\"retryable\":true,\"details\":{\"stage\":\"%s\",\"reason\":\"%s\",\"runtime_state\":\"%s\",\"module_id\":\"%s\"}}}",
-             code != NULL ? code : "EBIN_INVALID",
-             stage != NULL ? stage : "unknown",
-             reason != NULL ? reason : "orchestration_failed",
-             s_ebin_runtime.state,
-             module_id != NULL ? module_id : "");
-    return esptari_web_send_json(req, payload, status);
+    snprintf(s_ebin_runtime.last_fault_code,
+             sizeof(s_ebin_runtime.last_fault_code),
+             "%s",
+             code != NULL ? code : "EBIN_INVALID");
+    if (stage != NULL && stage[0] != '\0') {
+        snprintf(s_ebin_runtime.last_stage, sizeof(s_ebin_runtime.last_stage), "%s", stage);
+    }
+    if (reason != NULL && reason[0] != '\0') {
+        snprintf(s_ebin_runtime.last_error_reason, sizeof(s_ebin_runtime.last_error_reason), "%s", reason);
+    }
+    if (s_ebin_runtime.last_fault_at_us == 0) {
+        s_ebin_runtime.last_fault_at_us = scheduler_now_us();
+    }
+
+    cJSON *root = cJSON_CreateObject();
+    if (root == NULL) {
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+    cJSON_AddBoolToObject(root, "ok", false);
+    cJSON *error = cJSON_CreateObject();
+    cJSON_AddItemToObject(root, "error", error);
+    cJSON_AddStringToObject(error, "code", code != NULL ? code : "EBIN_INVALID");
+    cJSON_AddStringToObject(error, "category", "ebin");
+    cJSON_AddBoolToObject(error, "retryable", true);
+
+    cJSON *details = cJSON_CreateObject();
+    cJSON_AddItemToObject(error, "details", details);
+    cJSON_AddStringToObject(details, "stage", stage != NULL ? stage : "unknown");
+    cJSON_AddStringToObject(details, "reason", reason != NULL ? reason : "orchestration_failed");
+    cJSON_AddStringToObject(details, "runtime_state", s_ebin_runtime.state);
+    cJSON_AddStringToObject(details, "module_id", module_id != NULL ? module_id : "");
+    cJSON_AddNumberToObject(details, "transition_seq", (double)s_ebin_runtime.transition_seq);
+
+    cJSON *fault = cJSON_CreateObject();
+    cJSON_AddItemToObject(details, "fault_telemetry", fault);
+    cJSON_AddStringToObject(fault, "fault_code", s_ebin_runtime.last_fault_code);
+    cJSON_AddStringToObject(fault, "fault_stage", s_ebin_runtime.last_stage);
+    cJSON_AddStringToObject(fault, "fault_reason", s_ebin_runtime.last_error_reason);
+    cJSON_AddStringToObject(fault, "recovery_action", s_ebin_runtime.last_recovery_action);
+    cJSON_AddStringToObject(fault, "recovered_module_id", s_ebin_runtime.last_recovered_module_id);
+    cJSON_AddStringToObject(fault,
+                            "last_known_good_module_id",
+                            s_ebin_runtime.has_last_known_good ? s_ebin_runtime.last_known_good_module_id : "");
+    cJSON_AddNumberToObject(fault, "fault_at_us", (double)s_ebin_runtime.last_fault_at_us);
+
+    esp_err_t out = send_json_object(req, root, status);
+    cJSON_Delete(root);
+    return out;
 }
 
 static const char *wildcard_tail(const char *uri, const char *prefix)
@@ -1362,6 +1529,8 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     cJSON *signature = cJSON_GetObjectItemCaseSensitive(json, "signature");
     cJSON *dependencies = cJSON_GetObjectItemCaseSensitive(json, "dependencies");
     cJSON *simulate_fail_stage = cJSON_GetObjectItemCaseSensitive(json, "simulate_fail_stage");
+    cJSON *force_fallback = cJSON_GetObjectItemCaseSensitive(json, "force_fallback");
+    bool prefer_fallback_recovery = cJSON_IsBool(force_fallback) && cJSON_IsTrue(force_fallback);
 
     bool prev_has_active_module = s_ebin_runtime.has_active_module;
     char prev_active_module_id[64];
@@ -1513,9 +1682,8 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     runtime_mark_stage("loading", "bind");
     if (s_ebin_runtime.has_active_module && strcmp(s_ebin_runtime.active_module_id, module_id->valuestring) != 0) {
         runtime_mark_failure("bind", "load_bind_failed_runtime_busy_with_other_module");
-        s_ebin_runtime.has_active_module = prev_has_active_module;
-        snprintf(s_ebin_runtime.active_module_id, sizeof(s_ebin_runtime.active_module_id), "%s", prev_active_module_id);
-        snprintf(s_ebin_runtime.active_abi_version, sizeof(s_ebin_runtime.active_abi_version), "%s", prev_active_abi_version);
+        runtime_apply_activation_recovery(
+            prev_has_active_module, prev_active_module_id, prev_active_abi_version, prefer_fallback_recovery);
         cJSON_Delete(json);
         return send_ebin_orchestration_error(req,
                                              "EBIN_INVALID",
@@ -1527,9 +1695,8 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
         strcmp(simulate_fail_stage->valuestring, "bind") == 0) {
         runtime_mark_failure("bind", "load_bind_failed_simulated");
-        s_ebin_runtime.has_active_module = prev_has_active_module;
-        snprintf(s_ebin_runtime.active_module_id, sizeof(s_ebin_runtime.active_module_id), "%s", prev_active_module_id);
-        snprintf(s_ebin_runtime.active_abi_version, sizeof(s_ebin_runtime.active_abi_version), "%s", prev_active_abi_version);
+        runtime_apply_activation_recovery(
+            prev_has_active_module, prev_active_module_id, prev_active_abi_version, prefer_fallback_recovery);
         cJSON_Delete(json);
         return send_ebin_orchestration_error(req,
                                              "EBIN_INVALID",
@@ -1543,9 +1710,8 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
         strcmp(simulate_fail_stage->valuestring, "init") == 0) {
         runtime_mark_failure("init", "load_init_failed_simulated");
-        s_ebin_runtime.has_active_module = prev_has_active_module;
-        snprintf(s_ebin_runtime.active_module_id, sizeof(s_ebin_runtime.active_module_id), "%s", prev_active_module_id);
-        snprintf(s_ebin_runtime.active_abi_version, sizeof(s_ebin_runtime.active_abi_version), "%s", prev_active_abi_version);
+        runtime_apply_activation_recovery(
+            prev_has_active_module, prev_active_module_id, prev_active_abi_version, prefer_fallback_recovery);
         cJSON_Delete(json);
         return send_ebin_orchestration_error(req,
                                              "EBIN_INVALID",
@@ -1555,10 +1721,9 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
                                              module_id->valuestring);
     }
 
-    s_ebin_runtime.has_active_module = true;
-    snprintf(s_ebin_runtime.active_module_id, sizeof(s_ebin_runtime.active_module_id), "%s", module_id->valuestring);
-    snprintf(s_ebin_runtime.active_abi_version, sizeof(s_ebin_runtime.active_abi_version), "%s", abi_version->valuestring);
+    runtime_set_active_module(module_id->valuestring, abi_version->valuestring);
     runtime_mark_stage("running", "init");
+    runtime_commit_last_known_good(module_id->valuestring, abi_version->valuestring);
 
     cJSON *root = cJSON_CreateObject();
     cJSON_AddBoolToObject(root, "ok", true);
@@ -1574,6 +1739,17 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     cJSON_AddItemToArray(transitions, cJSON_CreateString("init"));
     cJSON_AddStringToObject(data, "runtime_state", s_ebin_runtime.state);
     cJSON_AddNumberToObject(data, "transition_seq", (double)s_ebin_runtime.transition_seq);
+    cJSON *fault = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "fault_telemetry", fault);
+    cJSON_AddStringToObject(fault, "fault_code", s_ebin_runtime.last_fault_code);
+    cJSON_AddStringToObject(fault, "fault_stage", s_ebin_runtime.last_stage);
+    cJSON_AddStringToObject(fault, "fault_reason", s_ebin_runtime.last_error_reason);
+    cJSON_AddStringToObject(fault, "recovery_action", s_ebin_runtime.last_recovery_action);
+    cJSON_AddStringToObject(fault, "recovered_module_id", s_ebin_runtime.last_recovered_module_id);
+    cJSON_AddStringToObject(fault,
+                            "last_known_good_module_id",
+                            s_ebin_runtime.has_last_known_good ? s_ebin_runtime.last_known_good_module_id : "");
+    cJSON_AddNumberToObject(fault, "fault_at_us", (double)s_ebin_runtime.last_fault_at_us);
     cJSON_AddNumberToObject(data, "loaded_at_us", (double)s_ebin_runtime.updated_at_us);
 
     cJSON_Delete(json);
@@ -1816,6 +1992,17 @@ static esp_err_t handle_ebins_unload(httpd_req_t *req)
     cJSON_AddItemToArray(transitions, cJSON_CreateString("release"));
     cJSON_AddStringToObject(data, "runtime_state", s_ebin_runtime.state);
     cJSON_AddNumberToObject(data, "transition_seq", (double)s_ebin_runtime.transition_seq);
+    cJSON *fault = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "fault_telemetry", fault);
+    cJSON_AddStringToObject(fault, "fault_code", s_ebin_runtime.last_fault_code);
+    cJSON_AddStringToObject(fault, "fault_stage", s_ebin_runtime.last_stage);
+    cJSON_AddStringToObject(fault, "fault_reason", s_ebin_runtime.last_error_reason);
+    cJSON_AddStringToObject(fault, "recovery_action", s_ebin_runtime.last_recovery_action);
+    cJSON_AddStringToObject(fault, "recovered_module_id", s_ebin_runtime.last_recovered_module_id);
+    cJSON_AddStringToObject(fault,
+                            "last_known_good_module_id",
+                            s_ebin_runtime.has_last_known_good ? s_ebin_runtime.last_known_good_module_id : "");
+    cJSON_AddNumberToObject(fault, "fault_at_us", (double)s_ebin_runtime.last_fault_at_us);
     cJSON_AddNumberToObject(data, "unloaded_at_us", (double)s_ebin_runtime.updated_at_us);
 
     cJSON_Delete(json);

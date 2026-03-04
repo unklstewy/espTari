@@ -1,0 +1,50 @@
+health_check=ok attempts=6
+### seed_lkg_load_cpu
+POST /api/v2/ebins/load
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"loaded","transitions":["resolve","validate","bind","init"],"runtime_state":"running","transition_seq":5,"fault_telemetry":{"fault_code":"","fault_stage":"init","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":0},"loaded_at_us":13879593}}
+
+### seed_lkg_unload_cpu
+POST /api/v2/ebins/unload
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"unloaded","transitions":["pause","drain","deinit","release"],"runtime_state":"idle","transition_seq":10,"fault_telemetry":{"fault_code":"","fault_stage":"release","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":0},"unloaded_at_us":13934595}}
+
+### rollback_prepare_load_cpu
+POST /api/v2/ebins/load
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"loaded","transitions":["resolve","validate","bind","init"],"runtime_state":"running","transition_seq":15,"fault_telemetry":{"fault_code":"","fault_stage":"init","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":0},"loaded_at_us":13991290}}
+
+### rollback_bind_fail_video
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"bind","reason":"load_bind_failed_runtime_busy_with_other_module","runtime_state":"running","module_id":"","transition_seq":19,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"bind","fault_reason":"load_bind_failed_runtime_busy_with_other_module","recovery_action":"rollback_previous_active_module","recovered_module_id":"st.cpu.m68k","last_known_good_module_id":"st.cpu.m68k","fault_at_us":14045026}}}}
+
+rollback_bind_fail_video=pass code=EBIN_INVALID state=running action=rollback_previous_active_module recovered=st.cpu.m68k
+### rollback_cleanup_unload_cpu
+POST /api/v2/ebins/unload
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"unloaded","transitions":["pause","drain","deinit","release"],"runtime_state":"idle","transition_seq":24,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"release","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":14045026},"unloaded_at_us":14135863}}
+
+### fallback_init_fail_video
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"init","reason":"load_init_failed_simulated","runtime_state":"running","module_id":"","transition_seq":29,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"init","fault_reason":"load_init_failed_simulated","recovery_action":"fallback_module_set_activated","recovered_module_id":"st.cpu.m68k","last_known_good_module_id":"st.cpu.m68k","fault_at_us":14188029}}}}
+
+fallback_init_fail_video=pass code=EBIN_INVALID state=running action=fallback_module_set_activated recovered=st.cpu.m68k reason=load_init_failed_simulated
+### fallback_cleanup_unload_cpu
+POST /api/v2/ebins/unload
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"unloaded","transitions":["pause","drain","deinit","release"],"runtime_state":"idle","transition_seq":34,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"release","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":14188029},"unloaded_at_us":14409740}}
+
+### control_plane_load_cpu
+POST /api/v2/ebins/load
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"loaded","transitions":["resolve","validate","bind","init"],"runtime_state":"running","transition_seq":39,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"init","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":14188029},"loaded_at_us":14437071}}
+
+control_plane_load_cpu=pass state=running
+### control_plane_unload_cpu
+POST /api/v2/ebins/unload
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"unloaded","transitions":["pause","drain","deinit","release"],"runtime_state":"idle","transition_seq":44,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"release","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":14188029},"unloaded_at_us":14487733}}
+
+control_plane_unload_cpu=pass state=idle
