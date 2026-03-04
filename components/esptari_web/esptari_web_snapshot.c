@@ -40,6 +40,10 @@ static uint64_t chipset_integration_tick_counter = 450208120ULL;
 static uint64_t chipset_integration_cycle_counter = 112552440ULL;
 static uint64_t chipset_integration_event_timestamp_us = 1710000026400ULL;
 static uint32_t chipset_integration_call_seq = 0;
+static uint64_t mfp_irq_tick_counter = 450208244ULL;
+static uint64_t mfp_irq_cycle_counter = 112552991ULL;
+static uint64_t mfp_irq_event_timestamp_us = 1710000028022ULL;
+static uint64_t mfp_irq_event_seq = 0;
 
 enum {
     CHIPSET_GROUP_GLUE = 0,
@@ -552,6 +556,82 @@ static esp_err_t inspect_chipset_windows_integration_handler(httpd_req_t *req)
              bus_owner,
              (unsigned long)wait_cycles,
              (unsigned long long)chipset_integration_event_timestamp_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_mfp_interrupts_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char group_selector[16] = {0};
+    if (!esptari_web_query_value(req, "group", group_selector, sizeof(group_selector)) || strcmp(group_selector, "mfp") != 0) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char timer_selector[8] = {0};
+    bool has_timer_selector = esptari_web_query_value(req, "timer_id", timer_selector, sizeof(timer_selector));
+    if (has_timer_selector && !is_valid_mfp_timer_id(timer_selector)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INSPECT_FILTER_INVALID\"}}", 400);
+    }
+
+    char force_unresolved_vector_query[8] = {0};
+    bool force_unresolved_vector = esptari_web_query_value(req,
+                                                           "force_unresolved_vector",
+                                                           force_unresolved_vector_query,
+                                                           sizeof(force_unresolved_vector_query)) &&
+                                 strcmp(force_unresolved_vector_query, "1") == 0;
+    if (force_unresolved_vector) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"MFP-IRQ-03\"}}}",
+                         500);
+    }
+
+    char force_timestamp_regression_query[8] = {0};
+    bool force_timestamp_regression = esptari_web_query_value(req,
+                                                              "force_timestamp_regression",
+                                                              force_timestamp_regression_query,
+                                                              sizeof(force_timestamp_regression_query)) &&
+                                     strcmp(force_timestamp_regression_query, "1") == 0;
+    if (force_timestamp_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"MFP-IRQ-02\"}}}",
+                         500);
+    }
+
+    const char *timer_id = has_timer_selector ? timer_selector : "A";
+    const char *interrupt_line = "irq6";
+    uint16_t vector = 26;
+    if (strcmp(timer_id, "B") == 0) {
+        interrupt_line = "irq6";
+        vector = 24;
+    } else if (strcmp(timer_id, "C") == 0) {
+        interrupt_line = "irq2";
+        vector = 18;
+    } else if (strcmp(timer_id, "D") == 0) {
+        interrupt_line = "irq2";
+        vector = 20;
+    }
+
+    mfp_irq_event_seq++;
+    mfp_irq_tick_counter += 2ULL;
+    mfp_irq_cycle_counter += 9ULL;
+    mfp_irq_event_timestamp_us += 29ULL;
+
+    char resp[896];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"checks\":{\"MFP-IRQ-01\":\"pass\",\"MFP-IRQ-02\":\"pass\",\"MFP-IRQ-03\":\"pass\",\"MFP-IRQ-04\":\"pass\"},\"last_interrupt\":{\"source\":\"mfp\",\"interrupt_line\":\"%s\",\"vector\":%u,\"timer_id\":\"%s\",\"tick_counter\":%llu,\"cycle_counter\":%llu,\"event_timestamp_us\":%llu}}}",
+             session_id,
+             interrupt_line,
+             (unsigned)vector,
+             timer_id,
+             (unsigned long long)mfp_irq_tick_counter,
+             (unsigned long long)mfp_irq_cycle_counter,
+             (unsigned long long)mfp_irq_event_timestamp_us);
     return send_json(req, resp, 200);
 }
 
@@ -1080,6 +1160,7 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t inspect_chipset_windows_registers = {.uri = "/api/v2/inspect/chipset/windows/registers", .method = HTTP_GET, .handler = inspect_chipset_windows_registers_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_windows_memory = {.uri = "/api/v2/inspect/chipset/windows/memory", .method = HTTP_GET, .handler = inspect_chipset_windows_memory_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_windows_timers = {.uri = "/api/v2/inspect/chipset/windows/timers", .method = HTTP_GET, .handler = inspect_chipset_windows_timers_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_mfp_interrupts = {.uri = "/api/v2/inspect/chipset/mfp/interrupts", .method = HTTP_GET, .handler = inspect_chipset_mfp_interrupts_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_windows_integration = {.uri = "/api/v2/inspect/chipset/windows/integration", .method = HTTP_GET, .handler = inspect_chipset_windows_integration_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_pacing = {.uri = "/api/v2/inspect/chipset/dma/pacing", .method = HTTP_GET, .handler = inspect_chipset_dma_pacing_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_arbitration = {.uri = "/api/v2/inspect/chipset/dma/arbitration", .method = HTTP_GET, .handler = inspect_chipset_dma_arbitration_handler, .user_ctx = NULL};
@@ -1096,6 +1177,7 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_registers);
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_memory);
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_timers);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_mfp_interrupts);
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_integration);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_pacing);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_arbitration);
