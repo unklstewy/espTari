@@ -56,6 +56,11 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
     bool capture_opcode = false;
     bool capture_bus_error = false;
     bool capture_register_delta = false;
+    bool force_hook_order_violation = false;
+    bool force_capture_order_violation = false;
+    bool force_capture_tick_regression = false;
+    bool force_opcode_schema_invalid = false;
+    bool force_bus_error_schema_invalid = false;
     const char *capture_order[3];
     size_t capture_count = 0;
     if (capture_item != NULL) {
@@ -93,6 +98,27 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
         }
     }
 
+    cJSON *force_hook_order_item = cJSON_GetObjectItemCaseSensitive(root, "force_hook_order_violation");
+    if (cJSON_IsBool(force_hook_order_item)) {
+        force_hook_order_violation = cJSON_IsTrue(force_hook_order_item);
+    }
+    cJSON *force_capture_order_item = cJSON_GetObjectItemCaseSensitive(root, "force_capture_order_violation");
+    if (cJSON_IsBool(force_capture_order_item)) {
+        force_capture_order_violation = cJSON_IsTrue(force_capture_order_item);
+    }
+    cJSON *force_capture_tick_item = cJSON_GetObjectItemCaseSensitive(root, "force_capture_tick_regression");
+    if (cJSON_IsBool(force_capture_tick_item)) {
+        force_capture_tick_regression = cJSON_IsTrue(force_capture_tick_item);
+    }
+    cJSON *force_opcode_schema_item = cJSON_GetObjectItemCaseSensitive(root, "force_opcode_schema_invalid");
+    if (cJSON_IsBool(force_opcode_schema_item)) {
+        force_opcode_schema_invalid = cJSON_IsTrue(force_opcode_schema_item);
+    }
+    cJSON *force_bus_error_schema_item = cJSON_GetObjectItemCaseSensitive(root, "force_bus_error_schema_invalid");
+    if (cJSON_IsBool(force_bus_error_schema_item)) {
+        force_bus_error_schema_invalid = cJSON_IsTrue(force_bus_error_schema_item);
+    }
+
     cJSON_Delete(root);
 
     esptari_session_status_t status;
@@ -107,6 +133,10 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
 
     if (capture_register_delta) {
         return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"details\":{\"guard_id\":\"CAP-DIAG-PROFILE\",\"endpoint\":\"/api/v2/debug/clock/step\",\"esp_err\":\"ESP_ERR_INVALID_STATE\"}}}", 409);
+    }
+
+    if (force_hook_order_violation) {
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"STEP-CTRL-03\"}}}", 500);
     }
 
     uint64_t tick_before = esptari_web_debug_tick_counter;
@@ -151,9 +181,23 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
 
     cJSON *stats = cJSON_CreateObject();
     cJSON_AddNumberToObject(stats, "ticks_with_hooks", (double)ticks_committed);
-    cJSON_AddNumberToObject(stats, "hook_order_violations", 0);
+    cJSON_AddNumberToObject(stats, "hook_order_violations", force_hook_order_violation ? 1 : 0);
     cJSON_AddNumberToObject(stats, "component_step_mismatches", 0);
     cJSON_AddItemToObject(data, "scheduler_hook_stats", stats);
+
+    cJSON *step_checks = cJSON_CreateObject();
+    cJSON_AddStringToObject(step_checks, "STEP-CTRL-01", ticks_committed == (uint64_t)steps ? "pass" : "fail");
+    cJSON_AddStringToObject(step_checks,
+                            "STEP-CTRL-02",
+                            (esptari_web_debug_tick_counter == (tick_before + ticks_committed)) ? "pass" : "fail");
+    cJSON_AddStringToObject(step_checks, "STEP-CTRL-03", force_hook_order_violation ? "fail" : "pass");
+    cJSON_AddStringToObject(step_checks, "STEP-CTRL-04", force_capture_order_violation ? "fail" : "pass");
+    cJSON_AddItemToObject(data, "step_checks", step_checks);
+
+    if (ticks_committed != (uint64_t)steps || esptari_web_debug_tick_counter != (tick_before + ticks_committed)) {
+        cJSON_Delete(resp);
+        return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"STEP-CTRL-02\"}}}", 500);
+    }
 
     cJSON *hooks = cJSON_CreateArray();
     for (int step_index = 0; step_index < steps; step_index++) {
@@ -197,9 +241,20 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
 
     if (capture_count > 0) {
         cJSON *payloads = cJSON_CreateArray();
+        uint64_t previous_capture_tick = 0;
+        bool capture_tick_regression = false;
         for (int step_index = 0; step_index < steps; step_index++) {
             uint64_t tick_counter = tick_before + (uint64_t)step_index + 1ULL;
             uint64_t cycle_counter = cycle_before + ((uint64_t)step_index + 1ULL) * 12ULL;
+
+            if (force_capture_tick_regression && step_index == steps - 1 && steps > 1) {
+                tick_counter = tick_before;
+            }
+
+            if (previous_capture_tick > 0 && tick_counter < previous_capture_tick) {
+                capture_tick_regression = true;
+            }
+            previous_capture_tick = tick_counter;
 
             for (size_t selector_index = 0; selector_index < capture_count; selector_index++) {
                 const char *selector = capture_order[selector_index];
@@ -210,16 +265,20 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
                     cJSON_AddNumberToObject(entry, "tick_counter", (double)tick_counter);
                     cJSON_AddNumberToObject(entry, "cycle_counter", (double)cycle_counter);
                     cJSON_AddNumberToObject(entry, "pc", (double)(0x01000000U + ((uint32_t)tick_counter * 2U)));
-                    cJSON_AddStringToObject(entry, "opcode_word", "0x4E71");
-                    cJSON_AddNumberToObject(entry, "instruction_size_bytes", 2);
+                    if (!force_opcode_schema_invalid) {
+                        cJSON_AddStringToObject(entry, "opcode_word", "0x4E71");
+                        cJSON_AddNumberToObject(entry, "instruction_size_bytes", 2);
+                    }
                 } else if (strcmp(selector, "bus_error") == 0) {
                     cJSON_AddStringToObject(entry, "kind", "bus_error_capture_v1");
                     cJSON_AddNumberToObject(entry, "tick_counter", (double)tick_counter);
                     cJSON_AddNumberToObject(entry, "cycle_counter", (double)cycle_counter);
-                    cJSON_AddNumberToObject(entry, "fault_address", (double)(0x01002000U + ((uint32_t)tick_counter * 4U)));
-                    cJSON_AddStringToObject(entry, "access_type", "instruction_fetch");
-                    cJSON_AddStringToObject(entry, "fault_phase", "ack");
-                    cJSON_AddNumberToObject(entry, "vector", 2);
+                    if (!force_bus_error_schema_invalid) {
+                        cJSON_AddNumberToObject(entry, "fault_address", (double)(0x01002000U + ((uint32_t)tick_counter * 4U)));
+                        cJSON_AddStringToObject(entry, "access_type", "instruction_fetch");
+                        cJSON_AddStringToObject(entry, "fault_phase", "ack");
+                        cJSON_AddNumberToObject(entry, "vector", 2);
+                    }
                 } else {
                     cJSON_AddStringToObject(entry, "kind", "register_delta_capture_v1");
                     cJSON_AddNumberToObject(entry, "tick_counter", (double)tick_counter);
@@ -231,6 +290,31 @@ esp_err_t esptari_web_debug_clock_step_handler(httpd_req_t *req)
                 cJSON_AddItemToArray(payloads, entry);
             }
         }
+
+        cJSON *capture_checks = cJSON_CreateObject();
+        cJSON_AddStringToObject(capture_checks, "CAP-DIAG-01", capture_tick_regression ? "fail" : "pass");
+        cJSON_AddStringToObject(capture_checks, "CAP-DIAG-02", force_opcode_schema_invalid ? "fail" : "pass");
+        cJSON_AddStringToObject(capture_checks, "CAP-DIAG-03", force_bus_error_schema_invalid ? "fail" : "pass");
+        cJSON_AddStringToObject(capture_checks, "CAP-DIAG-04", force_capture_order_violation ? "fail" : "pass");
+        cJSON_AddItemToObject(data, "capture_checks", capture_checks);
+
+        if (capture_tick_regression) {
+            cJSON_Delete(resp);
+            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"CAP-DIAG-01\"}}}", 500);
+        }
+        if (force_opcode_schema_invalid) {
+            cJSON_Delete(resp);
+            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"CAP-DIAG-02\"}}}", 500);
+        }
+        if (force_bus_error_schema_invalid) {
+            cJSON_Delete(resp);
+            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"CAP-DIAG-03\"}}}", 500);
+        }
+        if (force_capture_order_violation) {
+            cJSON_Delete(resp);
+            return esptari_web_send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"CAP-DIAG-04\"}}}", 500);
+        }
+
         cJSON_AddItemToObject(data, "capture_payloads", payloads);
     }
 

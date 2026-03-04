@@ -549,6 +549,8 @@ Browser input capture policy:
 - Mode transition responses now project normalized clock bounds and transition diagnostics (`clock_bounds`, `clock_bound_checks`, `transition_checks`) with deterministic idempotent behavior (`transition_applied=false` and stable `mode_transition_seq` when already in target mode).
 - Single-step execution-control API + scheduler-hook contract (`steps` bounds, checks `STEP-CTRL-01..04`, `scheduler_hook_stats`, and deterministic guard/error mapping for `/api/v2/debug/clock/step`) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `6.10B` and is the canonical source.
 - Opcode/bus-error capture path + diagnostic payload contract (`opcode_capture_v1`, `bus_error_capture_v1`, checks `CAP-DIAG-01..04`, and deterministic capture guard/error mapping) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `6.10C` and is the canonical source.
+- `POST /api/v2/debug/clock/step` now projects deterministic validation results via `step_checks` (`STEP-CTRL-01..04`) and `capture_checks` (`CAP-DIAG-01..04`) alongside `scheduler_hook_stats` and capture payloads.
+- Fail-fast integrity mapping is enforced on step/capture validation checks: scheduler/counter/capture ordering/schema violations deterministically return `INTERNAL_ERROR` with check identifiers (`STEP-CTRL-*`, `CAP-DIAG-*`) in error details.
 
 ### Section 6 completion map (2026-03-03)
 
