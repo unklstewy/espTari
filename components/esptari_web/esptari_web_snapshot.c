@@ -30,6 +30,12 @@ static uint32_t dma_arbitration_round = 44;
 static const uint32_t dma_request_window_ticks = 128;
 static const uint32_t dma_max_requests_per_window = 16;
 static const uint32_t dma_queued_requests = 3;
+static uint64_t fdc_command_seq = 8012;
+static uint64_t fdc_last_transition_tick = 912840;
+static uint64_t fdc_last_transition_us = 1710000031888ULL;
+static uint64_t fdc_terminal_event_seq = 20330;
+static uint64_t fdc_terminal_tick = 912864;
+static uint64_t fdc_terminal_timestamp_us = 1710000031951ULL;
 
 enum {
     CHIPSET_GROUP_GLUE = 0,
@@ -596,6 +602,156 @@ static esp_err_t inspect_chipset_dma_arbitration_handler(httpd_req_t *req)
     return send_json(req, resp, 200);
 }
 
+static esp_err_t inspect_chipset_fdc_fsm_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char force_fdc_unavailable_query[8] = {0};
+    bool force_fdc_unavailable = esptari_web_query_value(req,
+                                                         "force_fdc_unavailable",
+                                                         force_fdc_unavailable_query,
+                                                         sizeof(force_fdc_unavailable_query)) &&
+                                strcmp(force_fdc_unavailable_query, "1") == 0;
+    if (force_fdc_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char fsm_state[24] = "executing";
+    char active_command_json[64] = "\"READ_SECTOR\"";
+    uint32_t status_register = 129;
+    const char *busy = "true";
+    const char *drq = "false";
+    const char *intrq = "false";
+
+    char force_result_ready_query[8] = {0};
+    bool force_result_ready = esptari_web_query_value(req,
+                                                     "force_result_ready",
+                                                     force_result_ready_query,
+                                                     sizeof(force_result_ready_query)) &&
+                             strcmp(force_result_ready_query, "1") == 0;
+    if (force_result_ready) {
+        strlcpy(fsm_state, "result_ready", sizeof(fsm_state));
+        status_register = 0;
+        busy = "false";
+        drq = "false";
+        intrq = "true";
+        fdc_last_transition_tick += 24ULL;
+        fdc_last_transition_us += 63ULL;
+    }
+
+    char force_idle_query[8] = {0};
+    bool force_idle = esptari_web_query_value(req,
+                                              "force_idle",
+                                              force_idle_query,
+                                              sizeof(force_idle_query)) &&
+                      strcmp(force_idle_query, "1") == 0;
+    if (force_idle) {
+        strlcpy(fsm_state, "idle", sizeof(fsm_state));
+        strlcpy(active_command_json, "null", sizeof(active_command_json));
+        status_register = 0;
+        busy = "false";
+        drq = "false";
+        intrq = "false";
+        fdc_last_transition_tick += 16ULL;
+        fdc_last_transition_us += 41ULL;
+    }
+
+    char resp[640];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"fsm_state\":\"%s\",\"active_command\":%s,\"command_seq\":%llu,\"status_register\":%lu,\"busy\":%s,\"drq\":%s,\"intrq\":%s,\"last_transition_tick\":%llu,\"last_transition_us\":%llu}}",
+             session_id,
+             fsm_state,
+             active_command_json,
+             (unsigned long long)fdc_command_seq,
+             (unsigned long)status_register,
+             busy,
+             drq,
+             intrq,
+             (unsigned long long)fdc_last_transition_tick,
+             (unsigned long long)fdc_last_transition_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_fdc_terminal_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char limit_str[16] = {0};
+    if (!esptari_web_query_value(req, "limit", limit_str, sizeof(limit_str))) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    uint32_t limit = 0;
+    if (!esptari_web_parse_u32_str(limit_str, &limit) || limit == 0 || limit > 256) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char force_fdc_unavailable_query[8] = {0};
+    bool force_fdc_unavailable = esptari_web_query_value(req,
+                                                         "force_fdc_unavailable",
+                                                         force_fdc_unavailable_query,
+                                                         sizeof(force_fdc_unavailable_query)) &&
+                                strcmp(force_fdc_unavailable_query, "1") == 0;
+    if (force_fdc_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    uint32_t event_count = limit > 2 ? 2 : limit;
+    uint64_t base_event_seq = fdc_terminal_event_seq;
+    uint64_t base_tick = fdc_terminal_tick;
+    uint64_t base_ts = fdc_terminal_timestamp_us;
+
+    char events_json[1024] = {0};
+    bool first = true;
+    for (uint32_t i = 0; i < event_count; ++i) {
+        uint64_t event_seq = base_event_seq + (uint64_t)i + 1ULL;
+        uint64_t tick_counter = base_tick + (uint64_t)i + 1ULL;
+        uint64_t timestamp_us = base_ts + ((uint64_t)i + 1ULL) * 9ULL;
+        uint64_t command_seq = fdc_command_seq + (uint64_t)i;
+        const char *terminal_condition = (i == 0) ? "ok" : "timeout";
+        uint32_t status_register = (i == 0) ? 0U : 64U;
+
+        size_t used = strlen(events_json);
+        int written = snprintf(events_json + used,
+                               sizeof(events_json) - used,
+                               "%s{\"event_seq\":%llu,\"command_seq\":%llu,\"terminal_condition\":\"%s\",\"status_register\":%lu,\"busy\":false,\"drq\":false,\"intrq\":true,\"tick_counter\":%llu,\"timestamp_us\":%llu}",
+                               first ? "" : ",",
+                               (unsigned long long)event_seq,
+                               (unsigned long long)command_seq,
+                               terminal_condition,
+                               (unsigned long)status_register,
+                               (unsigned long long)tick_counter,
+                               (unsigned long long)timestamp_us);
+        if (written < 0 || (size_t)written >= sizeof(events_json) - used) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+        first = false;
+    }
+
+    fdc_terminal_event_seq = base_event_seq + event_count;
+    fdc_terminal_tick = base_tick + event_count;
+    fdc_terminal_timestamp_us = base_ts + ((uint64_t)event_count) * 9ULL;
+    fdc_command_seq += event_count;
+    fdc_last_transition_tick = fdc_terminal_tick;
+    fdc_last_transition_us = fdc_terminal_timestamp_us;
+
+    char resp[1280];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"events\":[%s]}}",
+             session_id,
+             events_json);
+    return send_json(req, resp, 200);
+}
+
 static esp_err_t inspect_psg_gpio_events_handler(httpd_req_t *req)
 {
     char session_id[64] = {0};
@@ -855,6 +1011,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t inspect_chipset_windows_timers = {.uri = "/api/v2/inspect/chipset/windows/timers", .method = HTTP_GET, .handler = inspect_chipset_windows_timers_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_pacing = {.uri = "/api/v2/inspect/chipset/dma/pacing", .method = HTTP_GET, .handler = inspect_chipset_dma_pacing_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_arbitration = {.uri = "/api/v2/inspect/chipset/dma/arbitration", .method = HTTP_GET, .handler = inspect_chipset_dma_arbitration_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_fdc_fsm = {.uri = "/api/v2/inspect/chipset/fdc/fsm", .method = HTTP_GET, .handler = inspect_chipset_fdc_fsm_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_fdc_terminal = {.uri = "/api/v2/inspect/chipset/fdc/terminal", .method = HTTP_GET, .handler = inspect_chipset_fdc_terminal_handler, .user_ctx = NULL};
     httpd_uri_t inspect_psg_gpio_state = {.uri = "/api/v2/inspect/chipset/psg/gpio", .method = HTTP_GET, .handler = inspect_psg_gpio_state_handler, .user_ctx = NULL};
     httpd_uri_t inspect_psg_gpio_events = {.uri = "/api/v2/inspect/chipset/psg/gpio/events", .method = HTTP_GET, .handler = inspect_psg_gpio_events_handler, .user_ctx = NULL};
     httpd_uri_t checkpoint_create = {.uri = "/api/v2/engine/checkpoint/create", .method = HTTP_POST, .handler = checkpoint_create_handler, .user_ctx = NULL};
@@ -868,6 +1026,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_timers);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_pacing);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_arbitration);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_fsm);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_terminal);
     httpd_register_uri_handler(server_handle, &inspect_psg_gpio_state);
     httpd_register_uri_handler(server_handle, &inspect_psg_gpio_events);
     httpd_register_uri_handler(server_handle, &checkpoint_create);

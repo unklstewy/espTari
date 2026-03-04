@@ -1,0 +1,41 @@
+health_check=ok attempts=1
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Cannot reset from current lifecycle state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 200
+{"ok":true}
+
+### fdc_fsm_ok
+GET /api/v2/inspect/chipset/fdc/fsm?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","fsm_state":"executing","active_command":"READ_SECTOR","command_seq":8012,"status_register":129,"busy":true,"drq":false,"intrq":false,"last_transition_tick":912840,"last_transition_us":1710000031888}}
+
+fdc_fsm_contract=pass state=executing has_fields=True
+### fdc_terminal_ok
+GET /api/v2/inspect/chipset/fdc/terminal?session_id=ses_local&limit=2
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","events":[{"event_seq":20331,"command_seq":8012,"terminal_condition":"ok","status_register":0,"busy":false,"drq":false,"intrq":true,"tick_counter":912865,"timestamp_us":1710000031960},{"event_seq":20332,"command_seq":8013,"terminal_condition":"timeout","status_register":64,"busy":false,"drq":false,"intrq":true,"tick_counter":912866,"timestamp_us":1710000031969}]}}
+
+fdc_terminal_contract=pass count=2 seq_delta=1 ts_mono=True tick_mono=True terminal_signals=True
+### fdc_missing_limit
+GET /api/v2/inspect/chipset/fdc/terminal?session_id=ses_local
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+fdc_bad_request_mapping=pass code=BAD_REQUEST
+### fdc_unknown_session
+GET /api/v2/inspect/chipset/fdc/fsm?session_id=ses_unknown
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}
+
+fdc_engine_not_running_mapping=pass code=ENGINE_NOT_RUNNING
+### fdc_internal_error
+GET /api/v2/inspect/chipset/fdc/fsm?session_id=ses_local&force_fdc_unavailable=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+fdc_internal_error_mapping=pass code=INTERNAL_ERROR
