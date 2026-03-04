@@ -1,0 +1,57 @@
+# T-118/T-119 debug clock bounds + transition flow smoke 20260303_210045
+
+## session start
+HTTP/1.1 409 Conflict
+Content-Type: application/json
+Content-Length: 270
+
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+## invalid realtime ratio => DEBUG_CLOCK_INVALID
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 246
+
+{"ok":false,"error":{"code":"DEBUG_CLOCK_INVALID","category":"debug","message":"ratio is only allowed for slow_motion mode","retryable":false,"details":{"session_id":"ses_local","endpoint":"/api/v2/debug/clock/mode","guard_id":"CLOCK-BOUND-02"}}}
+
+## invalid slow_motion ratio out of bounds => DEBUG_CLOCK_INVALID
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 238
+
+{"ok":false,"error":{"code":"DEBUG_CLOCK_INVALID","category":"debug","message":"slow_motion ratio must be in (0,1]","retryable":false,"details":{"session_id":"ses_local","endpoint":"/api/v2/debug/clock/mode","guard_id":"CLOCK-BOUND-01"}}}
+
+## transition realtime -> slow_motion (applied)
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 583
+
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":true,"mode_transition_seq":4,"from_mode":"single_step","to_mode":"slow_motion","effective_ratio":0.500000,"last_transition_at_us":31048655,"clock_bounds":{"ratio_min_exclusive":0.0,"ratio_max_inclusive":1.0,"realtime_effective_ratio":1.0},"clock_bound_checks":{"CLOCK-BOUND-01":"pass","CLOCK-BOUND-02":"pass","CLOCK-BOUND-03":"pass","CLOCK-BOUND-04":"pass"},"transition_checks":{"CLOCK-TRANS-01":"pass","CLOCK-TRANS-02":"pass","CLOCK-TRANS-03":"pass","CLOCK-TRANS-04":"pass"},"transition_commit":"next_tick_boundary"}}
+
+## idempotent slow_motion -> slow_motion (same ratio)
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 425
+
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":false,"mode_transition_seq":4,"from_mode":"slow_motion","to_mode":"slow_motion","effective_ratio":0.500000,"reason":"already_in_target_mode","clock_bounds":{"ratio_min_exclusive":0.0,"ratio_max_inclusive":1.0,"realtime_effective_ratio":1.0},"transition_checks":{"CLOCK-TRANS-01":"pass","CLOCK-TRANS-02":"pass","CLOCK-TRANS-03":"pass","CLOCK-TRANS-04":"pass"}}}
+
+## transition slow_motion -> realtime
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 580
+
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":true,"mode_transition_seq":5,"from_mode":"slow_motion","to_mode":"realtime","effective_ratio":1.000000,"last_transition_at_us":31110645,"clock_bounds":{"ratio_min_exclusive":0.0,"ratio_max_inclusive":1.0,"realtime_effective_ratio":1.0},"clock_bound_checks":{"CLOCK-BOUND-01":"pass","CLOCK-BOUND-02":"pass","CLOCK-BOUND-03":"pass","CLOCK-BOUND-04":"pass"},"transition_checks":{"CLOCK-TRANS-01":"pass","CLOCK-TRANS-02":"pass","CLOCK-TRANS-03":"pass","CLOCK-TRANS-04":"pass"},"transition_commit":"next_tick_boundary"}}
+
+## transition realtime -> single_step
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 580
+
+{"ok":true,"data":{"session_id":"ses_local","transition_applied":true,"mode_transition_seq":6,"from_mode":"realtime","to_mode":"single_step","effective_ratio":1.000000,"last_transition_at_us":31146758,"clock_bounds":{"ratio_min_exclusive":0.0,"ratio_max_inclusive":1.0,"realtime_effective_ratio":1.0},"clock_bound_checks":{"CLOCK-BOUND-01":"pass","CLOCK-BOUND-02":"pass","CLOCK-BOUND-03":"pass","CLOCK-BOUND-04":"pass"},"transition_checks":{"CLOCK-TRANS-01":"pass","CLOCK-TRANS-02":"pass","CLOCK-TRANS-03":"pass","CLOCK-TRANS-04":"pass"},"transition_commit":"next_tick_boundary"}}
+
+## state snapshot
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 485
+
+{"ok":true,"data":{"mode":"single_step","effective_ratio":1.000000,"mode_transition_seq":6,"last_transition_at_us":31146758,"scheduler_hz":8000000,"tick_counter":0,"cycle_counter":0,"timestamp_origin_us":17805572,"timestamp_last_emitted_us":17805572,"timestamp_regressions":0,"arbitration_round":0,"arbitration":{"hook_layer":"arb_pre_tick,arb_component_step,arb_post_tick","round":0,"last_bus_owner":"cpu"},"timestamp_emitter":{"emit_seq":0,"source":"tick_counter","monotonic":true}}}
