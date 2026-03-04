@@ -22,6 +22,24 @@ This folder is the execution system for an Agentic AI delivery team.
 - Use parallel pull within dependency-safe boundaries.
 - Keep Acceptance queue short to avoid Product Owner bottlenecks.
 
+## Current Canonical Docs
+
+Use these as the active source of truth for current delivery state:
+
+- `BACKLOG.md`
+- `KANBAN_BOARD.md`
+- `ACCEPTANCE_LOG.md`
+- `RELEASE_NOTES.md`
+- `S5_RUNTIME_UNLOCK_PACKET_2026-03-04.md`
+- `S5_RUNTIME_UNLOCK_TRACEABILITY_MATRIX_2026-03-04.md`
+- `S5_RUNTIME_UNLOCK_DECISION_TEMPLATE_2026-03-04.md`
+- `SPRINT_02_CLOSURE_REPORT_2026-03-04.md`
+- `PROGRAM_STATUS_SNAPSHOT_2026-03-04.md`
+
+Legacy/superseded markdown snapshot is preserved under:
+
+- `_archive/legacy_markdown_2026-03-03/`
+
 ## Navigation
 
 1. [Working Agreement](WORKING_AGREEMENT.md)
