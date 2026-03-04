@@ -115,6 +115,136 @@ static bool parse_json_request(httpd_req_t *req, cJSON **json)
     return true;
 }
 
+static esp_err_t send_ebin_validation_error(httpd_req_t *req,
+                                            const char *code,
+                                            int status,
+                                            const char *field,
+                                            const char *reason)
+{
+    char payload[512];
+    snprintf(payload,
+             sizeof(payload),
+             "{\"ok\":false,\"error\":{\"code\":\"%s\",\"category\":\"ebin\",\"retryable\":false,\"details\":{\"field\":\"%s\",\"reason\":\"%s\"}}}",
+             code,
+             field != NULL ? field : "",
+             reason != NULL ? reason : "validation_failed");
+    return esptari_web_send_json(req, payload, status);
+}
+
+static bool is_known_ebin_module_type(const char *module_type)
+{
+    return module_type != NULL &&
+           (strcmp(module_type, "cpu") == 0 || strcmp(module_type, "video") == 0 || strcmp(module_type, "io") == 0 ||
+            strcmp(module_type, "storage") == 0 || strcmp(module_type, "audio") == 0 ||
+            strcmp(module_type, "machine_profile") == 0);
+}
+
+static bool parse_semver_major(const char *version, uint32_t *out_major)
+{
+    if (version == NULL || out_major == NULL || version[0] == '\0') {
+        return false;
+    }
+
+    char *endptr = NULL;
+    unsigned long major = strtoul(version, &endptr, 10);
+    if (endptr == version || major > 999UL || endptr == NULL || *endptr != '.') {
+        return false;
+    }
+    const char *minor = endptr + 1;
+    if (*minor == '\0') {
+        return false;
+    }
+    unsigned long minor_value = strtoul(minor, &endptr, 10);
+    (void)minor_value;
+    if (endptr == minor || endptr == NULL || *endptr != '.') {
+        return false;
+    }
+    const char *patch = endptr + 1;
+    if (*patch == '\0') {
+        return false;
+    }
+    unsigned long patch_value = strtoul(patch, &endptr, 10);
+    (void)patch_value;
+    if (endptr == patch || endptr == NULL || *endptr != '\0') {
+        return false;
+    }
+
+    *out_major = (uint32_t)major;
+    return true;
+}
+
+static bool string_array_non_empty(const cJSON *array)
+{
+    if (!cJSON_IsArray(array) || cJSON_GetArraySize(array) <= 0) {
+        return false;
+    }
+    cJSON *item = NULL;
+    cJSON_ArrayForEach(item, array)
+    {
+        if (!cJSON_IsString(item) || item->valuestring == NULL || item->valuestring[0] == '\0') {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool machine_target_contains_atari_st(const cJSON *array)
+{
+    if (!cJSON_IsArray(array)) {
+        return false;
+    }
+    cJSON *item = NULL;
+    cJSON_ArrayForEach(item, array)
+    {
+        if (cJSON_IsString(item) && item->valuestring != NULL && strcmp(item->valuestring, "atari_st") == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool is_valid_sha256_hex(const char *value)
+{
+    if (value == NULL || strlen(value) != 64) {
+        return false;
+    }
+    for (size_t i = 0; i < 64; i++) {
+        char c = value[i];
+        bool is_digit = (c >= '0' && c <= '9');
+        bool is_lower_hex = (c >= 'a' && c <= 'f');
+        bool is_upper_hex = (c >= 'A' && c <= 'F');
+        if (!is_digit && !is_lower_hex && !is_upper_hex) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool dependencies_schema_valid(const cJSON *dependencies)
+{
+    if (!cJSON_IsArray(dependencies)) {
+        return false;
+    }
+
+    cJSON *dep = NULL;
+    cJSON_ArrayForEach(dep, dependencies)
+    {
+        if (!cJSON_IsObject(dep)) {
+            return false;
+        }
+        cJSON *dep_module_id = cJSON_GetObjectItemCaseSensitive(dep, "module_id");
+        cJSON *dep_abi_range = cJSON_GetObjectItemCaseSensitive(dep, "abi_range");
+        cJSON *dep_required = cJSON_GetObjectItemCaseSensitive(dep, "required");
+        if (!cJSON_IsString(dep_module_id) || dep_module_id->valuestring == NULL || dep_module_id->valuestring[0] == '\0' ||
+            !cJSON_IsString(dep_abi_range) || dep_abi_range->valuestring == NULL || dep_abi_range->valuestring[0] == '\0' ||
+            !cJSON_IsBool(dep_required)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static const char *wildcard_tail(const char *uri, const char *prefix)
 {
     size_t prefix_len = strlen(prefix);
@@ -892,11 +1022,126 @@ static esp_err_t handle_ebins_validate(httpd_req_t *req)
         return ESP_OK;
     }
 
-    const cJSON *name = cJSON_GetObjectItemCaseSensitive(json, "name");
+    if (!cJSON_IsObject(json)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "payload", "request body must be an object");
+    }
+
+    cJSON *module_id = cJSON_GetObjectItemCaseSensitive(json, "module_id");
+    cJSON *module_type = cJSON_GetObjectItemCaseSensitive(json, "module_type");
+    cJSON *machine_targets = cJSON_GetObjectItemCaseSensitive(json, "machine_targets");
+    cJSON *abi_version = cJSON_GetObjectItemCaseSensitive(json, "abi_version");
+    cJSON *api_contract_version = cJSON_GetObjectItemCaseSensitive(json, "api_contract_version");
+    cJSON *exports = cJSON_GetObjectItemCaseSensitive(json, "exports");
+    cJSON *dependencies = cJSON_GetObjectItemCaseSensitive(json, "dependencies");
+    cJSON *build_fingerprint = cJSON_GetObjectItemCaseSensitive(json, "build_fingerprint");
+    cJSON *payload_sha256 = cJSON_GetObjectItemCaseSensitive(json, "payload_sha256");
+    cJSON *signature = cJSON_GetObjectItemCaseSensitive(json, "signature");
+
+    if (!cJSON_IsString(module_id) || module_id->valuestring == NULL || module_id->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "module_id", "required non-empty string");
+    }
+    if (!cJSON_IsString(module_type) || module_type->valuestring == NULL || module_type->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "module_type", "required non-empty string");
+    }
+    if (!cJSON_IsArray(machine_targets)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "machine_targets", "required array of target machines");
+    }
+    if (!cJSON_IsString(abi_version) || abi_version->valuestring == NULL || abi_version->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "abi_version", "required semver string");
+    }
+    if (!cJSON_IsString(api_contract_version) || api_contract_version->valuestring == NULL || api_contract_version->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "api_contract_version", "required semver string");
+    }
+    if (!cJSON_IsArray(exports)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "exports", "required array of exported symbols");
+    }
+    if (!cJSON_IsArray(dependencies)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "dependencies", "required dependency array");
+    }
+    if (!cJSON_IsString(build_fingerprint) || build_fingerprint->valuestring == NULL || build_fingerprint->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "build_fingerprint", "required non-empty string");
+    }
+    if (!cJSON_IsString(payload_sha256) || payload_sha256->valuestring == NULL || payload_sha256->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "payload_sha256", "required SHA-256 hex string");
+    }
+
+    if (!is_known_ebin_module_type(module_type->valuestring)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "module_type", "unsupported module type");
+    }
+    if (!string_array_non_empty(machine_targets) || !machine_target_contains_atari_st(machine_targets)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "machine_targets", "must include atari_st target");
+    }
+    if (!string_array_non_empty(exports)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "exports", "must include at least one export symbol");
+    }
+    if (!dependencies_schema_valid(dependencies)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "dependencies", "dependency entries must include module_id abi_range required");
+    }
+    if (!is_valid_sha256_hex(payload_sha256->valuestring)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "payload_sha256", "must be 64-char hex string");
+    }
+
+    uint32_t abi_major = 0;
+    uint32_t api_contract_major = 0;
+    if (!parse_semver_major(abi_version->valuestring, &abi_major)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "abi_version", "must be semantic version MAJOR.MINOR.PATCH");
+    }
+    if (!parse_semver_major(api_contract_version->valuestring, &api_contract_major)) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "api_contract_version", "must be semantic version MAJOR.MINOR.PATCH");
+    }
+    if (abi_major != 1U) {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "EBIN_ABI_MISMATCH", 409, "abi_version", "unsupported major ABI; expected 1.x.x");
+    }
+
+    if (signature != NULL && !cJSON_IsNull(signature)) {
+        if (!cJSON_IsObject(signature)) {
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req, "EBIN_INVALID", 400, "signature", "signature must be object when provided");
+        }
+        cJSON *algorithm = cJSON_GetObjectItemCaseSensitive(signature, "algorithm");
+        cJSON *key_id = cJSON_GetObjectItemCaseSensitive(signature, "key_id");
+        cJSON *value = cJSON_GetObjectItemCaseSensitive(signature, "value");
+        if (!cJSON_IsString(algorithm) || algorithm->valuestring == NULL || algorithm->valuestring[0] == '\0' ||
+            !cJSON_IsString(key_id) || key_id->valuestring == NULL || key_id->valuestring[0] == '\0' ||
+            !cJSON_IsString(value) || value->valuestring == NULL || value->valuestring[0] == '\0') {
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req, "EBIN_INVALID", 400, "signature", "signature requires algorithm key_id value strings");
+        }
+    }
+
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "name", cJSON_IsString(name) ? name->valuestring : "unknown");
-    cJSON_AddBoolToObject(root, "valid", true);
-    cJSON_AddStringToObject(root, "status", "ok");
+    cJSON_AddBoolToObject(root, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(root, "data", data);
+    cJSON_AddStringToObject(data, "module_id", module_id->valuestring);
+    cJSON_AddBoolToObject(data, "valid", true);
+    cJSON_AddStringToObject(data, "status", "ok");
+    cJSON *normalized = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "normalized", normalized);
+    cJSON_AddStringToObject(normalized, "machine", "atari_st");
+    cJSON_AddStringToObject(normalized, "module_type", module_type->valuestring);
+    cJSON_AddNumberToObject(normalized, "abi_major", (double)abi_major);
+    cJSON_AddNumberToObject(normalized, "api_contract_major", (double)api_contract_major);
+    cJSON_AddNumberToObject(normalized, "dependency_count", (double)cJSON_GetArraySize(dependencies));
+    cJSON_AddNumberToObject(normalized, "export_count", (double)cJSON_GetArraySize(exports));
 
     cJSON_Delete(json);
     esp_err_t out = send_json_object(req, root, 200);

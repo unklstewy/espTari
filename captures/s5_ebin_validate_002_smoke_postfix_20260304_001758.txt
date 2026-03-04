@@ -1,0 +1,31 @@
+health_check=ok attempts=4
+### ebin_validate_success
+POST /api/v2/ebins/validate
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","valid":true,"status":"ok","normalized":{"machine":"atari_st","module_type":"cpu","abi_major":1,"api_contract_major":1,"dependency_count":1,"export_count":3}}}
+
+ebin_validate_success_contract=pass ok=True valid=True module=True abi=True
+### ebin_validate_missing_required
+POST /api/v2/ebins/validate
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"ebin","retryable":false,"details":{"field":"module_id","reason":"required non-empty string"}}}
+
+ebin_validate_missing_required=pass code=BAD_REQUEST field=module_id
+### ebin_validate_bad_module_type
+POST /api/v2/ebins/validate
+HTTP 400
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":false,"details":{"field":"module_type","reason":"unsupported module type"}}}
+
+ebin_validate_bad_module_type=pass code=EBIN_INVALID
+### ebin_validate_bad_sha
+POST /api/v2/ebins/validate
+HTTP 400
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":false,"details":{"field":"payload_sha256","reason":"must be 64-char hex string"}}}
+
+ebin_validate_bad_sha=pass code=EBIN_INVALID
+### ebin_validate_abi_mismatch
+POST /api/v2/ebins/validate
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_ABI_MISMATCH","category":"ebin","retryable":false,"details":{"field":"abi_version","reason":"unsupported major ABI; expected 1.x.x"}}}
+
+ebin_validate_abi_mismatch=pass code=EBIN_ABI_MISMATCH
