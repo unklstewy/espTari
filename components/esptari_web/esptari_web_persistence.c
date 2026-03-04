@@ -401,12 +401,17 @@ static esp_err_t state_save_handler(httpd_req_t *req)
     upsert_snapshot_index_entry(latest_snapshot_id, "ses_local", "st_520_pal", snapshot_name, latest_saved_at_us);
     cJSON_Delete(root);
 
-    char resp[512];
+    char snapshot_hash[24] = {0};
+    compute_snapshot_hash(latest_snapshot_id, "st_520_pal", latest_saved_at_us, snapshot_hash, sizeof(snapshot_hash));
+
+    char resp[4096];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"snapshot_id\":\"%s\",\"name\":\"%s\",\"saved_at_us\":%llu}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"snapshot_id\":\"%s\",\"name\":\"%s\",\"schema_version\":1,\"profile\":\"st_520_pal\",\"abi\":{\"engine\":\"2.0.0\",\"modules\":{\"cpu\":\"2.0.0\",\"video\":\"2.0.0\",\"io\":\"2.0.0\",\"storage\":\"2.0.0\",\"audio\":\"2.0.0\"}},\"hash\":\"%s\",\"created_at_us\":%llu,\"saved_at_us\":%llu,\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"audio\"]},\"media_bindings\":{\"rom_id\":\"rom_default\",\"disk_ids\":[],\"cartridge_id\":null},\"state_blocks\":{\"cpu\":{\"required\":[\"pc\",\"sr\",\"d\",\"a\"]},\"glue_mmu_shifter\":{\"required\":[\"video_base\",\"sync_mode\",\"mmu_bank\"]},\"mfp\":{\"required\":[\"iera\",\"ierb\",\"isra\",\"isrb\",\"timers\"]},\"acia_ikbd\":{\"required\":[\"acia_status\",\"acia_control\",\"ikbd_queue\"]},\"dma_fdc\":{\"required\":[\"dma_addr\",\"dma_mode\",\"fdc_command\",\"fdc_status\"]},\"psg\":{\"required\":[\"registers\",\"mixer\",\"gpio\"]}}}}",
              latest_snapshot_id,
              snapshot_name,
+             snapshot_hash,
+             (unsigned long long)latest_saved_at_us,
              (unsigned long long)latest_saved_at_us);
     return send_json(req, resp, 200);
 }
