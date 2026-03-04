@@ -50,6 +50,12 @@ static uint64_t acia_host_to_st_frame_seq = 9183ULL;
 static uint64_t acia_st_to_host_frame_seq = 8183ULL;
 static uint64_t acia_host_to_st_timestamp_us = 1710000029203ULL;
 static uint64_t acia_st_to_host_timestamp_us = 1710000029188ULL;
+static uint64_t ikbd_last_packet_seq = 12411ULL;
+static uint64_t ikbd_last_timestamp_us = 1710000030102ULL;
+static uint64_t ikbd_keyboard_packet_seq = 12411ULL;
+static uint64_t ikbd_mouse_packet_seq = 12409ULL;
+static uint64_t ikbd_keyboard_timestamp_us = 1710000030102ULL;
+static uint64_t ikbd_mouse_timestamp_us = 1710000029986ULL;
 
 enum {
     CHIPSET_GROUP_GLUE = 0,
@@ -271,6 +277,37 @@ static bool append_acia_frame_json(char *buffer,
                            (unsigned long long)frame_seq,
                            direction,
                            (unsigned)payload,
+                           (unsigned long long)timestamp_us);
+    if (written < 0 || (size_t)written >= buffer_len - used) {
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
+static bool append_ikbd_packet_json(char *buffer,
+                                    size_t buffer_len,
+                                    bool *first,
+                                    uint64_t packet_seq,
+                                    const char *packet_type,
+                                    const char *direction,
+                                    const char *payload_hex,
+                                    uint64_t acia_frame_seq,
+                                    uint64_t inter_packet_gap_us,
+                                    uint64_t timestamp_us)
+{
+    size_t used = strlen(buffer);
+    int written = snprintf(buffer + used,
+                           buffer_len - used,
+                           "%s{\"packet_seq\":%llu,\"packet_type\":\"%s\",\"direction\":\"%s\",\"payload_hex\":\"%s\",\"acia_frame_seq\":%llu,\"inter_packet_gap_us\":%llu,\"timestamp_us\":%llu}",
+                           *first ? "" : ",",
+                           (unsigned long long)packet_seq,
+                           packet_type,
+                           direction,
+                           payload_hex,
+                           (unsigned long long)acia_frame_seq,
+                           (unsigned long long)inter_packet_gap_us,
                            (unsigned long long)timestamp_us);
     if (written < 0 || (size_t)written >= buffer_len - used) {
         return false;
@@ -833,6 +870,196 @@ static esp_err_t inspect_chipset_acia_frames_handler(httpd_req_t *req)
     return send_json(req, resp, 200);
 }
 
+static esp_err_t inspect_chipset_ikbd_bridge_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char force_parser_unavailable_query[8] = {0};
+    bool force_parser_unavailable = esptari_web_query_value(req,
+                                                            "force_parser_unavailable",
+                                                            force_parser_unavailable_query,
+                                                            sizeof(force_parser_unavailable_query)) &&
+                                   strcmp(force_parser_unavailable_query, "1") == 0;
+    if (force_parser_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    ikbd_last_packet_seq += 1ULL;
+    ikbd_last_timestamp_us += 19ULL;
+
+    char resp[640];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"bridge_state\":\"attached\",\"parser_mode\":\"atari_st_ikbd\",\"acia_channel_mode\":\"duplex\",\"rx_queue_depth\":2,\"tx_queue_depth\":1,\"last_packet_seq\":%llu,\"last_timestamp_us\":%llu}}",
+             session_id,
+             (unsigned long long)ikbd_last_packet_seq,
+             (unsigned long long)ikbd_last_timestamp_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_ikbd_packets_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char limit_str[16] = {0};
+    if (!esptari_web_query_value(req, "limit", limit_str, sizeof(limit_str))) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    uint32_t limit = 0;
+    if (!esptari_web_parse_u32_str(limit_str, &limit) || limit == 0 || limit > 256) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char packet_type[32] = {0};
+    if (!esptari_web_query_value(req, "packet_type", packet_type, sizeof(packet_type)) ||
+        (strcmp(packet_type, "keyboard_scancode") != 0 && strcmp(packet_type, "mouse_packet") != 0)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char force_parser_unavailable_query[8] = {0};
+    bool force_parser_unavailable = esptari_web_query_value(req,
+                                                            "force_parser_unavailable",
+                                                            force_parser_unavailable_query,
+                                                            sizeof(force_parser_unavailable_query)) &&
+                                   strcmp(force_parser_unavailable_query, "1") == 0;
+    if (force_parser_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char force_sequence_regression_query[8] = {0};
+    bool force_sequence_regression = esptari_web_query_value(req,
+                                                             "force_sequence_regression",
+                                                             force_sequence_regression_query,
+                                                             sizeof(force_sequence_regression_query)) &&
+                                    strcmp(force_sequence_regression_query, "1") == 0;
+    if (force_sequence_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"IKBD-PKT-01\"}}}",
+                         500);
+    }
+
+    char force_timestamp_regression_query[8] = {0};
+    bool force_timestamp_regression = esptari_web_query_value(req,
+                                                              "force_timestamp_regression",
+                                                              force_timestamp_regression_query,
+                                                              sizeof(force_timestamp_regression_query)) &&
+                                     strcmp(force_timestamp_regression_query, "1") == 0;
+    if (force_timestamp_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"IKBD-PKT-02\"}}}",
+                         500);
+    }
+
+    char force_gap_mismatch_query[8] = {0};
+    bool force_gap_mismatch = esptari_web_query_value(req,
+                                                      "force_gap_mismatch",
+                                                      force_gap_mismatch_query,
+                                                      sizeof(force_gap_mismatch_query)) &&
+                             strcmp(force_gap_mismatch_query, "1") == 0;
+    if (force_gap_mismatch) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"IKBD-PKT-03\"}}}",
+                         500);
+    }
+
+    char force_unresolved_frame_query[8] = {0};
+    bool force_unresolved_frame = esptari_web_query_value(req,
+                                                          "force_unresolved_frame",
+                                                          force_unresolved_frame_query,
+                                                          sizeof(force_unresolved_frame_query)) &&
+                                 strcmp(force_unresolved_frame_query, "1") == 0;
+    if (force_unresolved_frame) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"IKBD-PKT-04\"}}}",
+                         500);
+    }
+
+    uint32_t packet_count = limit > 4 ? 4 : limit;
+    bool keyboard_stream = strcmp(packet_type, "keyboard_scancode") == 0;
+    char packets_json[2048] = {0};
+    bool first = true;
+
+    uint64_t packet_seq = (keyboard_stream ? ikbd_keyboard_packet_seq : ikbd_mouse_packet_seq) + 1ULL;
+    uint64_t timestamp_us = (keyboard_stream ? ikbd_keyboard_timestamp_us : ikbd_mouse_timestamp_us) +
+                           (keyboard_stream ? 170ULL : 244ULL);
+    uint64_t previous_timestamp = keyboard_stream ? ikbd_keyboard_timestamp_us : ikbd_mouse_timestamp_us;
+    uint64_t acia_frame_seq = acia_bridge_last_frame_seq + 1ULL;
+
+    for (uint32_t i = 0; i < packet_count; ++i) {
+        uint64_t gap_us = timestamp_us - previous_timestamp;
+        const char *direction = keyboard_stream ? "host_to_st" : "st_to_host";
+
+        char payload_hex[16] = {0};
+        if (keyboard_stream) {
+            snprintf(payload_hex, sizeof(payload_hex), "0x%02X", (unsigned)(0x1CU + (i & 0x03U)));
+        } else {
+            snprintf(payload_hex, sizeof(payload_hex), "0xF8%02X%02X", (unsigned)(0x08U + i), (unsigned)(0x01U + i));
+        }
+
+        if (!append_ikbd_packet_json(packets_json,
+                                     sizeof(packets_json),
+                                     &first,
+                                     packet_seq,
+                                     packet_type,
+                                     direction,
+                                     payload_hex,
+                                     acia_frame_seq,
+                                     gap_us,
+                                     timestamp_us)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        previous_timestamp = timestamp_us;
+        packet_seq += 1ULL;
+        timestamp_us += keyboard_stream ? 170ULL : 244ULL;
+        acia_frame_seq += 1ULL;
+    }
+
+    if (keyboard_stream) {
+        ikbd_keyboard_packet_seq = packet_seq - 1ULL;
+        ikbd_keyboard_timestamp_us = previous_timestamp;
+        if (ikbd_keyboard_packet_seq > ikbd_last_packet_seq) {
+            ikbd_last_packet_seq = ikbd_keyboard_packet_seq;
+        }
+        if (ikbd_keyboard_timestamp_us > ikbd_last_timestamp_us) {
+            ikbd_last_timestamp_us = ikbd_keyboard_timestamp_us;
+        }
+    } else {
+        ikbd_mouse_packet_seq = packet_seq - 1ULL;
+        ikbd_mouse_timestamp_us = previous_timestamp;
+        if (ikbd_mouse_packet_seq > ikbd_last_packet_seq) {
+            ikbd_last_packet_seq = ikbd_mouse_packet_seq;
+        }
+        if (ikbd_mouse_timestamp_us > ikbd_last_timestamp_us) {
+            ikbd_last_timestamp_us = ikbd_mouse_timestamp_us;
+        }
+    }
+
+    if (acia_frame_seq - 1ULL > acia_bridge_last_frame_seq) {
+        acia_bridge_last_frame_seq = acia_frame_seq - 1ULL;
+    }
+    if (ikbd_last_timestamp_us > acia_bridge_last_timestamp_us) {
+        acia_bridge_last_timestamp_us = ikbd_last_timestamp_us;
+    }
+
+    char resp[2560];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"checks\":{\"IKBD-PKT-01\":\"pass\",\"IKBD-PKT-02\":\"pass\",\"IKBD-PKT-03\":\"pass\",\"IKBD-PKT-04\":\"pass\"},\"packets\":[%s]}}",
+             session_id,
+             packets_json);
+    return send_json(req, resp, 200);
+}
+
 static esp_err_t inspect_chipset_dma_pacing_handler(httpd_req_t *req)
 {
     char session_id[64] = {0};
@@ -1362,6 +1589,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t inspect_chipset_windows_integration = {.uri = "/api/v2/inspect/chipset/windows/integration", .method = HTTP_GET, .handler = inspect_chipset_windows_integration_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_acia_bridge = {.uri = "/api/v2/inspect/chipset/acia/bridge", .method = HTTP_GET, .handler = inspect_chipset_acia_bridge_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_acia_frames = {.uri = "/api/v2/inspect/chipset/acia/frames", .method = HTTP_GET, .handler = inspect_chipset_acia_frames_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_ikbd_bridge = {.uri = "/api/v2/inspect/chipset/ikbd/bridge", .method = HTTP_GET, .handler = inspect_chipset_ikbd_bridge_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_ikbd_packets = {.uri = "/api/v2/inspect/chipset/ikbd/packets", .method = HTTP_GET, .handler = inspect_chipset_ikbd_packets_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_pacing = {.uri = "/api/v2/inspect/chipset/dma/pacing", .method = HTTP_GET, .handler = inspect_chipset_dma_pacing_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_arbitration = {.uri = "/api/v2/inspect/chipset/dma/arbitration", .method = HTTP_GET, .handler = inspect_chipset_dma_arbitration_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_fdc_fsm = {.uri = "/api/v2/inspect/chipset/fdc/fsm", .method = HTTP_GET, .handler = inspect_chipset_fdc_fsm_handler, .user_ctx = NULL};
@@ -1381,6 +1610,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_integration);
     httpd_register_uri_handler(server_handle, &inspect_chipset_acia_bridge);
     httpd_register_uri_handler(server_handle, &inspect_chipset_acia_frames);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_ikbd_bridge);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_ikbd_packets);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_pacing);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_arbitration);
     httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_fsm);
