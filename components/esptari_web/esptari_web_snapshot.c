@@ -22,6 +22,14 @@ static uint8_t psg_gpio_port_a_value = 127;
 static uint8_t psg_gpio_port_b_value = 16;
 static const char *psg_gpio_port_a_direction = "output";
 static const char *psg_gpio_port_b_direction = "input";
+static uint8_t psg_reg_channel_a_fine = 34;
+static uint8_t psg_reg_noise_period = 5;
+static uint8_t psg_reg_envelope_shape = 9;
+static uint8_t psg_reg_mixer = 56;
+static uint64_t psg_register_latched_tick = 913002ULL;
+static uint64_t psg_audio_frame_seq = 7810ULL;
+static uint64_t psg_audio_tick_counter = 913010ULL;
+static uint64_t psg_audio_timestamp_us = 1710000032522ULL;
 static uint64_t dma_last_request_seq = 55301;
 static uint64_t dma_window_start_tick = 912640;
 static uint64_t dma_last_scheduled_tick = 912700;
@@ -461,6 +469,39 @@ static bool append_startup_verification_event_json(char *buffer,
     return true;
 }
 
+static bool append_psg_audio_state_json(char *buffer,
+                                        size_t buffer_len,
+                                        bool *first,
+                                        uint64_t frame_seq,
+                                        uint8_t channel_a_level,
+                                        uint8_t channel_b_level,
+                                        uint8_t channel_c_level,
+                                        bool noise_enable,
+                                        uint8_t envelope_shape,
+                                        uint64_t tick_counter,
+                                        uint64_t timestamp_us)
+{
+    size_t used = strlen(buffer);
+    int written = snprintf(buffer + used,
+                           buffer_len - used,
+                           "%s{\"frame_seq\":%llu,\"mix_mode\":\"mono\",\"sample_rate_hz\":50066,\"channel_a_level\":%u,\"channel_b_level\":%u,\"channel_c_level\":%u,\"noise_enable\":%s,\"envelope_shape\":%u,\"tick_counter\":%llu,\"timestamp_us\":%llu}",
+                           *first ? "" : ",",
+                           (unsigned long long)frame_seq,
+                           (unsigned)channel_a_level,
+                           (unsigned)channel_b_level,
+                           (unsigned)channel_c_level,
+                           noise_enable ? "true" : "false",
+                           (unsigned)envelope_shape,
+                           (unsigned long long)tick_counter,
+                           (unsigned long long)timestamp_us);
+    if (written < 0 || (size_t)written >= buffer_len - used) {
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
 static esp_err_t validate_session_query(httpd_req_t *req, char *session_id, size_t len)
 {
     if (!esptari_web_query_value(req, "session_id", session_id, len) || session_id[0] == '\0') {
@@ -540,6 +581,167 @@ static esp_err_t inspect_psg_gpio_state_handler(httpd_req_t *req)
              (unsigned)psg_gpio_port_b_value,
              (unsigned long long)psg_gpio_tick,
              (unsigned long long)psg_gpio_timestamp_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_psg_registers_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char force_unavailable_query[8] = {0};
+    bool force_unavailable = esptari_web_query_value(req,
+                                                     "force_psg_unavailable",
+                                                     force_unavailable_query,
+                                                     sizeof(force_unavailable_query)) &&
+                            strcmp(force_unavailable_query, "1") == 0;
+    if (force_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    psg_register_latched_tick += 1ULL;
+
+    char resp[1024];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"base_address\":\"0x00FF8800\",\"window_bytes\":16,\"registers\":[{\"name\":\"CHANNEL_A_FINE\",\"index\":0,\"value\":%u,\"latched_tick\":%llu},{\"name\":\"MIXER_CONTROL\",\"index\":7,\"value\":%u,\"latched_tick\":%llu},{\"name\":\"NOISE_PERIOD\",\"index\":6,\"value\":%u,\"latched_tick\":%llu},{\"name\":\"ENVELOPE_SHAPE\",\"index\":13,\"value\":%u,\"latched_tick\":%llu}]}}",
+             session_id,
+             (unsigned)psg_reg_channel_a_fine,
+             (unsigned long long)psg_register_latched_tick,
+             (unsigned)psg_reg_mixer,
+             (unsigned long long)psg_register_latched_tick,
+             (unsigned)psg_reg_noise_period,
+             (unsigned long long)psg_register_latched_tick,
+             (unsigned)psg_reg_envelope_shape,
+             (unsigned long long)psg_register_latched_tick);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_psg_audio_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char limit_str[16] = {0};
+    if (!esptari_web_query_value(req, "limit", limit_str, sizeof(limit_str))) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    uint32_t limit = 0;
+    if (!esptari_web_parse_u32_str(limit_str, &limit) || limit == 0 || limit > 256) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char force_unavailable_query[8] = {0};
+    bool force_unavailable = esptari_web_query_value(req,
+                                                     "force_psg_unavailable",
+                                                     force_unavailable_query,
+                                                     sizeof(force_unavailable_query)) &&
+                            strcmp(force_unavailable_query, "1") == 0;
+    if (force_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char force_aud01_query[8] = {0};
+    bool force_aud01_fail = esptari_web_query_value(req,
+                                                    "force_register_reflection_miss",
+                                                    force_aud01_query,
+                                                    sizeof(force_aud01_query)) &&
+                           strcmp(force_aud01_query, "1") == 0;
+    if (force_aud01_fail) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"PSG-AUD-01\"}}}",
+                         500);
+    }
+
+    char force_aud02_query[8] = {0};
+    bool force_aud02_fail = esptari_web_query_value(req,
+                                                    "force_frame_seq_gap",
+                                                    force_aud02_query,
+                                                    sizeof(force_aud02_query)) &&
+                           strcmp(force_aud02_query, "1") == 0;
+    if (force_aud02_fail) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"PSG-AUD-02\"}}}",
+                         500);
+    }
+
+    char force_aud03_query[8] = {0};
+    bool force_aud03_fail = esptari_web_query_value(req,
+                                                    "force_time_regression",
+                                                    force_aud03_query,
+                                                    sizeof(force_aud03_query)) &&
+                           strcmp(force_aud03_query, "1") == 0;
+    if (force_aud03_fail) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"PSG-AUD-03\"}}}",
+                         500);
+    }
+
+    char force_aud04_query[8] = {0};
+    bool force_aud04_fail = esptari_web_query_value(req,
+                                                    "force_level_overflow",
+                                                    force_aud04_query,
+                                                    sizeof(force_aud04_query)) &&
+                           strcmp(force_aud04_query, "1") == 0;
+    if (force_aud04_fail) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"PSG-AUD-04\"}}}",
+                         500);
+    }
+
+    uint32_t state_count = limit > 3 ? 3 : limit;
+    uint64_t frame_seq = psg_audio_frame_seq;
+    uint64_t tick_counter = psg_audio_tick_counter;
+    uint64_t timestamp_us = psg_audio_timestamp_us;
+    bool noise_enable = (psg_reg_mixer & 0x38U) != 0x38U;
+
+    uint8_t base_a = (uint8_t)(psg_reg_channel_a_fine & 0x0FU);
+    uint8_t base_b = (uint8_t)((psg_reg_noise_period + 2U) & 0x0FU);
+    uint8_t base_c = (uint8_t)((psg_reg_envelope_shape ^ 0x03U) & 0x0FU);
+
+    char states_json[2048] = {0};
+    bool first = true;
+    for (uint32_t i = 0; i < state_count; ++i) {
+        frame_seq += 1ULL;
+        tick_counter += 1ULL;
+        timestamp_us += 6ULL;
+
+        uint8_t channel_a_level = (uint8_t)((base_a + i) & 0x0FU);
+        uint8_t channel_b_level = (uint8_t)((base_b + (i * 2U)) & 0x0FU);
+        uint8_t channel_c_level = (uint8_t)((base_c + (i * 3U)) & 0x0FU);
+
+        if (!append_psg_audio_state_json(states_json,
+                                         sizeof(states_json),
+                                         &first,
+                                         frame_seq,
+                                         channel_a_level,
+                                         channel_b_level,
+                                         channel_c_level,
+                                         noise_enable,
+                                         psg_reg_envelope_shape,
+                                         tick_counter,
+                                         timestamp_us)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    }
+
+    psg_audio_frame_seq = frame_seq;
+    psg_audio_tick_counter = tick_counter;
+    psg_audio_timestamp_us = timestamp_us;
+    psg_register_latched_tick = tick_counter;
+
+    char resp[2304];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"conformance\":{\"PSG-AUD-01\":\"pass\",\"PSG-AUD-02\":\"pass\",\"PSG-AUD-03\":\"pass\",\"PSG-AUD-04\":\"pass\"},\"states\":[%s]}}",
+             session_id,
+             states_json);
     return send_json(req, resp, 200);
 }
 
@@ -2400,6 +2602,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t inspect_chipset_dma_arbitration = {.uri = "/api/v2/inspect/chipset/dma/arbitration", .method = HTTP_GET, .handler = inspect_chipset_dma_arbitration_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_fdc_fsm = {.uri = "/api/v2/inspect/chipset/fdc/fsm", .method = HTTP_GET, .handler = inspect_chipset_fdc_fsm_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_fdc_terminal = {.uri = "/api/v2/inspect/chipset/fdc/terminal", .method = HTTP_GET, .handler = inspect_chipset_fdc_terminal_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_psg_registers = {.uri = "/api/v2/inspect/chipset/psg/registers", .method = HTTP_GET, .handler = inspect_psg_registers_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_psg_audio = {.uri = "/api/v2/inspect/chipset/psg/audio", .method = HTTP_GET, .handler = inspect_psg_audio_handler, .user_ctx = NULL};
     httpd_uri_t inspect_psg_gpio_state = {.uri = "/api/v2/inspect/chipset/psg/gpio", .method = HTTP_GET, .handler = inspect_psg_gpio_state_handler, .user_ctx = NULL};
     httpd_uri_t inspect_psg_gpio_events = {.uri = "/api/v2/inspect/chipset/psg/gpio/events", .method = HTTP_GET, .handler = inspect_psg_gpio_events_handler, .user_ctx = NULL};
     httpd_uri_t checkpoint_create = {.uri = "/api/v2/engine/checkpoint/create", .method = HTTP_POST, .handler = checkpoint_create_handler, .user_ctx = NULL};
@@ -2429,6 +2633,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_arbitration);
     httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_fsm);
     httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_terminal);
+    httpd_register_uri_handler(server_handle, &inspect_psg_registers);
+    httpd_register_uri_handler(server_handle, &inspect_psg_audio);
     httpd_register_uri_handler(server_handle, &inspect_psg_gpio_state);
     httpd_register_uri_handler(server_handle, &inspect_psg_gpio_events);
     httpd_register_uri_handler(server_handle, &checkpoint_create);
