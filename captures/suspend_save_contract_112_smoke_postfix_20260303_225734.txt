@@ -1,0 +1,41 @@
+health_check=ok attempts=8
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Cannot reset from current lifecycle state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 200
+{"ok":true}
+
+### suspend_save_missing_session
+POST /api/v2/engine/session/suspend-save
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"request","message":"session_id is required","retryable":false,"details":{"guard_id":"SUSP-REQ-01","endpoint":"/api/v2/engine/session/suspend-save"}}}
+
+missing_session_guard=pass code=BAD_REQUEST
+### suspend_save_unknown_session
+POST /api/v2/engine/session/suspend-save
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING","category":"engine","message":"Unknown or inactive session_id","retryable":true,"details":{"guard_id":"SUSP-REQ-01","endpoint":"/api/v2/engine/session/suspend-save"}}}
+
+unknown_session_guard=pass code=ENGINE_NOT_RUNNING
+### suspend_save_success
+POST /api/v2/engine/session/suspend-save
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"suspended","snapshot_id":"snap_contract112","saved_at_us":18883899,"lifecycle_transition":"running->suspended","auto_resume":false,"include_stream_state":true}}
+
+success_contract_fields=pass session_id=ses_local state=suspended transition=running->suspended saved_at_us=18883899 snapshot_id=snap_contract112
+### suspend_save_invalid_state
+POST /api/v2/engine/session/suspend-save
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"suspend-save is allowed only from running state","retryable":false,"details":{"guard_id":"SUSP-REQ-01","endpoint":"/api/v2/engine/session/suspend-save"}}}
+
+invalid_state_guard=pass code=INVALID_SESSION_STATE
+### restore_resume_running
+POST /api/v2/engine/session/restore-resume
+HTTP 200
+{"ok":true,"data":{"snapshot_id":"snap_contract112","session_state":"running"}}
+
+Smoke PASS

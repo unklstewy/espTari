@@ -33,6 +33,30 @@ static esp_err_t send_guard_error(httpd_req_t *req,
     return esptari_web_send_json(req, payload, status_code);
 }
 
+static void build_snapshot_id_from_request(const char *name, char *snapshot_id_out, size_t snapshot_id_len)
+{
+    if (name != NULL && name[0] != '\0') {
+        char sanitized[64] = {0};
+        size_t cursor = 0;
+        for (size_t i = 0; name[i] != '\0' && cursor < sizeof(sanitized) - 1; ++i) {
+            char c = name[i];
+            if ((c >= 'a' && c <= 'z') ||
+                (c >= 'A' && c <= 'Z') ||
+                (c >= '0' && c <= '9')) {
+                sanitized[cursor++] = c;
+            } else {
+                sanitized[cursor++] = '_';
+            }
+        }
+        sanitized[cursor] = '\0';
+        snprintf(snapshot_id_out, snapshot_id_len, "snap_%s", sanitized);
+        return;
+    }
+
+    uint64_t now_us = (uint64_t)esp_timer_get_time();
+    snprintf(snapshot_id_out, snapshot_id_len, "snap_%llu", (unsigned long long)now_us);
+}
+
 esp_err_t esptari_web_lifecycle_suspend_save_handler(httpd_req_t *req)
 {
     esptari_session_status_t before_status;
@@ -48,14 +72,72 @@ esp_err_t esptari_web_lifecycle_suspend_save_handler(httpd_req_t *req)
         return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-SUSPEND-01", "/api/v2/engine/session/suspend-save", "Malformed suspend-save JSON");
     }
 
-    const char *snapshot_id = NULL;
-    char snapshot_id_copy[128];
-    if (!esptari_web_json_get_string(root, "snapshot_id", &snapshot_id)) {
+    const char *session_id = NULL;
+    const char *name = NULL;
+    const char *reason = NULL;
+    bool auto_resume = false;
+    bool include_stream_state = true;
+
+    if (!esptari_web_json_get_string(root, "session_id", &session_id) || session_id == NULL || session_id[0] == '\0') {
         cJSON_Delete(root);
-        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-SUSPEND-01", "/api/v2/engine/session/suspend-save", "snapshot_id is required");
+        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "SUSP-REQ-01", "/api/v2/engine/session/suspend-save", "session_id is required");
     }
-    strlcpy(snapshot_id_copy, snapshot_id, sizeof(snapshot_id_copy));
+
+    cJSON *name_item = cJSON_GetObjectItemCaseSensitive(root, "name");
+    if (name_item != NULL) {
+        if (!cJSON_IsString(name_item) || name_item->valuestring == NULL) {
+            cJSON_Delete(root);
+            return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "SUSP-REQ-01", "/api/v2/engine/session/suspend-save", "name must be a string");
+        }
+        name = name_item->valuestring;
+        if (strlen(name) >= 64) {
+            cJSON_Delete(root);
+            return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "SUSP-REQ-01", "/api/v2/engine/session/suspend-save", "name is too long");
+        }
+    }
+
+    cJSON *reason_item = cJSON_GetObjectItemCaseSensitive(root, "reason");
+    if (reason_item != NULL) {
+        if (!cJSON_IsString(reason_item) || reason_item->valuestring == NULL) {
+            cJSON_Delete(root);
+            return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "SUSP-REQ-01", "/api/v2/engine/session/suspend-save", "reason must be a string");
+        }
+        reason = reason_item->valuestring;
+        (void)reason;
+    }
+
+    cJSON *auto_resume_item = cJSON_GetObjectItemCaseSensitive(root, "auto_resume");
+    if (auto_resume_item != NULL) {
+        if (!cJSON_IsBool(auto_resume_item)) {
+            cJSON_Delete(root);
+            return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "SUSP-REQ-01", "/api/v2/engine/session/suspend-save", "auto_resume must be boolean");
+        }
+        auto_resume = cJSON_IsTrue(auto_resume_item);
+    }
+
+    cJSON *include_stream_state_item = cJSON_GetObjectItemCaseSensitive(root, "include_stream_state");
+    if (include_stream_state_item != NULL) {
+        if (!cJSON_IsBool(include_stream_state_item)) {
+            cJSON_Delete(root);
+            return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "SUSP-REQ-01", "/api/v2/engine/session/suspend-save", "include_stream_state must be boolean");
+        }
+        include_stream_state = cJSON_IsTrue(include_stream_state_item);
+    }
+
+    char session_id_copy[32] = {0};
+    strlcpy(session_id_copy, session_id, sizeof(session_id_copy));
+
+    char snapshot_id_copy[128] = {0};
+    build_snapshot_id_from_request(name, snapshot_id_copy, sizeof(snapshot_id_copy));
     cJSON_Delete(root);
+
+    if (strcmp(session_id_copy, "ses_local") != 0) {
+        return send_guard_error(req, 409, "ENGINE_NOT_RUNNING", "engine", true, "SUSP-REQ-01", "/api/v2/engine/session/suspend-save", "Unknown or inactive session_id");
+    }
+
+    if (before_status.state != ESPTARI_SESSION_RUNNING) {
+        return send_guard_error(req, 409, "INVALID_SESSION_STATE", "engine", false, "SUSP-REQ-01", "/api/v2/engine/session/suspend-save", "suspend-save is allowed only from running state");
+    }
 
     char force_fail_query[8] = {0};
     bool force_save_fail = esptari_web_query_value(req, "force_save_fail", force_fail_query, sizeof(force_fail_query)) &&
@@ -77,12 +159,7 @@ esp_err_t esptari_web_lifecycle_suspend_save_handler(httpd_req_t *req)
 
     esp_err_t err = esptari_core_suspend_save(snapshot_id_copy);
     if (err == ESP_ERR_INVALID_STATE) {
-        char state_error[896];
-        snprintf(state_error,
-                 sizeof(state_error),
-                 "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"category\":\"engine\",\"message\":\"Suspend-save allowed only from running state\",\"retryable\":false,\"details\":{\"guard_id\":\"SUSP-REQ-01\",\"endpoint\":\"/api/v2/engine/session/suspend-save\",\"current_state\":\"%s\",\"transition_events\":[\"suspend_rejected\"]}}}",
-                 esptari_core_state_to_string(before_status.state));
-        return esptari_web_send_json(req, state_error, 409);
+        return send_guard_error(req, 409, "INVALID_SESSION_STATE", "engine", false, "SUSP-REQ-01", "/api/v2/engine/session/suspend-save", "suspend-save is allowed only from running state");
     }
     if (err == ESP_ERR_INVALID_ARG) {
         return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-SUSPEND-01", "/api/v2/engine/session/suspend-save", "Invalid suspend-save arguments");
@@ -106,11 +183,12 @@ esp_err_t esptari_web_lifecycle_suspend_save_handler(httpd_req_t *req)
 
     char resp[640];
     snprintf(resp, sizeof(resp),
-             "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"session_state\":\"suspended\",\"saved_at_us\":%llu,\"lifecycle_transition\":\"%s->%s\",\"transition_events\":[\"suspend_requested\",\"snapshot_persist_committed\",\"state_committed\"]}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"state\":\"suspended\",\"snapshot_id\":\"%s\",\"saved_at_us\":%llu,\"lifecycle_transition\":\"running->suspended\",\"auto_resume\":%s,\"include_stream_state\":%s}}",
+             session_id_copy,
              snapshot_id_copy,
              (unsigned long long)after_status.last_transition_us,
-             esptari_core_state_to_string(before_status.state),
-             esptari_core_state_to_string(after_status.state));
+             auto_resume ? "true" : "false",
+             include_stream_state ? "true" : "false");
     return esptari_web_send_json(req, resp, 200);
 }
 
