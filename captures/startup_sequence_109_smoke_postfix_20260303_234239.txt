@@ -1,0 +1,65 @@
+health_check=ok attempts=8
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Cannot reset from current lifecycle state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 200
+{"ok":true}
+
+### startup_sequence
+GET /api/v2/inspect/chipset/startup/sequence?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","sequence_id":"boot_seq_0007","phase":"interrupt_enable","step_seq":3,"tick_counter":15,"timestamp_us":1710000035718,"verification_status":"pending","conformance":{"RST-SEQ-01":"pass","RST-SEQ-04":"pass"}}}
+
+startup_sequence_contract=pass phase=True status=True conf01=True
+### startup_verification
+GET /api/v2/inspect/chipset/startup/verification?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","conformance":{"RST-SEQ-02":"pass","RST-SEQ-03":"pass","RST-SEQ-04":"pass"},"events":[{"event_seq":1,"step_seq":4,"check_id":"BOOT-GLUE-RESET","component":"glue","result":"pass","expected":"GLUE=0x00","observed":"GLUE=0x00","tick_counter":16,"timestamp_us":1710000035714},{"event_seq":2,"step_seq":5,"check_id":"BOOT-MFP-RESET","component":"mfp","result":"pass","expected":"IERA=0x00","observed":"IERA=0x00","tick_counter":17,"timestamp_us":1710000035717},{"event_seq":3,"step_seq":6,"check_id":"BOOT-ACIA-RESET","component":"acia","result":"pass","expected":"ACIA_CTRL=0x15","observed":"ACIA_CTRL=0x15","tick_counter":18,"timestamp_us":1710000035720},{"event_seq":4,"step_seq":7,"check_id":"BOOT-INT-MAP","component":"psg","result":"pass","expected":"irq_order=7..1","observed":"irq_order=7..1","tick_counter":19,"timestamp_us":1710000035723}]}}
+
+startup_verification_contract=pass conf=True evseq=True stepseq=True ts=True tick=True passmatch=True
+### startup_verification_bad_limit
+GET /api/v2/inspect/chipset/startup/verification?session_id=ses_local&limit=0
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+startup_verification_limit_guard=pass code=BAD_REQUEST
+### startup_sequence_unknown_session
+GET /api/v2/inspect/chipset/startup/sequence?session_id=ses_unknown
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}
+
+startup_sequence_session_guard=pass code=ENGINE_NOT_RUNNING
+### rst_seq01_failfast
+GET /api/v2/inspect/chipset/startup/sequence?session_id=ses_local&force_phase_order_violation=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"RST-SEQ-01"}}}
+
+rst_seq01_failfast=pass code=INTERNAL_ERROR
+### rst_seq02_failfast
+GET /api/v2/inspect/chipset/startup/verification?session_id=ses_local&limit=2&force_step_seq_regression=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"RST-SEQ-02"}}}
+
+rst_seq02_failfast=pass code=INTERNAL_ERROR
+### rst_seq03_failfast
+GET /api/v2/inspect/chipset/startup/verification?session_id=ses_local&limit=2&force_time_regression=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"RST-SEQ-03"}}}
+
+rst_seq03_failfast=pass code=INTERNAL_ERROR
+### rst_seq04_failfast_seq
+GET /api/v2/inspect/chipset/startup/sequence?session_id=ses_local&force_ready_without_pass=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"RST-SEQ-04"}}}
+
+rst_seq04a_failfast=pass code=INTERNAL_ERROR
+### rst_seq04_failfast_verify
+GET /api/v2/inspect/chipset/startup/verification?session_id=ses_local&limit=2&force_ready_without_pass=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"RST-SEQ-04"}}}
+
+rst_seq04b_failfast=pass code=INTERNAL_ERROR

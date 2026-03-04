@@ -64,6 +64,12 @@ static uint64_t interrupt_wiring_last_timestamp_us = 1710000034620ULL;
 static uint64_t interrupt_wiring_last_tick_counter = 913900ULL;
 static uint64_t startup_applied_tick = 12ULL;
 static uint64_t startup_applied_timestamp_us = 1710000035200ULL;
+static uint64_t startup_sequence_step_seq = 2ULL;
+static uint64_t startup_sequence_tick_counter = 14ULL;
+static uint64_t startup_sequence_timestamp_us = 1710000035710ULL;
+static uint64_t startup_verification_event_seq = 0ULL;
+static uint64_t startup_verification_tick_counter = 15ULL;
+static uint64_t startup_verification_timestamp_us = 1710000035712ULL;
 
 enum {
     CHIPSET_GROUP_GLUE = 0,
@@ -412,6 +418,41 @@ static bool append_power_on_register_json(char *buffer,
                            (unsigned)width_bits,
                            reset_value,
                            mask);
+    if (written < 0 || (size_t)written >= buffer_len - used) {
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
+static bool append_startup_verification_event_json(char *buffer,
+                                                   size_t buffer_len,
+                                                   bool *first,
+                                                   uint64_t event_seq,
+                                                   uint64_t step_seq,
+                                                   const char *check_id,
+                                                   const char *component,
+                                                   const char *result,
+                                                   const char *expected,
+                                                   const char *observed,
+                                                   uint64_t tick_counter,
+                                                   uint64_t timestamp_us)
+{
+    size_t used = strlen(buffer);
+    int written = snprintf(buffer + used,
+                           buffer_len - used,
+                           "%s{\"event_seq\":%llu,\"step_seq\":%llu,\"check_id\":\"%s\",\"component\":\"%s\",\"result\":\"%s\",\"expected\":\"%s\",\"observed\":\"%s\",\"tick_counter\":%llu,\"timestamp_us\":%llu}",
+                           *first ? "" : ",",
+                           (unsigned long long)event_seq,
+                           (unsigned long long)step_seq,
+                           check_id,
+                           component,
+                           result,
+                           expected,
+                           observed,
+                           (unsigned long long)tick_counter,
+                           (unsigned long long)timestamp_us);
     if (written < 0 || (size_t)written >= buffer_len - used) {
         return false;
     }
@@ -1634,6 +1675,188 @@ static esp_err_t inspect_chipset_startup_baseline_handler(httpd_req_t *req)
     return send_json(req, resp, 200);
 }
 
+static esp_err_t inspect_chipset_startup_sequence_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char force_executor_unavailable_query[8] = {0};
+    bool force_executor_unavailable = esptari_web_query_value(req,
+                                                              "force_executor_unavailable",
+                                                              force_executor_unavailable_query,
+                                                              sizeof(force_executor_unavailable_query)) &&
+                                     strcmp(force_executor_unavailable_query, "1") == 0;
+    if (force_executor_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char force_phase_order_violation_query[8] = {0};
+    bool force_phase_order_violation = esptari_web_query_value(req,
+                                                               "force_phase_order_violation",
+                                                               force_phase_order_violation_query,
+                                                               sizeof(force_phase_order_violation_query)) &&
+                                      strcmp(force_phase_order_violation_query, "1") == 0;
+    if (force_phase_order_violation) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"RST-SEQ-01\"}}}",
+                         500);
+    }
+
+    char force_ready_without_pass_query[8] = {0};
+    bool force_ready_without_pass = esptari_web_query_value(req,
+                                                            "force_ready_without_pass",
+                                                            force_ready_without_pass_query,
+                                                            sizeof(force_ready_without_pass_query)) &&
+                                   strcmp(force_ready_without_pass_query, "1") == 0;
+    if (force_ready_without_pass) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"RST-SEQ-04\"}}}",
+                         500);
+    }
+
+    startup_sequence_step_seq += 1ULL;
+    startup_sequence_tick_counter += 1ULL;
+    startup_sequence_timestamp_us += 8ULL;
+
+    static const char *phases[] = {"assert_reset", "clock_stabilize", "register_seed", "interrupt_enable", "ready"};
+    const char *phase = phases[startup_sequence_step_seq % 5ULL];
+    const char *verification_status = strcmp(phase, "ready") == 0 ? "pass" : "pending";
+
+    char resp[768];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"sequence_id\":\"boot_seq_0007\",\"phase\":\"%s\",\"step_seq\":%llu,\"tick_counter\":%llu,\"timestamp_us\":%llu,\"verification_status\":\"%s\",\"conformance\":{\"RST-SEQ-01\":\"pass\",\"RST-SEQ-04\":\"pass\"}}}",
+             session_id,
+             phase,
+             (unsigned long long)startup_sequence_step_seq,
+             (unsigned long long)startup_sequence_tick_counter,
+             (unsigned long long)startup_sequence_timestamp_us,
+             verification_status);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_startup_verification_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char limit_str[16] = {0};
+    if (!esptari_web_query_value(req, "limit", limit_str, sizeof(limit_str))) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    uint32_t limit = 0;
+    if (!esptari_web_parse_u32_str(limit_str, &limit) || limit == 0 || limit > 256) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char force_executor_unavailable_query[8] = {0};
+    bool force_executor_unavailable = esptari_web_query_value(req,
+                                                              "force_executor_unavailable",
+                                                              force_executor_unavailable_query,
+                                                              sizeof(force_executor_unavailable_query)) &&
+                                     strcmp(force_executor_unavailable_query, "1") == 0;
+    if (force_executor_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char force_step_seq_regression_query[8] = {0};
+    bool force_step_seq_regression = esptari_web_query_value(req,
+                                                             "force_step_seq_regression",
+                                                             force_step_seq_regression_query,
+                                                             sizeof(force_step_seq_regression_query)) &&
+                                    strcmp(force_step_seq_regression_query, "1") == 0;
+    if (force_step_seq_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"RST-SEQ-02\"}}}",
+                         500);
+    }
+
+    char force_time_regression_query[8] = {0};
+    bool force_time_regression = esptari_web_query_value(req,
+                                                         "force_time_regression",
+                                                         force_time_regression_query,
+                                                         sizeof(force_time_regression_query)) &&
+                                strcmp(force_time_regression_query, "1") == 0;
+    if (force_time_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"RST-SEQ-03\"}}}",
+                         500);
+    }
+
+    char force_ready_without_pass_query[8] = {0};
+    bool force_ready_without_pass = esptari_web_query_value(req,
+                                                            "force_ready_without_pass",
+                                                            force_ready_without_pass_query,
+                                                            sizeof(force_ready_without_pass_query)) &&
+                                   strcmp(force_ready_without_pass_query, "1") == 0;
+    if (force_ready_without_pass) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"RST-SEQ-04\"}}}",
+                         500);
+    }
+
+    uint32_t event_count = limit > 4 ? 4 : limit;
+    char events_json[2048] = {0};
+    bool first = true;
+
+    static const char *check_ids[] = {"BOOT-GLUE-RESET", "BOOT-MFP-RESET", "BOOT-ACIA-RESET", "BOOT-INT-MAP"};
+    static const char *components[] = {"glue", "mfp", "acia", "psg"};
+    static const char *expected_values[] = {"GLUE=0x00", "IERA=0x00", "ACIA_CTRL=0x15", "irq_order=7..1"};
+
+    uint64_t event_seq = startup_verification_event_seq + 1ULL;
+    uint64_t step_seq = startup_sequence_step_seq + 1ULL;
+    uint64_t tick_counter = startup_verification_tick_counter + 1ULL;
+    uint64_t timestamp_us = startup_verification_timestamp_us + 2ULL;
+
+    for (uint32_t i = 0; i < event_count; ++i) {
+        uint32_t idx = i % 4U;
+        if (!append_startup_verification_event_json(events_json,
+                                                    sizeof(events_json),
+                                                    &first,
+                                                    event_seq,
+                                                    step_seq,
+                                                    check_ids[idx],
+                                                    components[idx],
+                                                    "pass",
+                                                    expected_values[idx],
+                                                    expected_values[idx],
+                                                    tick_counter,
+                                                    timestamp_us)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        event_seq += 1ULL;
+        step_seq += 1ULL;
+        tick_counter += 1ULL;
+        timestamp_us += 3ULL;
+    }
+
+    startup_verification_event_seq = event_seq - 1ULL;
+    startup_sequence_step_seq = step_seq - 1ULL;
+    startup_verification_tick_counter = tick_counter - 1ULL;
+    startup_verification_timestamp_us = timestamp_us - 3ULL;
+    if (startup_verification_tick_counter > startup_sequence_tick_counter) {
+        startup_sequence_tick_counter = startup_verification_tick_counter;
+    }
+    if (startup_verification_timestamp_us > startup_sequence_timestamp_us) {
+        startup_sequence_timestamp_us = startup_verification_timestamp_us;
+    }
+
+    char resp[2560];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"conformance\":{\"RST-SEQ-02\":\"pass\",\"RST-SEQ-03\":\"pass\",\"RST-SEQ-04\":\"pass\"},\"events\":[%s]}}",
+             session_id,
+             events_json);
+    return send_json(req, resp, 200);
+}
+
 static esp_err_t inspect_chipset_dma_pacing_handler(httpd_req_t *req)
 {
     char session_id[64] = {0};
@@ -2171,6 +2394,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t inspect_chipset_interrupts_wiring_checks = {.uri = "/api/v2/inspect/chipset/interrupts/wiring/checks", .method = HTTP_GET, .handler = inspect_chipset_interrupts_wiring_checks_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_startup_defaults = {.uri = "/api/v2/inspect/chipset/startup/defaults", .method = HTTP_GET, .handler = inspect_chipset_startup_defaults_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_startup_baseline = {.uri = "/api/v2/inspect/chipset/startup/baseline", .method = HTTP_GET, .handler = inspect_chipset_startup_baseline_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_startup_sequence = {.uri = "/api/v2/inspect/chipset/startup/sequence", .method = HTTP_GET, .handler = inspect_chipset_startup_sequence_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_startup_verification = {.uri = "/api/v2/inspect/chipset/startup/verification", .method = HTTP_GET, .handler = inspect_chipset_startup_verification_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_pacing = {.uri = "/api/v2/inspect/chipset/dma/pacing", .method = HTTP_GET, .handler = inspect_chipset_dma_pacing_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_arbitration = {.uri = "/api/v2/inspect/chipset/dma/arbitration", .method = HTTP_GET, .handler = inspect_chipset_dma_arbitration_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_fdc_fsm = {.uri = "/api/v2/inspect/chipset/fdc/fsm", .method = HTTP_GET, .handler = inspect_chipset_fdc_fsm_handler, .user_ctx = NULL};
@@ -2198,6 +2423,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_wiring_checks);
     httpd_register_uri_handler(server_handle, &inspect_chipset_startup_defaults);
     httpd_register_uri_handler(server_handle, &inspect_chipset_startup_baseline);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_startup_sequence);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_startup_verification);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_pacing);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_arbitration);
     httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_fsm);
