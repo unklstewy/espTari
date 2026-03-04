@@ -21,6 +21,7 @@ Release decision:
 
 Operational note:
 - Decision packet is ready for PO signature workflow using the included template.
+- Sprint-level closure summary is published at `TRACKING/SPRINT_02_CLOSURE_REPORT_2026-03-04.md`.
 
 ## 2026-03-02 — Contracts + Tracking Tranche Closeout
 
