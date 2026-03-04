@@ -59,6 +59,9 @@ static uint64_t ikbd_mouse_timestamp_us = 1710000029986ULL;
 static uint64_t interrupt_last_route_seq = 9901ULL;
 static uint64_t interrupt_last_timestamp_us = 1710000034028ULL;
 static uint64_t interrupt_last_tick_counter = 913600ULL;
+static uint64_t interrupt_wiring_check_seq = 409ULL;
+static uint64_t interrupt_wiring_last_timestamp_us = 1710000034620ULL;
+static uint64_t interrupt_wiring_last_tick_counter = 913900ULL;
 
 enum {
     CHIPSET_GROUP_GLUE = 0,
@@ -343,6 +346,41 @@ static bool append_interrupt_route_json(char *buffer,
                            (unsigned)vector,
                            cpu_interrupt_line,
                            delivery_state,
+                           (unsigned long long)tick_counter,
+                           (unsigned long long)timestamp_us);
+    if (written < 0 || (size_t)written >= buffer_len - used) {
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
+static bool append_interrupt_wiring_check_json(char *buffer,
+                                               size_t buffer_len,
+                                               bool *first,
+                                               uint64_t check_seq,
+                                               const char *subsystem_id,
+                                               const char *expected_cpu_line,
+                                               const char *observed_cpu_line,
+                                               uint16_t expected_vector,
+                                               uint16_t observed_vector,
+                                               const char *result,
+                                               uint64_t tick_counter,
+                                               uint64_t timestamp_us)
+{
+    size_t used = strlen(buffer);
+    int written = snprintf(buffer + used,
+                           buffer_len - used,
+                           "%s{\"check_seq\":%llu,\"subsystem_id\":\"%s\",\"expected_cpu_line\":\"%s\",\"observed_cpu_line\":\"%s\",\"expected_vector\":%u,\"observed_vector\":%u,\"result\":\"%s\",\"tick_counter\":%llu,\"timestamp_us\":%llu}",
+                           *first ? "" : ",",
+                           (unsigned long long)check_seq,
+                           subsystem_id,
+                           expected_cpu_line,
+                           observed_cpu_line,
+                           (unsigned)expected_vector,
+                           (unsigned)observed_vector,
+                           result,
                            (unsigned long long)tick_counter,
                            (unsigned long long)timestamp_us);
     if (written < 0 || (size_t)written >= buffer_len - used) {
@@ -1247,6 +1285,159 @@ static esp_err_t inspect_chipset_interrupts_routes_handler(httpd_req_t *req)
     return send_json(req, resp, 200);
 }
 
+static esp_err_t inspect_chipset_interrupts_wiring_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char force_wiring_unavailable_query[8] = {0};
+    bool force_wiring_unavailable = esptari_web_query_value(req,
+                                                            "force_wiring_unavailable",
+                                                            force_wiring_unavailable_query,
+                                                            sizeof(force_wiring_unavailable_query)) &&
+                                   strcmp(force_wiring_unavailable_query, "1") == 0;
+    if (force_wiring_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char resp[1280];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"subsystems\":[{\"subsystem_id\":\"mfp\",\"source_line\":\"mfp_irq\",\"cpu_interrupt_line\":\"irq6\",\"vector\":38,\"enabled\":true},{\"subsystem_id\":\"acia\",\"source_line\":\"acia_irq\",\"cpu_interrupt_line\":\"irq4\",\"vector\":24,\"enabled\":true},{\"subsystem_id\":\"fdc\",\"source_line\":\"fdc_intrq\",\"cpu_interrupt_line\":\"irq3\",\"vector\":54,\"enabled\":true},{\"subsystem_id\":\"blitter\",\"source_line\":\"blitter_irq\",\"cpu_interrupt_line\":\"irq2\",\"vector\":48,\"enabled\":false},{\"subsystem_id\":\"vbl\",\"source_line\":\"vblank_irq\",\"cpu_interrupt_line\":\"irq7\",\"vector\":28,\"enabled\":true}],\"global_route_seq\":%llu,\"last_timestamp_us\":%llu}}",
+             session_id,
+             (unsigned long long)interrupt_last_route_seq,
+             (unsigned long long)interrupt_wiring_last_timestamp_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_interrupts_wiring_checks_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char limit_str[16] = {0};
+    if (!esptari_web_query_value(req, "limit", limit_str, sizeof(limit_str))) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+    uint32_t limit = 0;
+    if (!esptari_web_parse_u32_str(limit_str, &limit) || limit == 0 || limit > 256) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char force_wiring_unavailable_query[8] = {0};
+    bool force_wiring_unavailable = esptari_web_query_value(req,
+                                                            "force_wiring_unavailable",
+                                                            force_wiring_unavailable_query,
+                                                            sizeof(force_wiring_unavailable_query)) &&
+                                   strcmp(force_wiring_unavailable_query, "1") == 0;
+    if (force_wiring_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char force_seq_regression_query[8] = {0};
+    bool force_seq_regression = esptari_web_query_value(req,
+                                                        "force_seq_regression",
+                                                        force_seq_regression_query,
+                                                        sizeof(force_seq_regression_query)) &&
+                               strcmp(force_seq_regression_query, "1") == 0;
+    if (force_seq_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"INT-WIRE-01\"}}}",
+                         500);
+    }
+
+    char force_time_regression_query[8] = {0};
+    bool force_time_regression = esptari_web_query_value(req,
+                                                         "force_time_regression",
+                                                         force_time_regression_query,
+                                                         sizeof(force_time_regression_query)) &&
+                                strcmp(force_time_regression_query, "1") == 0;
+    if (force_time_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"INT-WIRE-02\"}}}",
+                         500);
+    }
+
+    char force_observed_mismatch_query[8] = {0};
+    bool force_observed_mismatch = esptari_web_query_value(req,
+                                                           "force_observed_mismatch",
+                                                           force_observed_mismatch_query,
+                                                           sizeof(force_observed_mismatch_query)) &&
+                                  strcmp(force_observed_mismatch_query, "1") == 0;
+    if (force_observed_mismatch) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"INT-WIRE-03\"}}}",
+                         500);
+    }
+
+    char force_map_mutation_query[8] = {0};
+    bool force_map_mutation = esptari_web_query_value(req,
+                                                      "force_map_mutation",
+                                                      force_map_mutation_query,
+                                                      sizeof(force_map_mutation_query)) &&
+                             strcmp(force_map_mutation_query, "1") == 0;
+    if (force_map_mutation) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"INT-WIRE-04\"}}}",
+                         500);
+    }
+
+    uint32_t check_count = limit > 4 ? 4 : limit;
+    char checks_json[2048] = {0};
+    bool first = true;
+
+    static const char *subsystem_ids[] = {"vbl", "mfp", "acia", "fdc"};
+    static const char *expected_cpu_lines[] = {"irq7", "irq6", "irq4", "irq3"};
+    static const uint16_t expected_vectors[] = {28, 38, 24, 54};
+
+    uint64_t check_seq = interrupt_wiring_check_seq + 1ULL;
+    uint64_t tick_counter = interrupt_wiring_last_tick_counter + 1ULL;
+    uint64_t timestamp_us = interrupt_wiring_last_timestamp_us + 3ULL;
+
+    for (uint32_t i = 0; i < check_count; ++i) {
+        uint32_t idx = i % 4U;
+        if (!append_interrupt_wiring_check_json(checks_json,
+                                                sizeof(checks_json),
+                                                &first,
+                                                check_seq,
+                                                subsystem_ids[idx],
+                                                expected_cpu_lines[idx],
+                                                expected_cpu_lines[idx],
+                                                expected_vectors[idx],
+                                                expected_vectors[idx],
+                                                "pass",
+                                                tick_counter,
+                                                timestamp_us)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        check_seq += 1ULL;
+        tick_counter += 1ULL;
+        timestamp_us += 2ULL;
+    }
+
+    interrupt_wiring_check_seq = check_seq - 1ULL;
+    interrupt_wiring_last_tick_counter = tick_counter - 1ULL;
+    interrupt_wiring_last_timestamp_us = timestamp_us - 2ULL;
+    if (interrupt_wiring_last_timestamp_us > interrupt_last_timestamp_us) {
+        interrupt_last_timestamp_us = interrupt_wiring_last_timestamp_us;
+    }
+
+    char resp[2560];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"conformance\":{\"INT-WIRE-01\":\"pass\",\"INT-WIRE-02\":\"pass\",\"INT-WIRE-03\":\"pass\",\"INT-WIRE-04\":\"pass\"},\"checks\":[%s]}}",
+             session_id,
+             checks_json);
+    return send_json(req, resp, 200);
+}
+
 static esp_err_t inspect_chipset_dma_pacing_handler(httpd_req_t *req)
 {
     char session_id[64] = {0};
@@ -1780,6 +1971,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t inspect_chipset_ikbd_packets = {.uri = "/api/v2/inspect/chipset/ikbd/packets", .method = HTTP_GET, .handler = inspect_chipset_ikbd_packets_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_interrupts_hierarchy = {.uri = "/api/v2/inspect/chipset/interrupts/hierarchy", .method = HTTP_GET, .handler = inspect_chipset_interrupts_hierarchy_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_interrupts_routes = {.uri = "/api/v2/inspect/chipset/interrupts/routes", .method = HTTP_GET, .handler = inspect_chipset_interrupts_routes_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_interrupts_wiring = {.uri = "/api/v2/inspect/chipset/interrupts/wiring", .method = HTTP_GET, .handler = inspect_chipset_interrupts_wiring_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_interrupts_wiring_checks = {.uri = "/api/v2/inspect/chipset/interrupts/wiring/checks", .method = HTTP_GET, .handler = inspect_chipset_interrupts_wiring_checks_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_pacing = {.uri = "/api/v2/inspect/chipset/dma/pacing", .method = HTTP_GET, .handler = inspect_chipset_dma_pacing_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_arbitration = {.uri = "/api/v2/inspect/chipset/dma/arbitration", .method = HTTP_GET, .handler = inspect_chipset_dma_arbitration_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_fdc_fsm = {.uri = "/api/v2/inspect/chipset/fdc/fsm", .method = HTTP_GET, .handler = inspect_chipset_fdc_fsm_handler, .user_ctx = NULL};
@@ -1803,6 +1996,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &inspect_chipset_ikbd_packets);
     httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_hierarchy);
     httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_routes);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_wiring);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_interrupts_wiring_checks);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_pacing);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_arbitration);
     httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_fsm);

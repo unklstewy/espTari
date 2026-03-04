@@ -1,0 +1,65 @@
+health_check=ok attempts=10
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Cannot reset from current lifecycle state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 200
+{"ok":true}
+
+### interrupt_wiring_state
+GET /api/v2/inspect/chipset/interrupts/wiring?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","subsystems":[{"subsystem_id":"mfp","source_line":"mfp_irq","cpu_interrupt_line":"irq6","vector":38,"enabled":true},{"subsystem_id":"acia","source_line":"acia_irq","cpu_interrupt_line":"irq4","vector":24,"enabled":true},{"subsystem_id":"fdc","source_line":"fdc_intrq","cpu_interrupt_line":"irq3","vector":54,"enabled":true},{"subsystem_id":"blitter","source_line":"blitter_irq","cpu_interrupt_line":"irq2","vector":48,"enabled":false},{"subsystem_id":"vbl","source_line":"vblank_irq","cpu_interrupt_line":"irq7","vector":28,"enabled":true}],"global_route_seq":9901,"last_timestamp_us":1710000034620}}
+
+int_wiring_contract=pass subsystems=True lines=True
+### interrupt_wiring_checks
+GET /api/v2/inspect/chipset/interrupts/wiring/checks?session_id=ses_local&limit=4
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","conformance":{"INT-WIRE-01":"pass","INT-WIRE-02":"pass","INT-WIRE-03":"pass","INT-WIRE-04":"pass"},"checks":[{"check_seq":410,"subsystem_id":"vbl","expected_cpu_line":"irq7","observed_cpu_line":"irq7","expected_vector":28,"observed_vector":28,"result":"pass","tick_counter":913901,"timestamp_us":1710000034623},{"check_seq":411,"subsystem_id":"mfp","expected_cpu_line":"irq6","observed_cpu_line":"irq6","expected_vector":38,"observed_vector":38,"result":"pass","tick_counter":913902,"timestamp_us":1710000034625},{"check_seq":412,"subsystem_id":"acia","expected_cpu_line":"irq4","observed_cpu_line":"irq4","expected_vector":24,"observed_vector":24,"result":"pass","tick_counter":913903,"timestamp_us":1710000034627},{"check_seq":413,"subsystem_id":"fdc","expected_cpu_line":"irq3","observed_cpu_line":"irq3","expected_vector":54,"observed_vector":54,"result":"pass","tick_counter":913904,"timestamp_us":1710000034629}]}}
+
+int_wiring_checks_contract=pass conf=True seq=True ts=True tick=True pass_match=True
+### int_wiring_bad_limit
+GET /api/v2/inspect/chipset/interrupts/wiring/checks?session_id=ses_local&limit=0
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+int_wiring_limit_guard=pass code=BAD_REQUEST
+### int_wiring_unknown_session
+GET /api/v2/inspect/chipset/interrupts/wiring?session_id=ses_unknown
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}
+
+int_wiring_session_guard=pass code=ENGINE_NOT_RUNNING
+### int_wiring_unavailable_failfast
+GET /api/v2/inspect/chipset/interrupts/wiring?session_id=ses_local&force_wiring_unavailable=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR"}}
+
+int_wiring_unavailable_failfast=pass code=INTERNAL_ERROR
+### int_wire01_failfast
+GET /api/v2/inspect/chipset/interrupts/wiring/checks?session_id=ses_local&limit=2&force_seq_regression=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"INT-WIRE-01"}}}
+
+int_wire01_failfast=pass code=INTERNAL_ERROR
+### int_wire02_failfast
+GET /api/v2/inspect/chipset/interrupts/wiring/checks?session_id=ses_local&limit=2&force_time_regression=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"INT-WIRE-02"}}}
+
+int_wire02_failfast=pass code=INTERNAL_ERROR
+### int_wire03_failfast
+GET /api/v2/inspect/chipset/interrupts/wiring/checks?session_id=ses_local&limit=2&force_observed_mismatch=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"INT-WIRE-03"}}}
+
+int_wire03_failfast=pass code=INTERNAL_ERROR
+### int_wire04_failfast
+GET /api/v2/inspect/chipset/interrupts/wiring/checks?session_id=ses_local&limit=2&force_map_mutation=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","details":{"check":"INT-WIRE-04"}}}
+
+int_wire04_failfast=pass code=INTERNAL_ERROR
