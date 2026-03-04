@@ -8,6 +8,21 @@ mkdir -p captures
 : > "$OUT"
 LAST_BODY=""
 
+wait_for_health() {
+  local attempts="${1:-60}"
+  local interval="${2:-1}"
+  local i
+  for ((i=1; i<=attempts; i++)); do
+    if curl --max-time 2 -sS "${BASE}/api/v2/engine/health" >/dev/null 2>&1; then
+      echo "health_check=ok attempts=${i}" | tee -a "$OUT"
+      return 0
+    fi
+    sleep "$interval"
+  done
+  echo "health_check=timeout attempts=${attempts}" | tee -a "$OUT"
+  exit 1
+}
+
 call_json() {
   local name="$1" method="$2" path="$3" data="$4" expected="$5"
   local body_file code body
@@ -41,7 +56,7 @@ extract_json() {
   printf '%s' "$LAST_BODY" | /home/sannis/electronics/esp32p4/projects/espTari/.venv/bin/python -c "import json,sys; d=json.load(sys.stdin); print($expr)"
 }
 
-sleep 3
+wait_for_health
 call_json "engine_start" POST "/api/v2/engine/session/start" "" "^(200|409)$"
 
 MANIFEST='{"manifest_id":"mf_smoke_111","manifest":{"manifest_version":1,"target_machine":"atari_st","profile":"st_520_pal","suite":"smoke_111","cases":[{"case_id":"mfp_irq_contract","kind":"api","target":"/api/v2/conformance/subsystems/suites/report","assertions":["status_200"]}]}}'

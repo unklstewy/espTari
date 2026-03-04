@@ -8,6 +8,21 @@ mkdir -p captures
 : > "$OUT"
 LAST_BODY=""
 
+wait_for_health() {
+  local attempts="${1:-60}"
+  local interval="${2:-1}"
+  local i
+  for ((i=1; i<=attempts; i++)); do
+    if curl --max-time 2 -sS "${BASE}/api/v2/engine/health" >/dev/null 2>&1; then
+      echo "health_check=ok attempts=${i}" | tee -a "$OUT"
+      return 0
+    fi
+    sleep "$interval"
+  done
+  echo "health_check=timeout attempts=${attempts}" | tee -a "$OUT"
+  exit 1
+}
+
 call_json() {
   local name="$1" method="$2" path="$3" data="$4" expected="$5"
   local body_file code body
@@ -34,7 +49,7 @@ call_json() {
   LAST_BODY="$body"
 }
 
-sleep 3
+wait_for_health
 
 # mouse_over mode transitions
 CFG_MO='{"session_id":"ses_local","browser_session_id":"browser_local","input_enabled":true,"capture_mode":"mouse_over"}'
