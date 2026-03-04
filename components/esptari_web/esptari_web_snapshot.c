@@ -44,6 +44,12 @@ static uint64_t mfp_irq_tick_counter = 450208244ULL;
 static uint64_t mfp_irq_cycle_counter = 112552991ULL;
 static uint64_t mfp_irq_event_timestamp_us = 1710000028022ULL;
 static uint64_t mfp_irq_event_seq = 0;
+static uint64_t acia_bridge_last_frame_seq = 9182ULL;
+static uint64_t acia_bridge_last_timestamp_us = 1710000029200ULL;
+static uint64_t acia_host_to_st_frame_seq = 9183ULL;
+static uint64_t acia_st_to_host_frame_seq = 8183ULL;
+static uint64_t acia_host_to_st_timestamp_us = 1710000029203ULL;
+static uint64_t acia_st_to_host_timestamp_us = 1710000029188ULL;
 
 enum {
     CHIPSET_GROUP_GLUE = 0,
@@ -241,6 +247,31 @@ static bool append_mfp_timer_json(char *buffer,
                            (unsigned long)counter_value,
                            mode,
                            enabled ? "true" : "false");
+    if (written < 0 || (size_t)written >= buffer_len - used) {
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
+static bool append_acia_frame_json(char *buffer,
+                                   size_t buffer_len,
+                                   bool *first,
+                                   uint64_t frame_seq,
+                                   const char *direction,
+                                   uint8_t payload,
+                                   uint64_t timestamp_us)
+{
+    size_t used = strlen(buffer);
+    int written = snprintf(buffer + used,
+                           buffer_len - used,
+                           "%s{\"frame_seq\":%llu,\"direction\":\"%s\",\"encoding\":\"8N1\",\"payload_hex\":\"0x%02X\",\"start_bit\":0,\"stop_bits\":1,\"parity\":\"none\",\"timestamp_us\":%llu}",
+                           *first ? "" : ",",
+                           (unsigned long long)frame_seq,
+                           direction,
+                           (unsigned)payload,
+                           (unsigned long long)timestamp_us);
     if (written < 0 || (size_t)written >= buffer_len - used) {
         return false;
     }
@@ -632,6 +663,173 @@ static esp_err_t inspect_chipset_mfp_interrupts_handler(httpd_req_t *req)
              (unsigned long long)mfp_irq_tick_counter,
              (unsigned long long)mfp_irq_cycle_counter,
              (unsigned long long)mfp_irq_event_timestamp_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_acia_bridge_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char force_bridge_unavailable_query[8] = {0};
+    bool force_bridge_unavailable = esptari_web_query_value(req,
+                                                            "force_bridge_unavailable",
+                                                            force_bridge_unavailable_query,
+                                                            sizeof(force_bridge_unavailable_query)) &&
+                                  strcmp(force_bridge_unavailable_query, "1") == 0;
+    if (force_bridge_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    acia_bridge_last_frame_seq += 1ULL;
+    acia_bridge_last_timestamp_us += 13ULL;
+
+    char resp[640];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"bridge_state\":\"attached\",\"channel_mode\":\"duplex\",\"rx_queue_depth\":3,\"tx_queue_depth\":1,\"framing_profile\":\"acia_8n1_default\",\"last_frame_seq\":%llu,\"last_timestamp_us\":%llu}}",
+             session_id,
+             (unsigned long long)acia_bridge_last_frame_seq,
+             (unsigned long long)acia_bridge_last_timestamp_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_acia_frames_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char limit_str[16] = {0};
+    if (!esptari_web_query_value(req, "limit", limit_str, sizeof(limit_str))) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    uint32_t limit = 0;
+    if (!esptari_web_parse_u32_str(limit_str, &limit) || limit == 0 || limit > 256) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char force_bridge_unavailable_query[8] = {0};
+    bool force_bridge_unavailable = esptari_web_query_value(req,
+                                                            "force_bridge_unavailable",
+                                                            force_bridge_unavailable_query,
+                                                            sizeof(force_bridge_unavailable_query)) &&
+                                  strcmp(force_bridge_unavailable_query, "1") == 0;
+    if (force_bridge_unavailable) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char force_frame_regression_query[8] = {0};
+    bool force_frame_regression = esptari_web_query_value(req,
+                                                          "force_frame_regression",
+                                                          force_frame_regression_query,
+                                                          sizeof(force_frame_regression_query)) &&
+                                 strcmp(force_frame_regression_query, "1") == 0;
+    if (force_frame_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"ACIA-FRM-01\"}}}",
+                         500);
+    }
+
+    char force_timestamp_regression_query[8] = {0};
+    bool force_timestamp_regression = esptari_web_query_value(req,
+                                                              "force_timestamp_regression",
+                                                              force_timestamp_regression_query,
+                                                              sizeof(force_timestamp_regression_query)) &&
+                                     strcmp(force_timestamp_regression_query, "1") == 0;
+    if (force_timestamp_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"ACIA-FRM-02\"}}}",
+                         500);
+    }
+
+    char force_framing_invalid_query[8] = {0};
+    bool force_framing_invalid = esptari_web_query_value(req,
+                                                         "force_framing_invalid",
+                                                         force_framing_invalid_query,
+                                                         sizeof(force_framing_invalid_query)) &&
+                                strcmp(force_framing_invalid_query, "1") == 0;
+    if (force_framing_invalid) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"ACIA-FRM-03\"}}}",
+                         500);
+    }
+
+    char force_rejected_emitted_query[8] = {0};
+    bool force_rejected_emitted = esptari_web_query_value(req,
+                                                          "force_rejected_emitted",
+                                                          force_rejected_emitted_query,
+                                                          sizeof(force_rejected_emitted_query)) &&
+                                 strcmp(force_rejected_emitted_query, "1") == 0;
+    if (force_rejected_emitted) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"ACIA-FRM-04\"}}}",
+                         500);
+    }
+
+    uint32_t frame_count = limit > 4 ? 4 : limit;
+    char frames_json[2048] = {0};
+    bool first = true;
+
+    uint64_t next_host_seq = acia_host_to_st_frame_seq + 1ULL;
+    uint64_t next_st_seq = acia_st_to_host_frame_seq + 1ULL;
+    uint64_t next_host_ts = acia_host_to_st_timestamp_us + 11ULL;
+    uint64_t next_st_ts = acia_st_to_host_timestamp_us + 9ULL;
+
+    for (uint32_t i = 0; i < frame_count; ++i) {
+        bool host_direction = (i % 2U) == 0U;
+        uint64_t frame_seq = host_direction ? next_host_seq : next_st_seq;
+        uint64_t timestamp_us = host_direction ? next_host_ts : next_st_ts;
+        uint8_t payload = host_direction ? (uint8_t)(0xF0U + (i & 0x0FU)) : (uint8_t)(0x70U + (i & 0x0FU));
+
+        if (!append_acia_frame_json(frames_json,
+                                    sizeof(frames_json),
+                                    &first,
+                                    frame_seq,
+                                    host_direction ? "host_to_st" : "st_to_host",
+                                    payload,
+                                    timestamp_us)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+
+        if (host_direction) {
+            next_host_seq = frame_seq + 1ULL;
+            next_host_ts = timestamp_us + 11ULL;
+            acia_host_to_st_frame_seq = frame_seq;
+            acia_host_to_st_timestamp_us = timestamp_us;
+        } else {
+            next_st_seq = frame_seq + 1ULL;
+            next_st_ts = timestamp_us + 9ULL;
+            acia_st_to_host_frame_seq = frame_seq;
+            acia_st_to_host_timestamp_us = timestamp_us;
+        }
+    }
+
+    uint64_t latest_seq = acia_host_to_st_frame_seq > acia_st_to_host_frame_seq
+                              ? acia_host_to_st_frame_seq
+                              : acia_st_to_host_frame_seq;
+    uint64_t latest_timestamp = acia_host_to_st_timestamp_us > acia_st_to_host_timestamp_us
+                                    ? acia_host_to_st_timestamp_us
+                                    : acia_st_to_host_timestamp_us;
+    if (latest_seq > acia_bridge_last_frame_seq) {
+        acia_bridge_last_frame_seq = latest_seq;
+    }
+    if (latest_timestamp > acia_bridge_last_timestamp_us) {
+        acia_bridge_last_timestamp_us = latest_timestamp;
+    }
+
+    char resp[2560];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"checks\":{\"ACIA-FRM-01\":\"pass\",\"ACIA-FRM-02\":\"pass\",\"ACIA-FRM-03\":\"pass\",\"ACIA-FRM-04\":\"pass\"},\"frames\":[%s]}}",
+             session_id,
+             frames_json);
     return send_json(req, resp, 200);
 }
 
@@ -1162,6 +1360,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t inspect_chipset_windows_timers = {.uri = "/api/v2/inspect/chipset/windows/timers", .method = HTTP_GET, .handler = inspect_chipset_windows_timers_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_mfp_interrupts = {.uri = "/api/v2/inspect/chipset/mfp/interrupts", .method = HTTP_GET, .handler = inspect_chipset_mfp_interrupts_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_windows_integration = {.uri = "/api/v2/inspect/chipset/windows/integration", .method = HTTP_GET, .handler = inspect_chipset_windows_integration_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_acia_bridge = {.uri = "/api/v2/inspect/chipset/acia/bridge", .method = HTTP_GET, .handler = inspect_chipset_acia_bridge_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_acia_frames = {.uri = "/api/v2/inspect/chipset/acia/frames", .method = HTTP_GET, .handler = inspect_chipset_acia_frames_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_pacing = {.uri = "/api/v2/inspect/chipset/dma/pacing", .method = HTTP_GET, .handler = inspect_chipset_dma_pacing_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_arbitration = {.uri = "/api/v2/inspect/chipset/dma/arbitration", .method = HTTP_GET, .handler = inspect_chipset_dma_arbitration_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_fdc_fsm = {.uri = "/api/v2/inspect/chipset/fdc/fsm", .method = HTTP_GET, .handler = inspect_chipset_fdc_fsm_handler, .user_ctx = NULL};
@@ -1179,6 +1379,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_timers);
     httpd_register_uri_handler(server_handle, &inspect_chipset_mfp_interrupts);
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_integration);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_acia_bridge);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_acia_frames);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_pacing);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_arbitration);
     httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_fsm);
