@@ -1,0 +1,27 @@
+{
+  "metadata_version": 1,
+  "package_id": "ref.st.cpu.m68k.minimal.v1",
+  "module_selector": "st.cpu.m68k@1.0.0",
+  "artifact_path": "/sdcard/ebins/reference/st.cpu.m68k-1.0.0.ebin",
+  "artifact_size_bytes": 65536,
+  "probes": {
+    "load_success": {
+      "endpoint": "/api/v2/ebins/load",
+      "expected_http": 200
+    },
+    "rollback_bind_failure": {
+      "endpoint": "/api/v2/ebins/load",
+      "expected_http": 409,
+      "simulate_fail_stage": "bind",
+      "expected_recovery_action": "rollback_previous_active_module"
+    },
+    "fallback_init_failure": {
+      "endpoint": "/api/v2/ebins/load",
+      "expected_http": 409,
+      "simulate_fail_stage": "init",
+      "force_fallback": true,
+      "expected_recovery_action": "fallback_module_set_activated"
+    }
+  },
+  "notes": "Reference metadata for deterministic S5 runtime unlock harness scenarios."
+}

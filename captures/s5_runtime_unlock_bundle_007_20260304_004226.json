@@ -1,0 +1,26 @@
+{
+  "bundle_version": 1,
+  "task_id": "S5-007",
+  "generated_at": "20260304_004226",
+  "harness_capture": "captures/s5_runtime_unlock_harness_007_smoke_postfix_20260304_004226.txt",
+  "reference_package": {
+    "manifest": "docs/emu_engine_v2/reference_ebin_packages/st_cpu_m68k_reference_manifest_v1.json",
+    "metadata": "docs/emu_engine_v2/reference_ebin_packages/st_cpu_m68k_reference_metadata_v1.json"
+  },
+  "scenarios": [
+    {
+      "name": "load_unload_success",
+      "status": "pass"
+    },
+    {
+      "name": "rollback_bind_failure",
+      "status": "pass",
+      "expected_recovery_action": "rollback_previous_active_module"
+    },
+    {
+      "name": "fallback_init_failure",
+      "status": "pass",
+      "expected_recovery_action": "fallback_module_set_activated"
+    }
+  ]
+}

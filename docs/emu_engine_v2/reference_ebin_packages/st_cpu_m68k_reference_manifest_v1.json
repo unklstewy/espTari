@@ -1,0 +1,30 @@
+{
+  "manifest_version": 1,
+  "package_id": "ref.st.cpu.m68k.minimal.v1",
+  "module_id": "st.cpu.m68k",
+  "module_type": "cpu",
+  "machine_targets": [
+    "atari_st"
+  ],
+  "abi_version": "1.0.0",
+  "api_contract_version": "1.0.0",
+  "exports": [
+    "init",
+    "step",
+    "deinit"
+  ],
+  "dependencies": [
+    {
+      "module_id": "st.video.shifter",
+      "abi_range": "1.0.x",
+      "required": true
+    }
+  ],
+  "build_fingerprint": "ref_pkg_build_20260304_007",
+  "payload_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "signature": {
+    "algorithm": "ed25519",
+    "key_id": "dev_key_01",
+    "value": "sig_stub_reference_01"
+  }
+}
