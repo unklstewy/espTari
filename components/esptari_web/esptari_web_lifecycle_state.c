@@ -35,6 +35,9 @@ static esp_err_t send_guard_error(httpd_req_t *req,
 
 esp_err_t esptari_web_lifecycle_suspend_save_handler(httpd_req_t *req)
 {
+    esptari_session_status_t before_status;
+    esptari_core_get_status(&before_status);
+
     char body[512];
     if (esptari_web_read_request_body(req, body, sizeof(body)) != ESP_OK) {
         return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-SUSPEND-01", "/api/v2/engine/session/suspend-save", "Invalid suspend-save request body");
@@ -54,21 +57,60 @@ esp_err_t esptari_web_lifecycle_suspend_save_handler(httpd_req_t *req)
     strlcpy(snapshot_id_copy, snapshot_id, sizeof(snapshot_id_copy));
     cJSON_Delete(root);
 
+    char force_fail_query[8] = {0};
+    bool force_save_fail = esptari_web_query_value(req, "force_save_fail", force_fail_query, sizeof(force_fail_query)) &&
+                           (strcmp(force_fail_query, "1") == 0 || strcmp(force_fail_query, "true") == 0);
+
+    if (force_save_fail) {
+        esptari_session_status_t after_status;
+        esptari_core_get_status(&after_status);
+        char rollback_error[1024];
+        snprintf(rollback_error,
+                 sizeof(rollback_error),
+                 "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"category\":\"internal\",\"message\":\"Injected suspend-save persistence failure\",\"retryable\":false,\"details\":{\"guard_id\":\"SUSP-REQ-03\",\"endpoint\":\"/api/v2/engine/session/suspend-save\",\"lifecycle_transition\":\"%s->%s\",\"transition_events\":[\"suspend_requested\",\"snapshot_persist_failed\",\"rollback_committed\"],\"rollback_to_state\":\"%s\",\"rollback_state_preserved\":%s}}}",
+                 esptari_core_state_to_string(before_status.state),
+                 esptari_core_state_to_string(after_status.state),
+                 esptari_core_state_to_string(before_status.state),
+                 before_status.state == after_status.state ? "true" : "false");
+        return esptari_web_send_json(req, rollback_error, 500);
+    }
+
     esp_err_t err = esptari_core_suspend_save(snapshot_id_copy);
     if (err == ESP_ERR_INVALID_STATE) {
-        return send_guard_error(req, 409, "INVALID_SESSION_STATE", "engine", false, "G-SUSPEND-01", "/api/v2/engine/session/suspend-save", "Suspend-save allowed only from running state");
+        char state_error[896];
+        snprintf(state_error,
+                 sizeof(state_error),
+                 "{\"ok\":false,\"error\":{\"code\":\"INVALID_SESSION_STATE\",\"category\":\"engine\",\"message\":\"Suspend-save allowed only from running state\",\"retryable\":false,\"details\":{\"guard_id\":\"SUSP-REQ-01\",\"endpoint\":\"/api/v2/engine/session/suspend-save\",\"current_state\":\"%s\",\"transition_events\":[\"suspend_rejected\"]}}}",
+                 esptari_core_state_to_string(before_status.state));
+        return esptari_web_send_json(req, state_error, 409);
     }
     if (err == ESP_ERR_INVALID_ARG) {
         return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-SUSPEND-01", "/api/v2/engine/session/suspend-save", "Invalid suspend-save arguments");
     }
     if (err != ESP_OK) {
-        return send_guard_error(req, 500, "INTERNAL_ERROR", "internal", false, "G-SUSPEND-01", "/api/v2/engine/session/suspend-save", "Unhandled suspend-save failure");
+        esptari_session_status_t after_status;
+        esptari_core_get_status(&after_status);
+        char rollback_error[1024];
+        snprintf(rollback_error,
+                 sizeof(rollback_error),
+                 "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"category\":\"internal\",\"message\":\"Unhandled suspend-save failure\",\"retryable\":false,\"details\":{\"guard_id\":\"SUSP-REQ-03\",\"endpoint\":\"/api/v2/engine/session/suspend-save\",\"lifecycle_transition\":\"%s->%s\",\"transition_events\":[\"suspend_requested\",\"snapshot_persist_failed\",\"rollback_committed\"],\"rollback_to_state\":\"%s\",\"rollback_state_preserved\":%s}}}",
+                 esptari_core_state_to_string(before_status.state),
+                 esptari_core_state_to_string(after_status.state),
+                 esptari_core_state_to_string(before_status.state),
+                 before_status.state == after_status.state ? "true" : "false");
+        return esptari_web_send_json(req, rollback_error, 500);
     }
 
-    char resp[256];
+    esptari_session_status_t after_status;
+    esptari_core_get_status(&after_status);
+
+    char resp[640];
     snprintf(resp, sizeof(resp),
-             "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"session_state\":\"suspended\"}}",
-             snapshot_id_copy);
+             "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"session_state\":\"suspended\",\"saved_at_us\":%llu,\"lifecycle_transition\":\"%s->%s\",\"transition_events\":[\"suspend_requested\",\"snapshot_persist_committed\",\"state_committed\"]}}",
+             snapshot_id_copy,
+             (unsigned long long)after_status.last_transition_us,
+             esptari_core_state_to_string(before_status.state),
+             esptari_core_state_to_string(after_status.state));
     return esptari_web_send_json(req, resp, 200);
 }
 
