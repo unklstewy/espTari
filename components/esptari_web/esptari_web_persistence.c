@@ -138,6 +138,72 @@ static void parse_token(char **ctx, char *out, size_t out_len)
     }
 }
 
+static void snapshot_staging_path(const char *target_path, char *out_path, size_t out_path_len)
+{
+    if (target_path == NULL || out_path == NULL || out_path_len == 0) {
+        return;
+    }
+
+    const char *ext = strrchr(target_path, '.');
+    if (ext == NULL) {
+        snprintf(out_path, out_path_len, "%s.tmp", target_path);
+        return;
+    }
+
+    size_t base_len = (size_t)(ext - target_path);
+    if (base_len + 4 >= out_path_len) {
+        snprintf(out_path, out_path_len, "%s", target_path);
+        return;
+    }
+
+    memcpy(out_path, target_path, base_len);
+    out_path[base_len] = '\0';
+    strncat(out_path, ".tmp", out_path_len - strlen(out_path) - 1);
+}
+
+static esp_err_t atomic_write_text_file(const char *target_path, const char *text, bool simulate_interrupt)
+{
+    if (target_path == NULL || text == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    char staging_path[128];
+    snapshot_staging_path(target_path, staging_path, sizeof(staging_path));
+
+    FILE *file = fopen(staging_path, "w");
+    if (file == NULL) {
+        return ESP_FAIL;
+    }
+
+    size_t expected = strlen(text);
+    size_t written = fwrite(text, 1, expected, file);
+    if (written != expected || fflush(file) != 0) {
+        fclose(file);
+        remove(staging_path);
+        return ESP_FAIL;
+    }
+
+    if (fclose(file) != 0) {
+        remove(staging_path);
+        return ESP_FAIL;
+    }
+
+    if (simulate_interrupt) {
+        remove(staging_path);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (rename(staging_path, target_path) != 0) {
+        remove(target_path);
+        if (rename(staging_path, target_path) != 0) {
+            remove(staging_path);
+            return ESP_FAIL;
+        }
+    }
+
+    return ESP_OK;
+}
+
 static void init_serializer_bundle(serializer_bundle_t *bundle)
 {
     memset(bundle, 0, sizeof(*bundle));
@@ -329,15 +395,11 @@ static void compute_snapshot_hash(const char *snapshot_id,
 static esp_err_t write_snapshot_meta_record(const char *snapshot_id,
                                             const char *profile,
                                             uint64_t saved_at_us,
-                                            bool force_bad_hash)
+                                            bool force_bad_hash,
+                                            bool force_persist_interrupt)
 {
     char path[96];
     snapshot_meta_path(snapshot_id, path, sizeof(path));
-
-    FILE *file = fopen(path, "w");
-    if (file == NULL) {
-        return ESP_FAIL;
-    }
 
     char hash[24];
     compute_snapshot_hash(snapshot_id, profile, saved_at_us, hash, sizeof(hash));
@@ -345,15 +407,16 @@ static esp_err_t write_snapshot_meta_record(const char *snapshot_id,
         snprintf(hash, sizeof(hash), "fnv1a:00000000");
     }
 
-    fprintf(file,
-            "v1|%s|%u|%s|%llu|%s\n",
-            snapshot_id,
-            1u,
-            profile,
-            (unsigned long long)saved_at_us,
-            hash);
-    fclose(file);
-    return ESP_OK;
+    char line[256];
+    snprintf(line,
+             sizeof(line),
+             "v1|%s|%u|%s|%llu|%s\n",
+             snapshot_id,
+             1u,
+             profile,
+             (unsigned long long)saved_at_us,
+             hash);
+    return atomic_write_text_file(path, line, force_persist_interrupt);
 }
 
 static esp_err_t read_snapshot_meta_record(const char *snapshot_id, snapshot_meta_record_t *out_meta)
@@ -503,57 +566,87 @@ static void load_snapshot_index_if_needed(void)
     fclose(file);
 }
 
-static void persist_snapshot_index(void)
+static esp_err_t persist_snapshot_index_entries(const snapshot_index_entry_t *entries,
+                                                size_t entry_count,
+                                                bool force_persist_interrupt)
 {
-    FILE *file = fopen(SNAPSHOT_INDEX_PATH, "w");
-    if (file == NULL) {
-        return;
+    char *content = (char *)malloc(8192);
+    if (content == NULL) {
+        return ESP_ERR_NO_MEM;
     }
 
-    for (size_t i = 0; i < snapshot_index_count; i++) {
-        if (snapshot_index[i].corrupted) {
+    size_t offset = 0;
+    content[0] = '\0';
+
+    for (size_t i = 0; i < entry_count; i++) {
+        if (entries[i].corrupted) {
             continue;
         }
-        fprintf(file,
-                "v1|%s|%s|%s|%llu|%s\n",
-                snapshot_index[i].snapshot_id,
-                snapshot_index[i].session_id,
-                snapshot_index[i].profile,
-                (unsigned long long)snapshot_index[i].saved_at_us,
-                snapshot_index[i].name);
+
+        int written = snprintf(content + offset,
+                               8192 - offset,
+                               "v1|%s|%s|%s|%llu|%s\n",
+                               entries[i].snapshot_id,
+                               entries[i].session_id,
+                               entries[i].profile,
+                               (unsigned long long)entries[i].saved_at_us,
+                               entries[i].name);
+        if (written <= 0 || (size_t)written >= (8192 - offset)) {
+            free(content);
+            return ESP_FAIL;
+        }
+        offset += (size_t)written;
     }
 
-    fclose(file);
+    esp_err_t persist_err = atomic_write_text_file(SNAPSHOT_INDEX_PATH, content, force_persist_interrupt);
+    free(content);
+    return persist_err;
 }
 
-static void upsert_snapshot_index_entry(const char *snapshot_id,
-                                        const char *session_id,
-                                        const char *profile,
-                                        const char *name,
-                                        uint64_t saved_at_us)
+static esp_err_t upsert_snapshot_index_entry(const char *snapshot_id,
+                                             const char *session_id,
+                                             const char *profile,
+                                             const char *name,
+                                             uint64_t saved_at_us,
+                                             bool force_persist_interrupt)
 {
     load_snapshot_index_if_needed();
 
-    for (size_t i = 0; i < snapshot_index_count; i++) {
-        if (!snapshot_index[i].corrupted && strcmp(snapshot_index[i].snapshot_id, snapshot_id) == 0) {
-            snprintf(snapshot_index[i].session_id, sizeof(snapshot_index[i].session_id), "%s", session_id);
-            snprintf(snapshot_index[i].profile, sizeof(snapshot_index[i].profile), "%s", profile);
-            snprintf(snapshot_index[i].name, sizeof(snapshot_index[i].name), "%s", name);
-            sanitize_field(snapshot_index[i].name);
-            snapshot_index[i].saved_at_us = saved_at_us;
-            persist_snapshot_index();
-            return;
+    snapshot_index_entry_t *staged_index = (snapshot_index_entry_t *)malloc(sizeof(snapshot_index));
+    if (staged_index == NULL) {
+        return ESP_ERR_NO_MEM;
+    }
+    memcpy(staged_index, snapshot_index, sizeof(snapshot_index));
+    size_t staged_count = snapshot_index_count;
+
+    for (size_t i = 0; i < staged_count; i++) {
+        if (!staged_index[i].corrupted && strcmp(staged_index[i].snapshot_id, snapshot_id) == 0) {
+            snprintf(staged_index[i].session_id, sizeof(staged_index[i].session_id), "%s", session_id);
+            snprintf(staged_index[i].profile, sizeof(staged_index[i].profile), "%s", profile);
+            snprintf(staged_index[i].name, sizeof(staged_index[i].name), "%s", name);
+            sanitize_field(staged_index[i].name);
+            staged_index[i].saved_at_us = saved_at_us;
+
+            esp_err_t persist_err = persist_snapshot_index_entries(staged_index, staged_count, force_persist_interrupt);
+            if (persist_err != ESP_OK) {
+                free(staged_index);
+                return persist_err;
+            }
+            memcpy(snapshot_index, staged_index, sizeof(snapshot_index));
+            snapshot_index_count = staged_count;
+            free(staged_index);
+            return ESP_OK;
         }
     }
 
-    if (snapshot_index_count >= SNAPSHOT_INDEX_MAX_ENTRIES) {
-        for (size_t i = 1; i < snapshot_index_count; i++) {
-            snapshot_index[i - 1] = snapshot_index[i];
+    if (staged_count >= SNAPSHOT_INDEX_MAX_ENTRIES) {
+        for (size_t i = 1; i < staged_count; i++) {
+            staged_index[i - 1] = staged_index[i];
         }
-        snapshot_index_count--;
+        staged_count--;
     }
 
-    snapshot_index_entry_t *entry = &snapshot_index[snapshot_index_count++];
+    snapshot_index_entry_t *entry = &staged_index[staged_count++];
     memset(entry, 0, sizeof(*entry));
     snprintf(entry->snapshot_id, sizeof(entry->snapshot_id), "%s", snapshot_id);
     snprintf(entry->session_id, sizeof(entry->session_id), "%s", session_id);
@@ -563,7 +656,16 @@ static void upsert_snapshot_index_entry(const char *snapshot_id,
     entry->saved_at_us = saved_at_us;
     entry->corrupted = false;
 
-    persist_snapshot_index();
+    esp_err_t persist_err = persist_snapshot_index_entries(staged_index, staged_count, force_persist_interrupt);
+    if (persist_err != ESP_OK) {
+        free(staged_index);
+        return persist_err;
+    }
+
+    memcpy(snapshot_index, staged_index, sizeof(snapshot_index));
+    snapshot_index_count = staged_count;
+    free(staged_index);
+    return ESP_OK;
 }
 
 static esp_err_t state_save_handler(httpd_req_t *req)
@@ -586,9 +688,10 @@ static esp_err_t state_save_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
-    state_seq++;
-    snprintf(latest_snapshot_id, sizeof(latest_snapshot_id), "state_%06llu", (unsigned long long)state_seq);
-    latest_saved_at_us = (uint64_t)esp_timer_get_time();
+    uint64_t next_state_seq = state_seq + 1;
+    char next_snapshot_id[64];
+    snprintf(next_snapshot_id, sizeof(next_snapshot_id), "state_%06llu", (unsigned long long)next_state_seq);
+    uint64_t next_saved_at_us = (uint64_t)esp_timer_get_time();
 
     serializer_bundle_t serializer_bundle;
     init_serializer_bundle(&serializer_bundle);
@@ -651,32 +754,73 @@ static esp_err_t state_save_handler(httpd_req_t *req)
     bool force_bad_hash = esptari_web_query_value(req, "force_bad_hash", force_bad_hash_text, sizeof(force_bad_hash_text)) &&
                           (strcmp(force_bad_hash_text, "1") == 0 || strcmp(force_bad_hash_text, "true") == 0);
 
-    if (write_snapshot_meta_record(latest_snapshot_id, "st_520_pal", latest_saved_at_us, force_bad_hash) != ESP_OK) {
+    char force_persist_interrupt_text[8] = {0};
+    bool force_persist_interrupt = esptari_web_query_value(req, "force_persist_interrupt", force_persist_interrupt_text, sizeof(force_persist_interrupt_text)) &&
+                                   (strcmp(force_persist_interrupt_text, "1") == 0 || strcmp(force_persist_interrupt_text, "true") == 0);
+
+    esp_err_t meta_write_err = write_snapshot_meta_record(next_snapshot_id,
+                                                          "st_520_pal",
+                                                          next_saved_at_us,
+                                                          force_bad_hash,
+                                                          force_persist_interrupt);
+    if (meta_write_err == ESP_ERR_INVALID_STATE) {
         cJSON_Delete(root);
-        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"PERSIST-ATOMIC-01\",\"reason\":\"interrupted_before_meta_commit\"}}}",
+                         500);
+    }
+    if (meta_write_err != ESP_OK) {
+        cJSON_Delete(root);
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"PERSIST-WRITE-01\",\"reason\":\"meta_write_failed\"}}}",
+                         500);
     }
 
-    has_saved_snapshot = true;
     const char *snapshot_name = (name != NULL && name[0] != '\0') ? name : "auto";
-    upsert_snapshot_index_entry(latest_snapshot_id, "ses_local", "st_520_pal", snapshot_name, latest_saved_at_us);
+    esp_err_t index_write_err = upsert_snapshot_index_entry(next_snapshot_id,
+                                                            "ses_local",
+                                                            "st_520_pal",
+                                                            snapshot_name,
+                                                            next_saved_at_us,
+                                                            force_persist_interrupt);
+    if (index_write_err == ESP_ERR_INVALID_STATE) {
+        cJSON_Delete(root);
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"PERSIST-ATOMIC-02\",\"reason\":\"interrupted_before_index_commit\"}}}",
+                         500);
+    }
+    if (index_write_err != ESP_OK) {
+        cJSON_Delete(root);
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check_id\":\"PERSIST-WRITE-02\",\"reason\":\"index_write_failed\"}}}",
+                         500);
+    }
+
+    state_seq = next_state_seq;
+    snprintf(latest_snapshot_id, sizeof(latest_snapshot_id), "%s", next_snapshot_id);
+    latest_saved_at_us = next_saved_at_us;
+    has_saved_snapshot = true;
     cJSON_Delete(root);
 
     char snapshot_hash[24] = {0};
-    compute_snapshot_hash(latest_snapshot_id, "st_520_pal", latest_saved_at_us, snapshot_hash, sizeof(snapshot_hash));
+    compute_snapshot_hash(next_snapshot_id, "st_520_pal", next_saved_at_us, snapshot_hash, sizeof(snapshot_hash));
+    char meta_path[96];
+    snapshot_meta_path(next_snapshot_id, meta_path, sizeof(meta_path));
 
     char *resp = (char *)malloc(4096);
     if (resp == NULL) {
-        cJSON_Delete(root);
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
     }
     snprintf(resp,
              4096,
-             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"snapshot_id\":\"%s\",\"name\":\"%s\",\"schema_version\":1,\"profile\":\"st_520_pal\",\"abi\":{\"engine\":\"2.0.0\",\"modules\":{\"cpu\":\"2.0.0\",\"video\":\"2.0.0\",\"io\":\"2.0.0\",\"storage\":\"2.0.0\",\"audio\":\"2.0.0\"}},\"hash\":\"%s\",\"created_at_us\":%llu,\"saved_at_us\":%llu,\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"audio\"]},\"media_bindings\":{\"rom_id\":\"rom_default\",\"disk_ids\":[],\"cartridge_id\":null},\"serializer_checks\":{\"SER-ORD-01\":\"pass\",\"SER-ORD-02\":\"pass\",\"SER-VAL-01\":\"pass\"},\"serializer_fingerprint\":\"%s\",\"state_blocks\":{\"cpu\":%s,\"glue_mmu_shifter\":%s,\"mfp\":%s,\"acia_ikbd\":%s,\"dma_fdc\":%s,\"psg\":%s}}}",
-             latest_snapshot_id,
+             "{\"ok\":true,\"data\":{\"session_id\":\"ses_local\",\"snapshot_id\":\"%s\",\"name\":\"%s\",\"schema_version\":1,\"profile\":\"st_520_pal\",\"abi\":{\"engine\":\"2.0.0\",\"modules\":{\"cpu\":\"2.0.0\",\"video\":\"2.0.0\",\"io\":\"2.0.0\",\"storage\":\"2.0.0\",\"audio\":\"2.0.0\"}},\"hash\":\"%s\",\"created_at_us\":%llu,\"saved_at_us\":%llu,\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"audio\"]},\"media_bindings\":{\"rom_id\":\"rom_default\",\"disk_ids\":[],\"cartridge_id\":null},\"persistence\":{\"strategy\":\"staging_rename\",\"atomic\":true,\"meta_path\":\"%s\",\"index_path\":\"%s\"},\"serializer_checks\":{\"SER-ORD-01\":\"pass\",\"SER-ORD-02\":\"pass\",\"SER-VAL-01\":\"pass\"},\"serializer_fingerprint\":\"%s\",\"state_blocks\":{\"cpu\":%s,\"glue_mmu_shifter\":%s,\"mfp\":%s,\"acia_ikbd\":%s,\"dma_fdc\":%s,\"psg\":%s}}}",
+             next_snapshot_id,
              snapshot_name,
              snapshot_hash,
-             (unsigned long long)latest_saved_at_us,
-             (unsigned long long)latest_saved_at_us,
+             (unsigned long long)next_saved_at_us,
+             (unsigned long long)next_saved_at_us,
+             meta_path,
+             SNAPSHOT_INDEX_PATH,
              serializer_fingerprint,
              cpu_block,
              glue_block,

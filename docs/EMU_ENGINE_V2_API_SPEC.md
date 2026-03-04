@@ -6346,6 +6346,18 @@ Serializer contract (`snapshot_component_serializers_v1`):
   - `SER-VAL-01`: missing or invalid mandatory fields fail serialization with deterministic error mapping.
 - Save response includes `serializer_checks` and `serializer_fingerprint` to provide repeatability evidence.
 
+Persistence backend contract (`snapshot_persistence_atomic_v1`):
+
+- Snapshot metadata and index writes use staged temp-path writes followed by atomic rename commit.
+- Commit strategy must prevent partially written committed records across interruption windows.
+- Save handler must commit in-memory active snapshot pointers only after persistence commits succeed.
+- Deterministic persistence checks:
+  - `PERSIST-ATOMIC-01`: interruption before metadata commit.
+  - `PERSIST-ATOMIC-02`: interruption before index commit.
+  - `PERSIST-WRITE-01`: metadata write failure.
+  - `PERSIST-WRITE-02`: index write failure.
+- Fault-injection query `force_persist_interrupt=1|true` is available for conformance smoke simulation of interrupted write windows.
+
 Request:
 
 ```json
@@ -6376,7 +6388,13 @@ Response `data`:
   },
   "hash": "sha256:...",
   "created_at_us": 1710000004321,
-  "saved_at_us": 1710000004321
+  "saved_at_us": 1710000004321,
+  "persistence": {
+    "strategy": "staging_rename",
+    "atomic": true,
+    "meta_path": "/spiffs/snapshot_meta_v1_<hash>.meta",
+    "index_path": "/spiffs/snapshot_index_v1.log"
+  }
 }
 ```
 
