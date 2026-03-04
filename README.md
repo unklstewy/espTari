@@ -21,6 +21,16 @@ An Atari homecomputer emulator for the Waveshare ESP32-P4-NANO development board
 - `tools/ebin_builder/` - Python tool to compile C sources to EBIN format
 - `test_apps/esptari_loader_integration/` - Integration test for the loader
 
+## Branding Assets
+
+- Official source branding files are under `assets/logo/`:
+	- `assets/logo/esptari_logo.svg` (primary logo)
+	- `assets/logo/esptari_icon.svg` (icon/favicon source)
+	- `assets/logo/esptari_logo_preview.png` (raster preview)
+- Frontend-served favicon/app icon files are in `frontend/public/`:
+	- `frontend/public/favicon.svg`
+	- `frontend/public/apple-touch-icon.png`
+
 ## MCP (AI Chat)
 
 This workspace uses a Node-based MCP server for AI chat tooling access.
