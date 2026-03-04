@@ -1,70 +1,113 @@
-# espTari
+# espTari Emulation Engine v2
 
-An Atari homecomputer emulator for the Waveshare ESP32-P4-NANO development board.
+espTari is an Atari ST-first emulation runtime for ESP32-P4, centered on a contract-driven V2 backend API and deterministic inspection surfaces.
 
-## Features
+This repository now treats V2 as the primary runtime line:
 
-- **Modular Architecture**: Emulator components (CPU, Video, Audio, I/O) are dynamically loaded from EBIN files
-- **Position-Independent Code**: Components compiled as position-independent code that can be loaded into PSRAM
-- **ESP32-P4 Optimized**: Leverages the dual RISC-V cores @ 360MHz and 32MB PSRAM
+- Control and lifecycle APIs under /api/v2
+- Component-level inspection and conformance endpoints
+- SD-card-backed media/module model
+- Task/evidence driven delivery tracked in TRACKING
 
-## Hardware Target
+## Current V2 Focus
 
-- **Board**: Waveshare ESP32-P4-NANO
-- **Processor**: ESP32-P4 (dual RISC-V cores @ 360MHz)
-- **PSRAM**: 32MB
-- **Flash**: 16MB
+- Machine target: Atari ST baseline profile
+- Runtime target: Waveshare ESP32-P4-NANO
+- SDK target: ESP-IDF 5.5.2
+- Primary contract document: docs/EMU_ENGINE_V2_API_SPEC.md
+- Primary implementation plan: docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md
 
-## Project Structure
+## Architecture Summary
 
-- `components/esptari_loader/` - Dynamic EBIN component loader
-- `tools/ebin_builder/` - Python tool to compile C sources to EBIN format
-- `test_apps/esptari_loader_integration/` - Integration test for the loader
+V2 is organized into five execution planes:
+
+1. Control plane: session lifecycle, profile selection, orchestration
+2. Emulation plane: deterministic stepping, scheduling, component coordination
+3. I/O and media plane: SD-card assets, attach/detach flows, host input ingress
+4. Observability plane: registers/bus/memory/timing inspection APIs
+5. Streaming plane: video/audio plus metadata telemetry channels
+
+API style:
+
+- Base path: /api/v2
+- Transport: HTTP JSON and WebSocket stream surfaces
+- Envelope and error taxonomy defined by V2 spec
+
+## Repository Map (V2-Relevant)
+
+- components/esptari_web: V2 HTTP route registration and handlers
+- components/esptari_core: runtime/session state and core orchestration hooks
+- docs/EMU_ENGINE_V2_API_SPEC.md: normative API contract
+- docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md: architecture and sequencing plan
+- docs/emu_engine_v2: hardware and behavior source spec chapters
+- TRACKING: backlog, sprint, acceptance, evidence, and delivery governance
+- tools: smoke scripts, SD card prep, EBIN tooling, MCP tracking server
+- frontend: browser client workspace (Vite/Vue app scaffolding)
+
+## Build and Flash (Firmware)
+
+From repository root:
+
+```bash
+idf.py build
+idf.py flash
+idf.py monitor
+```
+
+If you need an explicit serial target:
+
+```bash
+idf.py -p /dev/ttyACM0 flash monitor
+```
+
+## Frontend Workspace
+
+The frontend workspace lives under frontend.
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+## Development Workflow
+
+For V2 contract work:
+
+1. Update or confirm contract language in docs/EMU_ENGINE_V2_API_SPEC.md
+2. Implement/adjust handlers under components/esptari_web
+3. Build and flash firmware
+4. Run task smoke validation scripts under tools
+5. Store evidence in captures and record acceptance in TRACKING/tracking.db
+
+## Tracking and Evidence
+
+Use TRACKING as the single execution ledger for:
+
+- Task status and dependencies
+- Acceptance decisions and artifact links
+- Sprint/Kanban governance and release notes
+
+Entry points:
+
+- TRACKING/README.md
+- TRACKING/BACKLOG.md
+- TRACKING/KANBAN_BOARD.md
+- TRACKING/ACCEPTANCE_LOG.md
+- TRACKING/UMBRELLA_CLOSURE_REPORT_2026-03-03.md
+
+## MCP Tooling (Workspace)
+
+This workspace includes an MCP server for tracking/docs navigation:
+
+- tools/mcp_tracking_docs_server_node/server.mjs
+- .vscode/mcp.json
 
 ## Branding Assets
 
-- Official source branding files are under `assets/logo/`:
-	- `assets/logo/esptari_logo.svg` (primary logo)
-	- `assets/logo/esptari_icon.svg` (icon/favicon source)
-	- `assets/logo/esptari_logo_preview.png` (raster preview)
-- Frontend-served favicon/app icon files are in `frontend/public/`:
-	- `frontend/public/favicon.svg`
-	- `frontend/public/apple-touch-icon.png`
+- Source branding: assets/logo
+- Frontend icons: frontend/public
 
-## MCP (AI Chat)
+## Status
 
-This workspace uses a Node-based MCP server for AI chat tooling access.
-
-- Server implementation: `tools/mcp_tracking_docs_server_node/server.mjs`
-- VS Code MCP config: `.vscode/mcp.json`
-- Scope: restricted to `TRACKING/` and `docs/`
-
-The previous Python MCP server implementation has been retired.
-
-## Building
-
-Requires ESP-IDF v5.4 or later.
-
-```bash
-# Build the integration test
-cd test_apps/esptari_loader_integration
-idf.py build flash -p /dev/ttyACM0
-
-# Monitor output
-idf.py -p /dev/ttyACM0 monitor
-```
-
-## EBIN Format
-
-EBIN (Embedded Binary) is a custom format for position-independent components:
-- 60-byte header with code/data/bss sizes and relocation info
-- Position-independent code using PC-relative addressing  
-- Relocations for data section pointers
-
-## Notes on ESP32-P4 Dynamic Code Loading
-
-To execute dynamically loaded code on ESP32-P4:
-
-1. Use `CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT=n` to enable `MALLOC_CAP_EXEC`
-2. Compile with `-mno-relax` to prevent linker relaxation
-3. Before execution, use `cache_hal_writeback_addr()` + `fence.i` for proper cache sync
+V2 umbrella backlog closure has been completed and captured in tracking artifacts. Ongoing work should continue as contract-aligned incremental slices with smoke evidence and acceptance logging.
