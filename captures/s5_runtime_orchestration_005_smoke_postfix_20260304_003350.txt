@@ -1,0 +1,37 @@
+health_check=ok attempts=5
+### load_success
+POST /api/v2/ebins/load
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"loaded","transitions":["resolve","validate","bind","init"],"runtime_state":"running","transition_seq":5,"loaded_at_us":16292216}}
+
+load_success_contract=pass ok=True status=True trans=True state=True
+### unload_success
+POST /api/v2/ebins/unload
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"unloaded","transitions":["pause","drain","deinit","release"],"runtime_state":"idle","transition_seq":10,"unloaded_at_us":16551439}}
+
+unload_success_contract=pass ok=True status=True trans=True state=True
+### load_bind_failure
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"bind","reason":"load_bind_failed_simulated","runtime_state":"recoverable_error","module_id":""}}}
+
+load_bind_failure=pass code=EBIN_INVALID stage=bind reason=load_bind_failed_simulated state=recoverable_error
+### load_after_bind_failure_success
+POST /api/v2/ebins/load
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"loaded","transitions":["resolve","validate","bind","init"],"runtime_state":"running","transition_seq":19,"loaded_at_us":16858660}}
+
+load_after_bind_failure_success=pass state=True
+### unload_drain_failure
+POST /api/v2/ebins/unload
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"drain","reason":"unload_drain_failed_simulated","runtime_state":"recoverable_error","module_id":""}}}
+
+unload_drain_failure=pass code=EBIN_INVALID stage=drain reason=unload_drain_failed_simulated state=recoverable_error
+### unload_after_drain_failure_success
+POST /api/v2/ebins/unload
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"unloaded","transitions":["pause","drain","deinit","release"],"runtime_state":"idle","transition_seq":27,"unloaded_at_us":17205371}}
+
+unload_after_drain_failure_success=pass state=True

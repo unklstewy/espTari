@@ -69,6 +69,17 @@ typedef struct {
     const char *path;
 } ebin_catalog_entry_t;
 
+typedef struct {
+    bool has_active_module;
+    char active_module_id[64];
+    char active_abi_version[16];
+    char state[24];
+    char last_stage[24];
+    char last_error_reason[96];
+    uint64_t transition_seq;
+    uint64_t updated_at_us;
+} ebin_runtime_state_t;
+
 static esptari_sync_job_t s_jobs[MAX_SYNC_JOBS];
 static size_t s_job_count;
 static esptari_sync_schedule_t s_schedules[MAX_SYNC_SCHEDULES];
@@ -79,6 +90,16 @@ static bool s_initialized;
 static uint64_t s_job_seq;
 static uint64_t s_schedule_seq;
 static esptari_recovery_report_t s_recovery_report;
+static ebin_runtime_state_t s_ebin_runtime = {
+    .has_active_module = false,
+    .active_module_id = "",
+    .active_abi_version = "",
+    .state = "idle",
+    .last_stage = "",
+    .last_error_reason = "",
+    .transition_seq = 0,
+    .updated_at_us = 0,
+};
 
 static const ebin_catalog_entry_t s_ebin_catalog[] = {
     {.machine = "atari_st", .component = "cpu", .module_id = "st.cpu.m68k", .version = "1.0.0", .path = "/sdcard/ebins/atari_st/cpu/st.cpu.m68k-1.0.0.ebin"},
@@ -358,6 +379,65 @@ static esp_err_t append_resolved_entry(cJSON *resolved,
     cJSON_AddStringToObject(item, "selection_policy", policy);
     cJSON_AddItemToArray(resolved, item);
     return ESP_OK;
+}
+
+static bool catalog_contains_module_id(const char *module_id)
+{
+    if (module_id == NULL || module_id[0] == '\0') {
+        return false;
+    }
+    for (size_t i = 0; i < (sizeof(s_ebin_catalog) / sizeof(s_ebin_catalog[0])); i++) {
+        if (strcmp(s_ebin_catalog[i].module_id, module_id) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void runtime_mark_stage(const char *state, const char *stage)
+{
+    if (state != NULL) {
+        snprintf(s_ebin_runtime.state, sizeof(s_ebin_runtime.state), "%s", state);
+    }
+    if (stage != NULL) {
+        snprintf(s_ebin_runtime.last_stage, sizeof(s_ebin_runtime.last_stage), "%s", stage);
+    }
+    s_ebin_runtime.last_error_reason[0] = '\0';
+    s_ebin_runtime.transition_seq++;
+    s_ebin_runtime.updated_at_us = scheduler_now_us();
+}
+
+static void runtime_mark_failure(const char *stage, const char *reason)
+{
+    snprintf(s_ebin_runtime.state, sizeof(s_ebin_runtime.state), "%s", "recoverable_error");
+    if (stage != NULL) {
+        snprintf(s_ebin_runtime.last_stage, sizeof(s_ebin_runtime.last_stage), "%s", stage);
+    }
+    snprintf(s_ebin_runtime.last_error_reason,
+             sizeof(s_ebin_runtime.last_error_reason),
+             "%s",
+             reason != NULL ? reason : "failure");
+    s_ebin_runtime.transition_seq++;
+    s_ebin_runtime.updated_at_us = scheduler_now_us();
+}
+
+static esp_err_t send_ebin_orchestration_error(httpd_req_t *req,
+                                               const char *code,
+                                               int status,
+                                               const char *stage,
+                                               const char *reason,
+                                               const char *module_id)
+{
+    char payload[768];
+    snprintf(payload,
+             sizeof(payload),
+             "{\"ok\":false,\"error\":{\"code\":\"%s\",\"category\":\"ebin\",\"retryable\":true,\"details\":{\"stage\":\"%s\",\"reason\":\"%s\",\"runtime_state\":\"%s\",\"module_id\":\"%s\"}}}",
+             code != NULL ? code : "EBIN_INVALID",
+             stage != NULL ? stage : "unknown",
+             reason != NULL ? reason : "orchestration_failed",
+             s_ebin_runtime.state,
+             module_id != NULL ? module_id : "");
+    return esptari_web_send_json(req, payload, status);
 }
 
 static const char *wildcard_tail(const char *uri, const char *prefix)
@@ -1281,6 +1361,13 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     cJSON *payload_sha256 = cJSON_GetObjectItemCaseSensitive(json, "payload_sha256");
     cJSON *signature = cJSON_GetObjectItemCaseSensitive(json, "signature");
     cJSON *dependencies = cJSON_GetObjectItemCaseSensitive(json, "dependencies");
+    cJSON *simulate_fail_stage = cJSON_GetObjectItemCaseSensitive(json, "simulate_fail_stage");
+
+    bool prev_has_active_module = s_ebin_runtime.has_active_module;
+    char prev_active_module_id[64];
+    char prev_active_abi_version[16];
+    snprintf(prev_active_module_id, sizeof(prev_active_module_id), "%s", s_ebin_runtime.active_module_id);
+    snprintf(prev_active_abi_version, sizeof(prev_active_abi_version), "%s", s_ebin_runtime.active_abi_version);
 
     if (!cJSON_IsString(module_id) || module_id->valuestring == NULL || module_id->valuestring[0] == '\0') {
         cJSON_Delete(json);
@@ -1305,16 +1392,54 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
         return send_ebin_validation_error(req, "EBIN_INVALID", 400, "abi_version", "must be semantic version MAJOR.MINOR.PATCH");
     }
 
+    runtime_mark_stage("loading", "resolve");
+
+    if (!catalog_contains_module_id(module_id->valuestring)) {
+        runtime_mark_failure("resolve", "load_resolve_failed_module_not_found");
+        cJSON_Delete(json);
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_NOT_FOUND",
+                                             404,
+                                             "resolve",
+                                             "load_resolve_failed_module_not_found",
+                                             module_id->valuestring);
+    }
+    if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
+        strcmp(simulate_fail_stage->valuestring, "resolve") == 0) {
+        runtime_mark_failure("resolve", "load_resolve_failed_simulated");
+        cJSON_Delete(json);
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_NOT_FOUND",
+                                             404,
+                                             "resolve",
+                                             "load_resolve_failed_simulated",
+                                             module_id->valuestring);
+    }
+
+    runtime_mark_stage("loading", "validate");
+
     // Gate 1: integrity
     if (!is_valid_sha256_hex(payload_sha256->valuestring)) {
+        runtime_mark_failure("validate", "load_validate_failed_invalid_hash");
         cJSON_Delete(json);
-        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "payload_sha256", "integrity_gate_failed_invalid_hash");
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_INVALID",
+                                             400,
+                                             "validate",
+                                             "load_validate_failed_invalid_hash",
+                                             module_id->valuestring);
     }
 
     // Gate 2: signature
     if (!cJSON_IsObject(signature)) {
+        runtime_mark_failure("validate", "load_validate_failed_missing_signature");
         cJSON_Delete(json);
-        return send_ebin_validation_error(req, "EBIN_SIGNATURE_INVALID", 409, "signature", "signature_gate_failed_missing_signature_object");
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_SIGNATURE_INVALID",
+                                             409,
+                                             "validate",
+                                             "load_validate_failed_missing_signature",
+                                             module_id->valuestring);
     }
     cJSON *algorithm = cJSON_GetObjectItemCaseSensitive(signature, "algorithm");
     cJSON *key_id = cJSON_GetObjectItemCaseSensitive(signature, "key_id");
@@ -1322,18 +1447,36 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     if (!cJSON_IsString(algorithm) || algorithm->valuestring == NULL || algorithm->valuestring[0] == '\0' ||
         !cJSON_IsString(key_id) || key_id->valuestring == NULL || key_id->valuestring[0] == '\0' ||
         !cJSON_IsString(value) || value->valuestring == NULL || value->valuestring[0] == '\0') {
+        runtime_mark_failure("validate", "load_validate_failed_signature_fields");
         cJSON_Delete(json);
-        return send_ebin_validation_error(req, "EBIN_SIGNATURE_INVALID", 409, "signature", "signature_gate_failed_incomplete_signature_fields");
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_SIGNATURE_INVALID",
+                                             409,
+                                             "validate",
+                                             "load_validate_failed_signature_fields",
+                                             module_id->valuestring);
     }
 
     // Gate 3: dependency compatibility
     if (abi_major != 1U) {
+        runtime_mark_failure("validate", "load_validate_failed_module_abi_incompatible");
         cJSON_Delete(json);
-        return send_ebin_validation_error(req, "EBIN_ABI_MISMATCH", 409, "abi_version", "dependency_gate_failed_module_abi_incompatible");
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_ABI_MISMATCH",
+                                             409,
+                                             "validate",
+                                             "load_validate_failed_module_abi_incompatible",
+                                             module_id->valuestring);
     }
     if (!dependencies_schema_valid(dependencies)) {
+        runtime_mark_failure("validate", "load_validate_failed_dependency_schema");
         cJSON_Delete(json);
-        return send_ebin_validation_error(req, "EBIN_INVALID", 400, "dependencies", "dependency_gate_failed_invalid_schema");
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_INVALID",
+                                             400,
+                                             "validate",
+                                             "load_validate_failed_dependency_schema",
+                                             module_id->valuestring);
     }
 
     cJSON *dep = NULL;
@@ -1345,23 +1488,77 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
         if (cJSON_IsBool(dep_required) && cJSON_IsTrue(dep_required) &&
             (!cJSON_IsString(dep_module_id) || dep_module_id->valuestring == NULL ||
              !ebin_dependency_available(dep_module_id->valuestring))) {
+            runtime_mark_failure("validate", "load_validate_failed_required_dependency_missing");
             cJSON_Delete(json);
-            return send_ebin_validation_error(req,
-                                              "EBIN_DEPENDENCY_MISSING",
-                                              409,
-                                              "dependencies",
-                                              "dependency_gate_failed_required_dependency_missing");
+            return send_ebin_orchestration_error(req,
+                                                 "EBIN_DEPENDENCY_MISSING",
+                                                 409,
+                                                 "validate",
+                                                 "load_validate_failed_required_dependency_missing",
+                                                 module_id->valuestring);
         }
         if (cJSON_IsString(dep_abi_range) && dep_abi_range->valuestring != NULL &&
             strcmp(dep_abi_range->valuestring, "1.0.x") != 0) {
+            runtime_mark_failure("validate", "load_validate_failed_dependency_abi_range_unsupported");
             cJSON_Delete(json);
-            return send_ebin_validation_error(req,
-                                              "EBIN_ABI_MISMATCH",
-                                              409,
-                                              "dependencies",
-                                              "dependency_gate_failed_dependency_abi_range_unsupported");
+            return send_ebin_orchestration_error(req,
+                                                 "EBIN_ABI_MISMATCH",
+                                                 409,
+                                                 "validate",
+                                                 "load_validate_failed_dependency_abi_range_unsupported",
+                                                 module_id->valuestring);
         }
     }
+
+    runtime_mark_stage("loading", "bind");
+    if (s_ebin_runtime.has_active_module && strcmp(s_ebin_runtime.active_module_id, module_id->valuestring) != 0) {
+        runtime_mark_failure("bind", "load_bind_failed_runtime_busy_with_other_module");
+        s_ebin_runtime.has_active_module = prev_has_active_module;
+        snprintf(s_ebin_runtime.active_module_id, sizeof(s_ebin_runtime.active_module_id), "%s", prev_active_module_id);
+        snprintf(s_ebin_runtime.active_abi_version, sizeof(s_ebin_runtime.active_abi_version), "%s", prev_active_abi_version);
+        cJSON_Delete(json);
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_INVALID",
+                                             409,
+                                             "bind",
+                                             "load_bind_failed_runtime_busy_with_other_module",
+                                             module_id->valuestring);
+    }
+    if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
+        strcmp(simulate_fail_stage->valuestring, "bind") == 0) {
+        runtime_mark_failure("bind", "load_bind_failed_simulated");
+        s_ebin_runtime.has_active_module = prev_has_active_module;
+        snprintf(s_ebin_runtime.active_module_id, sizeof(s_ebin_runtime.active_module_id), "%s", prev_active_module_id);
+        snprintf(s_ebin_runtime.active_abi_version, sizeof(s_ebin_runtime.active_abi_version), "%s", prev_active_abi_version);
+        cJSON_Delete(json);
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_INVALID",
+                                             409,
+                                             "bind",
+                                             "load_bind_failed_simulated",
+                                             module_id->valuestring);
+    }
+
+    runtime_mark_stage("loading", "init");
+    if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
+        strcmp(simulate_fail_stage->valuestring, "init") == 0) {
+        runtime_mark_failure("init", "load_init_failed_simulated");
+        s_ebin_runtime.has_active_module = prev_has_active_module;
+        snprintf(s_ebin_runtime.active_module_id, sizeof(s_ebin_runtime.active_module_id), "%s", prev_active_module_id);
+        snprintf(s_ebin_runtime.active_abi_version, sizeof(s_ebin_runtime.active_abi_version), "%s", prev_active_abi_version);
+        cJSON_Delete(json);
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_INVALID",
+                                             409,
+                                             "init",
+                                             "load_init_failed_simulated",
+                                             module_id->valuestring);
+    }
+
+    s_ebin_runtime.has_active_module = true;
+    snprintf(s_ebin_runtime.active_module_id, sizeof(s_ebin_runtime.active_module_id), "%s", module_id->valuestring);
+    snprintf(s_ebin_runtime.active_abi_version, sizeof(s_ebin_runtime.active_abi_version), "%s", abi_version->valuestring);
+    runtime_mark_stage("running", "init");
 
     cJSON *root = cJSON_CreateObject();
     cJSON_AddBoolToObject(root, "ok", true);
@@ -1369,13 +1566,15 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     cJSON_AddItemToObject(root, "data", data);
     cJSON_AddStringToObject(data, "module_id", module_id->valuestring);
     cJSON_AddStringToObject(data, "status", "loaded");
-    cJSON *gates = cJSON_CreateArray();
-    cJSON_AddItemToObject(data, "gates", gates);
-    cJSON_AddItemToArray(gates, cJSON_CreateString("integrity"));
-    cJSON_AddItemToArray(gates, cJSON_CreateString("signature"));
-    cJSON_AddItemToArray(gates, cJSON_CreateString("dependency_compatibility"));
-    cJSON_AddStringToObject(data, "gate_result", "pass");
-    cJSON_AddNumberToObject(data, "loaded_at_us", (double)scheduler_now_us());
+    cJSON *transitions = cJSON_CreateArray();
+    cJSON_AddItemToObject(data, "transitions", transitions);
+    cJSON_AddItemToArray(transitions, cJSON_CreateString("resolve"));
+    cJSON_AddItemToArray(transitions, cJSON_CreateString("validate"));
+    cJSON_AddItemToArray(transitions, cJSON_CreateString("bind"));
+    cJSON_AddItemToArray(transitions, cJSON_CreateString("init"));
+    cJSON_AddStringToObject(data, "runtime_state", s_ebin_runtime.state);
+    cJSON_AddNumberToObject(data, "transition_seq", (double)s_ebin_runtime.transition_seq);
+    cJSON_AddNumberToObject(data, "loaded_at_us", (double)s_ebin_runtime.updated_at_us);
 
     cJSON_Delete(json);
     esp_err_t out = send_json_object(req, root, 200);
@@ -1514,10 +1713,110 @@ static esp_err_t handle_ebins_unload(httpd_req_t *req)
         return ESP_OK;
     }
 
-    const cJSON *name = cJSON_GetObjectItemCaseSensitive(json, "name");
+    cJSON *module_id = cJSON_GetObjectItemCaseSensitive(json, "module_id");
+    if (!cJSON_IsString(module_id) || module_id->valuestring == NULL || module_id->valuestring[0] == '\0') {
+        module_id = cJSON_GetObjectItemCaseSensitive(json, "name");
+    }
+    cJSON *simulate_fail_stage = cJSON_GetObjectItemCaseSensitive(json, "simulate_fail_stage");
+
+    if (!cJSON_IsString(module_id) || module_id->valuestring == NULL || module_id->valuestring[0] == '\0') {
+        cJSON_Delete(json);
+        return send_ebin_validation_error(req, "BAD_REQUEST", 400, "module_id", "required non-empty string");
+    }
+
+    if (!s_ebin_runtime.has_active_module) {
+        runtime_mark_failure("pause", "unload_pause_failed_no_active_module");
+        cJSON_Delete(json);
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_NOT_FOUND",
+                                             404,
+                                             "pause",
+                                             "unload_pause_failed_no_active_module",
+                                             module_id->valuestring);
+    }
+    if (strcmp(s_ebin_runtime.active_module_id, module_id->valuestring) != 0) {
+        runtime_mark_failure("pause", "unload_pause_failed_module_not_active");
+        cJSON_Delete(json);
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_INVALID",
+                                             409,
+                                             "pause",
+                                             "unload_pause_failed_module_not_active",
+                                             module_id->valuestring);
+    }
+
+    runtime_mark_stage("unloading", "pause");
+    if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
+        strcmp(simulate_fail_stage->valuestring, "pause") == 0) {
+        runtime_mark_failure("pause", "unload_pause_failed_simulated");
+        cJSON_Delete(json);
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_INVALID",
+                                             409,
+                                             "pause",
+                                             "unload_pause_failed_simulated",
+                                             module_id->valuestring);
+    }
+
+    runtime_mark_stage("unloading", "drain");
+    if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
+        strcmp(simulate_fail_stage->valuestring, "drain") == 0) {
+        runtime_mark_failure("drain", "unload_drain_failed_simulated");
+        cJSON_Delete(json);
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_INVALID",
+                                             409,
+                                             "drain",
+                                             "unload_drain_failed_simulated",
+                                             module_id->valuestring);
+    }
+
+    runtime_mark_stage("unloading", "deinit");
+    if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
+        strcmp(simulate_fail_stage->valuestring, "deinit") == 0) {
+        runtime_mark_failure("deinit", "unload_deinit_failed_simulated");
+        cJSON_Delete(json);
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_INVALID",
+                                             409,
+                                             "deinit",
+                                             "unload_deinit_failed_simulated",
+                                             module_id->valuestring);
+    }
+
+    runtime_mark_stage("unloading", "release");
+    if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
+        strcmp(simulate_fail_stage->valuestring, "release") == 0) {
+        runtime_mark_failure("release", "unload_release_failed_simulated");
+        cJSON_Delete(json);
+        return send_ebin_orchestration_error(req,
+                                             "EBIN_INVALID",
+                                             409,
+                                             "release",
+                                             "unload_release_failed_simulated",
+                                             module_id->valuestring);
+    }
+
+    s_ebin_runtime.has_active_module = false;
+    s_ebin_runtime.active_module_id[0] = '\0';
+    s_ebin_runtime.active_abi_version[0] = '\0';
+    runtime_mark_stage("idle", "release");
+
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "name", cJSON_IsString(name) ? name->valuestring : "unknown");
-    cJSON_AddStringToObject(root, "status", "unloaded");
+    cJSON_AddBoolToObject(root, "ok", true);
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddItemToObject(root, "data", data);
+    cJSON_AddStringToObject(data, "module_id", module_id->valuestring);
+    cJSON_AddStringToObject(data, "status", "unloaded");
+    cJSON *transitions = cJSON_CreateArray();
+    cJSON_AddItemToObject(data, "transitions", transitions);
+    cJSON_AddItemToArray(transitions, cJSON_CreateString("pause"));
+    cJSON_AddItemToArray(transitions, cJSON_CreateString("drain"));
+    cJSON_AddItemToArray(transitions, cJSON_CreateString("deinit"));
+    cJSON_AddItemToArray(transitions, cJSON_CreateString("release"));
+    cJSON_AddStringToObject(data, "runtime_state", s_ebin_runtime.state);
+    cJSON_AddNumberToObject(data, "transition_seq", (double)s_ebin_runtime.transition_seq);
+    cJSON_AddNumberToObject(data, "unloaded_at_us", (double)s_ebin_runtime.updated_at_us);
 
     cJSON_Delete(json);
     esp_err_t out = send_json_object(req, root, 200);
