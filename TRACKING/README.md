@@ -48,6 +48,19 @@ This folder is the execution system for an Agentic AI delivery team.
 22. [S5 Runtime Unlock Decision Template (2026-03-04)](S5_RUNTIME_UNLOCK_DECISION_TEMPLATE_2026-03-04.md)
 23. [Sprint 02 Closure Report (2026-03-04)](SPRINT_02_CLOSURE_REPORT_2026-03-04.md)
 24. [Program Status Snapshot (2026-03-04)](PROGRAM_STATUS_SNAPSHOT_2026-03-04.md)
+1. [Backlog and Task Index](BACKLOG.md)
+2. [Kanban Board](KANBAN_BOARD.md)
+3. [Acceptance Log](ACCEPTANCE_LOG.md)
+4. [Release Notes](RELEASE_NOTES.md)
+5. [S5 Runtime Unlock Execution Plan](S5_RUNTIME_UNLOCK_EXECUTION_PLAN.md)
+6. [S5 Runtime Unlock Task Cards](TASK_CARDS_S5_RUNTIME_UNLOCK.md)
+7. [S5 Runtime Unlock Review Packet (2026-03-04)](S5_RUNTIME_UNLOCK_PACKET_2026-03-04.md)
+8. [S5 Runtime Unlock Traceability Matrix (2026-03-04)](S5_RUNTIME_UNLOCK_TRACEABILITY_MATRIX_2026-03-04.md)
+9. [S5 Runtime Unlock Decision Template (2026-03-04)](S5_RUNTIME_UNLOCK_DECISION_TEMPLATE_2026-03-04.md)
+10. [Sprint 02 Closure Report (2026-03-04)](SPRINT_02_CLOSURE_REPORT_2026-03-04.md)
+11. [Program Status Snapshot (2026-03-04)](PROGRAM_STATUS_SNAPSHOT_2026-03-04.md)
+12. [Umbrella Closure Report (2026-03-03)](UMBRELLA_CLOSURE_REPORT_2026-03-03.md)
+13. [Legacy Tracking Snapshot (archived 2026-03-03)](_archive/legacy_markdown_2026-03-03/README.md)
 
 ## Cadence
 
