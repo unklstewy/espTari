@@ -36,6 +36,10 @@ static uint64_t fdc_last_transition_us = 1710000031888ULL;
 static uint64_t fdc_terminal_event_seq = 20330;
 static uint64_t fdc_terminal_tick = 912864;
 static uint64_t fdc_terminal_timestamp_us = 1710000031951ULL;
+static uint64_t chipset_integration_tick_counter = 450208120ULL;
+static uint64_t chipset_integration_cycle_counter = 112552440ULL;
+static uint64_t chipset_integration_event_timestamp_us = 1710000026400ULL;
+static uint32_t chipset_integration_call_seq = 0;
 
 enum {
     CHIPSET_GROUP_GLUE = 0,
@@ -481,6 +485,73 @@ static esp_err_t inspect_chipset_windows_timers_handler(httpd_req_t *req)
              "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"timers\":[%s]}}",
              session_id,
              timers_json);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_windows_integration_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char force_order_mismatch_query[8] = {0};
+    bool force_order_mismatch = esptari_web_query_value(req,
+                                                        "force_order_mismatch",
+                                                        force_order_mismatch_query,
+                                                        sizeof(force_order_mismatch_query)) &&
+                               strcmp(force_order_mismatch_query, "1") == 0;
+    if (force_order_mismatch) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"CHIP-TIM-01\"}}}",
+                         500);
+    }
+
+    char force_timing_regression_query[8] = {0};
+    bool force_timing_regression = esptari_web_query_value(req,
+                                                           "force_timing_regression",
+                                                           force_timing_regression_query,
+                                                           sizeof(force_timing_regression_query)) &&
+                                  strcmp(force_timing_regression_query, "1") == 0;
+    if (force_timing_regression) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"CHIP-TIM-02|CHIP-TIM-03\"}}}",
+                         500);
+    }
+
+    char force_bus_owner_invalid_query[8] = {0};
+    bool force_bus_owner_invalid = esptari_web_query_value(req,
+                                                           "force_bus_owner_invalid",
+                                                           force_bus_owner_invalid_query,
+                                                           sizeof(force_bus_owner_invalid_query)) &&
+                                  strcmp(force_bus_owner_invalid_query, "1") == 0;
+    if (force_bus_owner_invalid) {
+        return send_json(req,
+                         "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\",\"details\":{\"check\":\"CHIP-TIM-04\"}}}",
+                         500);
+    }
+
+    chipset_integration_call_seq++;
+    chipset_integration_tick_counter += 3ULL;
+    chipset_integration_cycle_counter += 12ULL;
+    chipset_integration_event_timestamp_us += 37ULL;
+
+    static const char *bus_owners[] = {"glue", "mmu", "shifter", "cpu", "dma"};
+    const char *bus_owner = bus_owners[chipset_integration_call_seq % 5U];
+
+    uint32_t wait_cycles = (uint32_t)((chipset_integration_call_seq % 3U) + 1U);
+
+    char resp[768];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"checks\":{\"CHIP-TIM-01\":\"pass\",\"CHIP-TIM-02\":\"pass\",\"CHIP-TIM-03\":\"pass\",\"CHIP-TIM-04\":\"pass\"},\"last_integration\":{\"tick_counter\":%llu,\"cycle_counter\":%llu,\"chipset_order\":[\"glue\",\"mmu\",\"shifter\"],\"bus_owner\":\"%s\",\"wait_cycles\":%lu,\"event_timestamp_us\":%llu}}}",
+             session_id,
+             (unsigned long long)chipset_integration_tick_counter,
+             (unsigned long long)chipset_integration_cycle_counter,
+             bus_owner,
+             (unsigned long)wait_cycles,
+             (unsigned long long)chipset_integration_event_timestamp_us);
     return send_json(req, resp, 200);
 }
 
@@ -1009,6 +1080,7 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t inspect_chipset_windows_registers = {.uri = "/api/v2/inspect/chipset/windows/registers", .method = HTTP_GET, .handler = inspect_chipset_windows_registers_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_windows_memory = {.uri = "/api/v2/inspect/chipset/windows/memory", .method = HTTP_GET, .handler = inspect_chipset_windows_memory_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_windows_timers = {.uri = "/api/v2/inspect/chipset/windows/timers", .method = HTTP_GET, .handler = inspect_chipset_windows_timers_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_windows_integration = {.uri = "/api/v2/inspect/chipset/windows/integration", .method = HTTP_GET, .handler = inspect_chipset_windows_integration_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_pacing = {.uri = "/api/v2/inspect/chipset/dma/pacing", .method = HTTP_GET, .handler = inspect_chipset_dma_pacing_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_dma_arbitration = {.uri = "/api/v2/inspect/chipset/dma/arbitration", .method = HTTP_GET, .handler = inspect_chipset_dma_arbitration_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_fdc_fsm = {.uri = "/api/v2/inspect/chipset/fdc/fsm", .method = HTTP_GET, .handler = inspect_chipset_fdc_fsm_handler, .user_ctx = NULL};
@@ -1024,6 +1096,7 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_registers);
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_memory);
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_timers);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_windows_integration);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_pacing);
     httpd_register_uri_handler(server_handle, &inspect_chipset_dma_arbitration);
     httpd_register_uri_handler(server_handle, &inspect_chipset_fdc_fsm);
