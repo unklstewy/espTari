@@ -23,6 +23,148 @@ static uint8_t psg_gpio_port_b_value = 16;
 static const char *psg_gpio_port_a_direction = "output";
 static const char *psg_gpio_port_b_direction = "input";
 
+enum {
+    CHIPSET_GROUP_GLUE = 0,
+    CHIPSET_GROUP_MMU = 1,
+    CHIPSET_GROUP_SHIFTER = 2,
+    CHIPSET_GROUP_COUNT = 3,
+};
+
+static const char *chipset_group_names[CHIPSET_GROUP_COUNT] = {
+    "glue",
+    "mmu",
+    "shifter",
+};
+
+static int chipset_group_index_from_name(const char *name)
+{
+    if (name == NULL || name[0] == '\0') {
+        return -1;
+    }
+    for (int i = 0; i < CHIPSET_GROUP_COUNT; ++i) {
+        if (strcmp(name, chipset_group_names[i]) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static bool parse_chipset_group_selector(const char *selector, bool selected[CHIPSET_GROUP_COUNT])
+{
+    if (selector == NULL || selector[0] == '\0') {
+        return false;
+    }
+
+    memset(selected, 0, sizeof(bool) * CHIPSET_GROUP_COUNT);
+
+    char selector_copy[64] = {0};
+    if (strlen(selector) >= sizeof(selector_copy)) {
+        return false;
+    }
+    strlcpy(selector_copy, selector, sizeof(selector_copy));
+
+    bool any = false;
+    char *saveptr = NULL;
+    for (char *token = strtok_r(selector_copy, ",", &saveptr); token != NULL; token = strtok_r(NULL, ",", &saveptr)) {
+        while (*token == ' ' || *token == '\t') {
+            token++;
+        }
+        size_t token_len = strlen(token);
+        while (token_len > 0 && (token[token_len - 1] == ' ' || token[token_len - 1] == '\t')) {
+            token[token_len - 1] = '\0';
+            token_len--;
+        }
+
+        int group_index = chipset_group_index_from_name(token);
+        if (group_index < 0) {
+            return false;
+        }
+        selected[group_index] = true;
+        any = true;
+    }
+
+    return any;
+}
+
+static bool force_unresolved_group_selected(httpd_req_t *req, const bool selected[CHIPSET_GROUP_COUNT])
+{
+    char force_group[16] = {0};
+    if (!esptari_web_query_value(req, "force_unresolved_group", force_group, sizeof(force_group)) || force_group[0] == '\0') {
+        return false;
+    }
+
+    int forced_index = chipset_group_index_from_name(force_group);
+    return forced_index >= 0 && selected[forced_index];
+}
+
+static bool append_register_window_json(char *buffer, size_t buffer_len, bool *first, int group_index)
+{
+    const char *window_json = NULL;
+    switch (group_index) {
+    case CHIPSET_GROUP_GLUE:
+        window_json =
+            "{\"group\":\"glue\",\"base_address\":\"0x00FF8200\",\"window_bytes\":32,\"registers\":[{\"name\":\"video_base_high\",\"offset\":1,\"address\":\"0x00FF8201\",\"width_bits\":8,\"access\":\"rw\"}]}";
+        break;
+    case CHIPSET_GROUP_MMU:
+        window_json =
+            "{\"group\":\"mmu\",\"base_address\":\"0x00FF8000\",\"window_bytes\":48,\"registers\":[{\"name\":\"config\",\"offset\":0,\"address\":\"0x00FF8000\",\"width_bits\":8,\"access\":\"rw\"}]}";
+        break;
+    case CHIPSET_GROUP_SHIFTER:
+        window_json =
+            "{\"group\":\"shifter\",\"base_address\":\"0x00FF8200\",\"window_bytes\":64,\"registers\":[{\"name\":\"sync_mode\",\"offset\":10,\"address\":\"0x00FF820A\",\"width_bits\":8,\"access\":\"rw\"}]}";
+        break;
+    default:
+        return false;
+    }
+
+    size_t used = strlen(buffer);
+    int written = snprintf(buffer + used,
+                           buffer_len - used,
+                           "%s%s",
+                           *first ? "" : ",",
+                           window_json);
+    if (written < 0 || (size_t)written >= buffer_len - used) {
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
+static bool append_memory_window_json(char *buffer, size_t buffer_len, bool *first, int group_index)
+{
+    const char *window_json = NULL;
+    switch (group_index) {
+    case CHIPSET_GROUP_GLUE:
+        window_json =
+            "{\"group\":\"glue\",\"window_start\":\"0x00FF8200\",\"window_end\":\"0x00FF821F\",\"mapped_region\":\"st_chipset_io\",\"addressing_mode\":\"linear\"}";
+        break;
+    case CHIPSET_GROUP_MMU:
+        window_json =
+            "{\"group\":\"mmu\",\"window_start\":\"0x00FF8000\",\"window_end\":\"0x00FF82FF\",\"mapped_region\":\"st_chipset_io\",\"addressing_mode\":\"linear\"}";
+        break;
+    case CHIPSET_GROUP_SHIFTER:
+        window_json =
+            "{\"group\":\"shifter\",\"window_start\":\"0x00FF8200\",\"window_end\":\"0x00FF823F\",\"mapped_region\":\"st_video_window\",\"addressing_mode\":\"banked\"}";
+        break;
+    default:
+        return false;
+    }
+
+    size_t used = strlen(buffer);
+    int written = snprintf(buffer + used,
+                           buffer_len - used,
+                           "%s%s",
+                           *first ? "" : ",",
+                           window_json);
+    if (written < 0 || (size_t)written >= buffer_len - used) {
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
 static esp_err_t validate_session_query(httpd_req_t *req, char *session_id, size_t len)
 {
     if (!esptari_web_query_value(req, "session_id", session_id, len) || session_id[0] == '\0') {
@@ -102,6 +244,90 @@ static esp_err_t inspect_psg_gpio_state_handler(httpd_req_t *req)
              (unsigned)psg_gpio_port_b_value,
              (unsigned long long)psg_gpio_tick,
              (unsigned long long)psg_gpio_timestamp_us);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_windows_registers_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char group_selector[64] = {0};
+    if (!esptari_web_query_value(req, "group", group_selector, sizeof(group_selector)) || group_selector[0] == '\0') {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    bool selected[CHIPSET_GROUP_COUNT] = {false};
+    if (!parse_chipset_group_selector(group_selector, selected)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    if (force_unresolved_group_selected(req, selected)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char windows_json[1536] = {0};
+    bool first = true;
+    for (int group_index = 0; group_index < CHIPSET_GROUP_COUNT; ++group_index) {
+        if (!selected[group_index]) {
+            continue;
+        }
+        if (!append_register_window_json(windows_json, sizeof(windows_json), &first, group_index)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    }
+
+    char resp[1792];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"windows\":[%s]}}",
+             session_id,
+             windows_json);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_windows_memory_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char group_selector[64] = {0};
+    if (!esptari_web_query_value(req, "group", group_selector, sizeof(group_selector)) || group_selector[0] == '\0') {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    bool selected[CHIPSET_GROUP_COUNT] = {false};
+    if (!parse_chipset_group_selector(group_selector, selected)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    if (force_unresolved_group_selected(req, selected)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+    }
+
+    char windows_json[1024] = {0};
+    bool first = true;
+    for (int group_index = 0; group_index < CHIPSET_GROUP_COUNT; ++group_index) {
+        if (!selected[group_index]) {
+            continue;
+        }
+        if (!append_memory_window_json(windows_json, sizeof(windows_json), &first, group_index)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    }
+
+    char resp[1280];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"windows\":[%s]}}",
+             session_id,
+             windows_json);
     return send_json(req, resp, 200);
 }
 
@@ -359,6 +585,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t registers_snapshot = {.uri = "/api/v2/inspect/registers/snapshot", .method = HTTP_GET, .handler = registers_snapshot_handler, .user_ctx = NULL};
     httpd_uri_t bus_snapshot = {.uri = "/api/v2/inspect/bus/snapshot", .method = HTTP_GET, .handler = bus_snapshot_handler, .user_ctx = NULL};
     httpd_uri_t memory_snapshot = {.uri = "/api/v2/inspect/memory/snapshot", .method = HTTP_GET, .handler = memory_snapshot_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_windows_registers = {.uri = "/api/v2/inspect/chipset/windows/registers", .method = HTTP_GET, .handler = inspect_chipset_windows_registers_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_windows_memory = {.uri = "/api/v2/inspect/chipset/windows/memory", .method = HTTP_GET, .handler = inspect_chipset_windows_memory_handler, .user_ctx = NULL};
     httpd_uri_t inspect_psg_gpio_state = {.uri = "/api/v2/inspect/chipset/psg/gpio", .method = HTTP_GET, .handler = inspect_psg_gpio_state_handler, .user_ctx = NULL};
     httpd_uri_t inspect_psg_gpio_events = {.uri = "/api/v2/inspect/chipset/psg/gpio/events", .method = HTTP_GET, .handler = inspect_psg_gpio_events_handler, .user_ctx = NULL};
     httpd_uri_t checkpoint_create = {.uri = "/api/v2/engine/checkpoint/create", .method = HTTP_POST, .handler = checkpoint_create_handler, .user_ctx = NULL};
@@ -367,6 +595,8 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &registers_snapshot);
     httpd_register_uri_handler(server_handle, &bus_snapshot);
     httpd_register_uri_handler(server_handle, &memory_snapshot);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_windows_registers);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_windows_memory);
     httpd_register_uri_handler(server_handle, &inspect_psg_gpio_state);
     httpd_register_uri_handler(server_handle, &inspect_psg_gpio_events);
     httpd_register_uri_handler(server_handle, &checkpoint_create);

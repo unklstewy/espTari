@@ -28,7 +28,7 @@ void esptari_web_init(uint16_t port)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = port;
     config.uri_match_fn = httpd_uri_match_wildcard;
-    config.max_uri_handlers = 96;
+    config.max_uri_handlers = 128;
     config.stack_size = 10240;
 
     if (httpd_start(&server_handle, &config) != ESP_OK) {
