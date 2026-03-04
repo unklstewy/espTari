@@ -27,13 +27,15 @@ enum {
     CHIPSET_GROUP_GLUE = 0,
     CHIPSET_GROUP_MMU = 1,
     CHIPSET_GROUP_SHIFTER = 2,
-    CHIPSET_GROUP_COUNT = 3,
+    CHIPSET_GROUP_MFP = 3,
+    CHIPSET_GROUP_COUNT = 4,
 };
 
 static const char *chipset_group_names[CHIPSET_GROUP_COUNT] = {
     "glue",
     "mmu",
     "shifter",
+    "mfp",
 };
 
 static int chipset_group_index_from_name(const char *name)
@@ -97,6 +99,22 @@ static bool force_unresolved_group_selected(httpd_req_t *req, const bool selecte
     return forced_index >= 0 && selected[forced_index];
 }
 
+static size_t selected_group_count(const bool selected[CHIPSET_GROUP_COUNT])
+{
+    size_t count = 0;
+    for (int group_index = 0; group_index < CHIPSET_GROUP_COUNT; ++group_index) {
+        if (selected[group_index]) {
+            count++;
+        }
+    }
+    return count;
+}
+
+static bool mfp_only_selector(const bool selected[CHIPSET_GROUP_COUNT])
+{
+    return selected[CHIPSET_GROUP_MFP] && selected_group_count(selected) == 1;
+}
+
 static bool append_register_window_json(char *buffer, size_t buffer_len, bool *first, int group_index)
 {
     const char *window_json = NULL;
@@ -112,6 +130,10 @@ static bool append_register_window_json(char *buffer, size_t buffer_len, bool *f
     case CHIPSET_GROUP_SHIFTER:
         window_json =
             "{\"group\":\"shifter\",\"base_address\":\"0x00FF8200\",\"window_bytes\":64,\"registers\":[{\"name\":\"sync_mode\",\"offset\":10,\"address\":\"0x00FF820A\",\"width_bits\":8,\"access\":\"rw\"}]}";
+        break;
+    case CHIPSET_GROUP_MFP:
+        window_json =
+            "{\"group\":\"mfp\",\"base_address\":\"0x00FFFA00\",\"window_bytes\":64,\"registers\":[{\"name\":\"IERA\",\"offset\":7,\"address\":\"0x00FFFA07\",\"width_bits\":8,\"access\":\"rw\"}]}";
         break;
     default:
         return false;
@@ -157,6 +179,46 @@ static bool append_memory_window_json(char *buffer, size_t buffer_len, bool *fir
                            "%s%s",
                            *first ? "" : ",",
                            window_json);
+    if (written < 0 || (size_t)written >= buffer_len - used) {
+        return false;
+    }
+
+    *first = false;
+    return true;
+}
+
+static bool is_valid_mfp_timer_id(const char *timer_id)
+{
+    return timer_id != NULL &&
+           (strcmp(timer_id, "A") == 0 ||
+            strcmp(timer_id, "B") == 0 ||
+            strcmp(timer_id, "C") == 0 ||
+            strcmp(timer_id, "D") == 0);
+}
+
+static bool append_mfp_timer_json(char *buffer,
+                                  size_t buffer_len,
+                                  bool *first,
+                                  const char *timer_id,
+                                  const char *control_register,
+                                  const char *data_register,
+                                  uint32_t prescaler,
+                                  uint32_t counter_value,
+                                  const char *mode,
+                                  bool enabled)
+{
+    size_t used = strlen(buffer);
+    int written = snprintf(buffer + used,
+                           buffer_len - used,
+                           "%s{\"timer_id\":\"%s\",\"control_register\":\"%s\",\"data_register\":\"%s\",\"prescaler\":%lu,\"counter_value\":%lu,\"mode\":\"%s\",\"enabled\":%s}",
+                           *first ? "" : ",",
+                           timer_id,
+                           control_register,
+                           data_register,
+                           (unsigned long)prescaler,
+                           (unsigned long)counter_value,
+                           mode,
+                           enabled ? "true" : "false");
     if (written < 0 || (size_t)written >= buffer_len - used) {
         return false;
     }
@@ -265,7 +327,14 @@ static esp_err_t inspect_chipset_windows_registers_handler(httpd_req_t *req)
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
     }
 
+    if (selected[CHIPSET_GROUP_MFP] && !mfp_only_selector(selected)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
     if (force_unresolved_group_selected(req, selected)) {
+        if (mfp_only_selector(selected)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INSPECT_FILTER_INVALID\"}}", 400);
+        }
         return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
     }
 
@@ -281,11 +350,19 @@ static esp_err_t inspect_chipset_windows_registers_handler(httpd_req_t *req)
     }
 
     char resp[1792];
-    snprintf(resp,
-             sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"windows\":[%s]}}",
-             session_id,
-             windows_json);
+    if (mfp_only_selector(selected)) {
+        snprintf(resp,
+                 sizeof(resp),
+                 "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"window\":%s}}",
+                 session_id,
+                 windows_json);
+    } else {
+        snprintf(resp,
+                 sizeof(resp),
+                 "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"windows\":[%s]}}",
+                 session_id,
+                 windows_json);
+    }
     return send_json(req, resp, 200);
 }
 
@@ -328,6 +405,68 @@ static esp_err_t inspect_chipset_windows_memory_handler(httpd_req_t *req)
              "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"windows\":[%s]}}",
              session_id,
              windows_json);
+    return send_json(req, resp, 200);
+}
+
+static esp_err_t inspect_chipset_windows_timers_handler(httpd_req_t *req)
+{
+    char session_id[64] = {0};
+    esp_err_t guard = validate_running_session_query(req, session_id, sizeof(session_id));
+    if (guard != ESP_OK) {
+        return guard;
+    }
+
+    char group_selector[16] = {0};
+    if (!esptari_web_query_value(req, "group", group_selector, sizeof(group_selector)) || strcmp(group_selector, "mfp") != 0) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"BAD_REQUEST\"}}", 400);
+    }
+
+    char timer_selector[8] = {0};
+    bool has_timer_selector = esptari_web_query_value(req, "timer_id", timer_selector, sizeof(timer_selector));
+    if (has_timer_selector && !is_valid_mfp_timer_id(timer_selector)) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INSPECT_FILTER_INVALID\"}}", 400);
+    }
+
+    char force_unresolved_timer_query[8] = {0};
+    bool force_unresolved_timer = esptari_web_query_value(req,
+                                                          "force_unresolved_timer",
+                                                          force_unresolved_timer_query,
+                                                          sizeof(force_unresolved_timer_query)) &&
+                                 strcmp(force_unresolved_timer_query, "1") == 0;
+    if (force_unresolved_timer) {
+        return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INSPECT_FILTER_INVALID\"}}", 400);
+    }
+
+    char timers_json[1024] = {0};
+    bool first = true;
+
+    if (!has_timer_selector || strcmp(timer_selector, "A") == 0) {
+        if (!append_mfp_timer_json(timers_json, sizeof(timers_json), &first, "A", "TACR", "TADR", 64, 112, "delay", true)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    }
+    if (!has_timer_selector || strcmp(timer_selector, "B") == 0) {
+        if (!append_mfp_timer_json(timers_json, sizeof(timers_json), &first, "B", "TBCR", "TBDR", 32, 88, "event_count", true)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    }
+    if (!has_timer_selector || strcmp(timer_selector, "C") == 0) {
+        if (!append_mfp_timer_json(timers_json, sizeof(timers_json), &first, "C", "TCDCR", "TCDR", 16, 45, "pulse_width", false)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    }
+    if (!has_timer_selector || strcmp(timer_selector, "D") == 0) {
+        if (!append_mfp_timer_json(timers_json, sizeof(timers_json), &first, "D", "TCDCR", "TDDR", 4, 201, "stopped", false)) {
+            return send_json(req, "{\"ok\":false,\"error\":{\"code\":\"INTERNAL_ERROR\"}}", 500);
+        }
+    }
+
+    char resp[1280];
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"timers\":[%s]}}",
+             session_id,
+             timers_json);
     return send_json(req, resp, 200);
 }
 
@@ -587,6 +726,7 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_uri_t memory_snapshot = {.uri = "/api/v2/inspect/memory/snapshot", .method = HTTP_GET, .handler = memory_snapshot_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_windows_registers = {.uri = "/api/v2/inspect/chipset/windows/registers", .method = HTTP_GET, .handler = inspect_chipset_windows_registers_handler, .user_ctx = NULL};
     httpd_uri_t inspect_chipset_windows_memory = {.uri = "/api/v2/inspect/chipset/windows/memory", .method = HTTP_GET, .handler = inspect_chipset_windows_memory_handler, .user_ctx = NULL};
+    httpd_uri_t inspect_chipset_windows_timers = {.uri = "/api/v2/inspect/chipset/windows/timers", .method = HTTP_GET, .handler = inspect_chipset_windows_timers_handler, .user_ctx = NULL};
     httpd_uri_t inspect_psg_gpio_state = {.uri = "/api/v2/inspect/chipset/psg/gpio", .method = HTTP_GET, .handler = inspect_psg_gpio_state_handler, .user_ctx = NULL};
     httpd_uri_t inspect_psg_gpio_events = {.uri = "/api/v2/inspect/chipset/psg/gpio/events", .method = HTTP_GET, .handler = inspect_psg_gpio_events_handler, .user_ctx = NULL};
     httpd_uri_t checkpoint_create = {.uri = "/api/v2/engine/checkpoint/create", .method = HTTP_POST, .handler = checkpoint_create_handler, .user_ctx = NULL};
@@ -597,6 +737,7 @@ void esptari_web_snapshot_register_routes(httpd_handle_t server_handle)
     httpd_register_uri_handler(server_handle, &memory_snapshot);
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_registers);
     httpd_register_uri_handler(server_handle, &inspect_chipset_windows_memory);
+    httpd_register_uri_handler(server_handle, &inspect_chipset_windows_timers);
     httpd_register_uri_handler(server_handle, &inspect_psg_gpio_state);
     httpd_register_uri_handler(server_handle, &inspect_psg_gpio_events);
     httpd_register_uri_handler(server_handle, &checkpoint_create);
