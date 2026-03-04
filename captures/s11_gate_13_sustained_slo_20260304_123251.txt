@@ -1,0 +1,16 @@
+start run_id=20260304_123251 samples=8 interval_sec=0.5 progress_every=1
+route_check path=/api/v2/metrics/performance http=400 ok=True
+route_check path=/api/v2/metrics/performance/samples?limit=5 http=400 ok=True
+route_check path=/api/v2/metrics/performance/thresholds http=400 ok=True
+progress sample=1/8 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=0.0 eta_sec=0.1
+progress sample=2/8 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=0.6 eta_sec=1.7
+progress sample=3/8 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=1.1 eta_sec=1.9
+progress sample=4/8 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=2.5 eta_sec=2.5
+progress sample=5/8 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=3.0 eta_sec=1.8
+progress sample=6/8 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=3.7 eta_sec=1.2
+progress sample=7/8 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=4.2 eta_sec=0.6
+progress sample=8/8 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=5.5 eta_sec=0.0
+aggregate={}
+status=conditional
+hard_eval_possible=False
+json_path=captures/s11_gate_13_sustained_slo_20260304_123251.json

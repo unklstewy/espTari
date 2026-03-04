@@ -1,0 +1,4 @@
+s10_002_smoke_runner=start
+base_url=http://esptari.local
+summary={"baseline_observed": 3, "blocked_by_missing_engine": 3, "needs_data": 0}
+json_path=captures/s10_integration_readiness_002_20260304_120837.json

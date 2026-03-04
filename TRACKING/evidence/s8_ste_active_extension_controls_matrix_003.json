@@ -1,0 +1,13 @@
+{
+  "matrix_version": 1,
+  "task_id": "S8-003",
+  "sprint": "S8",
+  "description": "Active STe extension control matrix",
+  "checks": [
+    {"id": "SE001_START", "expect": {"http": 200, "profile": "ste_pal"}},
+    {"id": "SE002_STREAM_CONTROL_VALID", "expect": {"http": 200, "stream": "video"}},
+    {"id": "SE003_STREAM_CONTROL_INVALID", "expect": {"http": 400, "error_code": "BAD_REQUEST"}},
+    {"id": "SE004_VIDEO_STREAM", "expect": {"http": 200}},
+    {"id": "SE005_AUDIO_STREAM", "expect": {"http": 200}}
+  ]
+}

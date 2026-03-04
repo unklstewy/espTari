@@ -1,0 +1,13 @@
+{
+  "bundle_version": 1,
+  "task_id": "S8-001",
+  "generated_at": "20260304_024448",
+  "harness_capture": "captures/s8_active_profile_manifest_wiring_001_smoke_postfix_20260304_024448.txt",
+  "matrix": "TRACKING/evidence/s8_active_profile_manifest_wiring_matrix_001.json",
+  "summary": {
+    "mega_st_active": true,
+    "ste_active": true,
+    "mega_ste_active": true,
+    "mismatch_guard_code": "BAD_REQUEST"
+  }
+}

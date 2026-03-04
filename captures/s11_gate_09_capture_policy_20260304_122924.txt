@@ -1,0 +1,2 @@
+status=conditional
+json_path=captures/s11_gate_09_capture_policy_20260304_122924.json

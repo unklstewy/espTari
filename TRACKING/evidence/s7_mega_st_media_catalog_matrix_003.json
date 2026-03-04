@@ -1,0 +1,94 @@
+{
+  "matrix_version": 1,
+  "task_id": "S7-003",
+  "sprint": "S7",
+  "description": "Mega ST media/catalog/session run-path parity and deterministic blocker matrix",
+  "checks": [
+    {
+      "id": "MC001_BASELINE_START_AND_SESSION_CONTEXT",
+      "request": "POST+GET /api/v2/engine/session",
+      "expect": {
+        "start_http": 200,
+        "machine": "atari_st",
+        "profile": "st_520_pal",
+        "state": "running"
+      }
+    },
+    {
+      "id": "MC002_CATALOG_LOOKUP_BASELINE",
+      "request": "GET /api/v2/catalogs/floppies/entries/disk.automation.a_093",
+      "expect": {
+        "http": 200,
+        "entry_id": "disk.automation.a_093"
+      }
+    },
+    {
+      "id": "MC003_MEDIA_ATTACH_BASELINE",
+      "request": "POST /api/v2/media/rom/attach + POST /api/v2/media/disk/attach",
+      "expect": {
+        "rom_attach_http": 200,
+        "rom_result": "applied",
+        "disk_attach_http": 200,
+        "disk_result": "active"
+      }
+    },
+    {
+      "id": "MC004_SESSION_CONTINUITY_AFTER_ATTACH",
+      "request": "GET /api/v2/engine/session",
+      "expect": {
+        "http": 200,
+        "state": "running",
+        "machine": "atari_st",
+        "profile": "st_520_pal"
+      }
+    },
+    {
+      "id": "MC005_DISK_EJECT_PARITY",
+      "request": "POST /api/v2/media/disk/eject",
+      "expect": {
+        "http": 200,
+        "result": "ejected"
+      }
+    },
+    {
+      "id": "MC006_MISSING_MEDIA_BLOCKER",
+      "request": "POST /api/v2/media/disk/attach disk_id=disk.missing.s7_003",
+      "expect": {
+        "http": 404,
+        "error_code": "CATALOG_ENTRY_NOT_FOUND"
+      }
+    },
+    {
+      "id": "MC007_INCOMPATIBLE_MEDIA_BLOCKER",
+      "request": "POST /api/v2/media/disk/attach force_active_fail=true",
+      "expect": {
+        "http": 409,
+        "error_code": "MEDIA_ATTACH_FAILED"
+      }
+    },
+    {
+      "id": "MC008_MEGA_ST_CONTEXT_GUARD",
+      "request": "POST /api/v2/engine/session machine=mega_st profile=mega_st_pal",
+      "expect": {
+        "http": 404,
+        "error_code": "MACHINE_PROFILE_NOT_FOUND"
+      }
+    },
+    {
+      "id": "MC009_MEDIA_ATTACH_STOPPED_GUARD",
+      "request": "POST /api/v2/media/rom/attach from stopped",
+      "expect": {
+        "http": 409,
+        "error_code": "INVALID_SESSION_STATE"
+      }
+    },
+    {
+      "id": "MC010_POST_HEALTH_SURVIVABILITY",
+      "request": "GET /api/v2/engine/health",
+      "expect": {
+        "http": 200,
+        "ok": true
+      }
+    }
+  ]
+}

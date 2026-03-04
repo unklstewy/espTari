@@ -1,0 +1,10 @@
+{
+  "negative_cases_total": 2,
+  "negative_cases_passed": 0,
+  "resolve_http": 401,
+  "resolve_code": "UNAUTHORIZED",
+  "validate_http": 401,
+  "validate_code": "UNAUTHORIZED",
+  "resolve_elapsed_ms": 16.525,
+  "validate_elapsed_ms": 13.186
+}

@@ -1,0 +1,13 @@
+s9_003_daily_runner=start
+base_url=http://esptari.local
+health_check=ok attempts=1 elapsed_ms=222.15
+CHK-RISK-003-03::pass::P95/P99 operation latency stays below configured ms limits
+CHK-RISK-003-04::pass::Deterministic dead-link state and blocker semantics
+CHK-RISK-003-01::not-run::Weekly/per-release check omitted from daily bundle
+CHK-RISK-003-02::not-run::Weekly check omitted from daily bundle
+CHK-RISK-003-05::not-run::Weekly check omitted from daily bundle
+CHK-RISK-003-06::not-run::Per-release check omitted from daily bundle
+CHK-RISK-003-07::not-run::Weekly check omitted from daily bundle
+bundle_path=captures/s9_risk_validation_bundle_003_daily_20260304_113508.json
+artifacts_dir=captures/s9_003_daily_20260304_113508
+summary={"fail_count": 0, "not_run_count": 5, "overall_status": "pass", "pass_count": 2}

@@ -1,0 +1,2 @@
+status=conditional
+json_path=captures/s11_gate_12_save_restore_20260304_122926.json

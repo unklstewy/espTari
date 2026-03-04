@@ -1,0 +1,14 @@
+{
+  "matrix_version": 1,
+  "task_id": "S8-007",
+  "sprint": "S8",
+  "description": "Active profile-switch isolation matrix with fallback guard semantics",
+  "checks": [
+    {"id": "PS001_START_ATARI_ST", "expect": {"http": 200, "profile": "st_520_pal"}},
+    {"id": "PS002_SWITCH_TO_STE", "expect": {"http": 200, "profile": "ste_pal"}},
+    {"id": "PS003_SWITCH_TO_MEGA_STE", "expect": {"http": 200, "profile": "mega_ste_pal"}},
+    {"id": "PS004_SWITCH_TO_MEGA_ST", "expect": {"http": 200, "profile": "mega_st_pal"}},
+    {"id": "PS005_CONTROL_PLANE_HEALTH", "expect": {"health_http": 200, "session_http": 200}},
+    {"id": "PS006_FALLBACK_GUARD", "expect": {"http": 400, "error_code": "BAD_REQUEST"}}
+  ]
+}

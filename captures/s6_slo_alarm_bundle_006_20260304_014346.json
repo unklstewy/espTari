@@ -1,0 +1,14 @@
+{
+  "bundle_version": 1,
+  "task_id": "S6-006",
+  "generated_at": "20260304_014346",
+  "harness_capture": "captures/s6_slo_alarm_006_smoke_postfix_20260304_014346.txt",
+  "slo_alarm_matrix": "TRACKING/evidence/s6_slo_alarm_matrix_006.json",
+  "summary": {
+    "collector_revision": "slo_col_rev_02",
+    "last_sample_seq": 6,
+    "first_alarm_state": "breached",
+    "last_alarm_state": "recovered",
+    "history_count": 3
+  }
+}

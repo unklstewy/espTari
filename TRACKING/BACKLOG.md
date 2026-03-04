@@ -181,6 +181,133 @@ PRQ phase note:
 S5 closure note:
 - Decision-ready artifacts are published in `TRACKING/S5_RUNTIME_UNLOCK_PACKET_2026-03-04.md`, `TRACKING/S5_RUNTIME_UNLOCK_TRACEABILITY_MATRIX_2026-03-04.md`, and `TRACKING/S5_RUNTIME_UNLOCK_DECISION_TEMPLATE_2026-03-04.md`.
 
+## S6 phase-4 hardening tasks
+
+Planning basis:
+- Implementation Guide `Phase 4 — Robustness and conformance` and `Immediate next actions`.
+- Objective: close post-S5 robustness validation scope as pullable XS/S execution slices.
+
+| ID | Epic | Task | Priority | Size | Sprint Target | Status | Dependencies |
+|---|---|---|---|---|---|---|---|
+| S6-001 | EPIC-08 | Build phase-4 robustness harness baseline and deterministic fault-injection matrix | P0 | S | S6 | Done | S5-008 |
+| S6-002 | EPIC-08 | Execute stress/fault recovery matrix and assert rollback/control-plane survivability | P0 | S | S6 | Done | S6-001 |
+| S6-003 | EPIC-08 | Execute long-run stability soak suite with deterministic health/safety thresholds | P0 | S | S6 | Done | S6-001 |
+| S6-004 | EPIC-08 | Validate catalog link-probe/dead-link/retry reliability against API 7.10 contracts | P0 | S | S6 | Done | S6-001 |
+| S6-005 | EPIC-08 | Validate on-device scraper schedules including restart-recovery/quarantine behavior | P0 | S | S6 | Done | S6-004 |
+| S6-006 | EPIC-08 | Validate hard SLO latency/jitter/dropped-frame targets and breach alarm semantics | P0 | S | S6 | Done | S6-003 |
+| S6-007 | EPIC-08 | Validate debug clock mode and single-step conformance checks with diagnostic payload integrity | P1 | S | S6 | Done | S6-003 |
+| S6-008 | EPIC-08 | Assemble Sprint 06 hardening evidence packet and PO decision handoff | P0 | XS | S6 | Done | S6-002, S6-005, S6-006, S6-007 |
+
+S6 planning note:
+- `S6-001` through `S6-008` are pullable phase-4 hardening tasks derived from implementation-guide phase intent.
+- Task cards are maintained in `TRACKING/TASK_CARDS_S6_PHASE4_HARDENING.md`.
+- Sprint framing and demo/acceptance scope are maintained in `TRACKING/SPRINT_06_PHASE4_HARDENING.md`.
+
+## S7 phase-5 multi-machine enablement tasks
+
+Planning basis:
+- Implementation Guide `Phase 5 — Multi-machine enablement`.
+- Objective: decompose post-S6 profile enablement and compatibility hardening into pullable XS/S execution slices.
+
+| ID | Epic | Task | Priority | Size | Sprint Target | Status | Dependencies |
+|---|---|---|---|---|---|---|---|
+| S7-001 | EPIC-09 | Build multi-machine profile harness baseline and deterministic profile contract matrix | P0 | S | S7 | Done | S6-008 |
+| S7-002 | EPIC-09 | Validate Mega ST profile bootstrap and lifecycle/API parity | P0 | S | S7 | Done | S7-001 |
+| S7-003 | EPIC-09 | Validate Mega ST media/catalog/session run-path parity | P0 | S | S7 | Done | S7-002 |
+| S7-004 | EPIC-09 | Validate STe profile extension controls (audio/video deltas) | P0 | S | S7 | Done | S7-001 |
+| S7-005 | EPIC-09 | Validate Mega STe profile extension compatibility deltas | P1 | S | S7 | Done | S7-004 |
+| S7-006 | EPIC-09 | Execute cross-profile ABI compatibility and regression guard suite | P0 | S | S7 | Done | S7-003, S7-005 |
+| S7-007 | EPIC-09 | Validate profile-switch state isolation and backward-compat fallback semantics | P0 | S | S7 | Done | S7-006 |
+| S7-008 | EPIC-09 | Assemble Sprint 07 multi-machine evidence packet and PO decision handoff | P0 | XS | S7 | Done | S7-006, S7-007 |
+
+S7 planning note:
+- `S7-001` through `S7-008` are pullable phase-5 multi-machine tasks derived from implementation-guide phase intent.
+- Task cards are maintained in `TRACKING/TASK_CARDS_S7_PHASE5_MULTI_MACHINE.md`.
+- Sprint framing and demo/acceptance scope are maintained in `TRACKING/SPRINT_07_PHASE5_MULTI_MACHINE.md`.
+
+## S8 phase-6 active profile enablement tasks
+
+Planning basis:
+- Sprint 07 residual closure conditions (`S7-R1` through `S7-R3`).
+- Objective: promote non-baseline profiles to active runtime paths and revalidate compatibility as active-run flows.
+
+| ID | Epic | Task | Priority | Size | Sprint Target | Status | Dependencies |
+|---|---|---|---|---|---|---|---|
+| S8-001 | EPIC-09 | Enable runtime manifests/wiring selectors for `mega_st_pal`, `ste_pal`, and `mega_ste_pal` | P0 | S | S8 | Done | S7-008 |
+| S8-002 | EPIC-09 | Validate active Mega ST bootstrap and lifecycle/API parity | P0 | S | S8 | Done | S8-001 |
+| S8-003 | EPIC-09 | Validate active STe extension controls and profile-gated payload semantics | P0 | S | S8 | Done | S8-001 |
+| S8-004 | EPIC-09 | Validate active Mega STe extension compatibility deltas versus STe baseline | P1 | S | S8 | Done | S8-003 |
+| S8-005 | EPIC-09 | Validate cross-profile media/catalog/session run-path parity for active profiles | P0 | S | S8 | Done | S8-002, S8-004 |
+| S8-006 | EPIC-09 | Execute active pairwise ABI compatibility and regression guard suite | P0 | S | S8 | Done | S8-005 |
+| S8-007 | EPIC-09 | Validate active profile-switch isolation and fallback semantics | P0 | S | S8 | Done | S8-006 |
+| S8-008 | EPIC-09 | Assemble Sprint 08 active-profile evidence packet and PO decision handoff | P0 | XS | S8 | Done | S8-006, S8-007 |
+
+S8 planning note:
+- `S8-001` through `S8-008` are pullable phase-6 active-profile tasks derived from Sprint 07 acceptance conditions.
+- Task cards are maintained in `TRACKING/TASK_CARDS_S8_PHASE6_ACTIVE_PROFILES.md`.
+- Sprint framing and demo/acceptance scope are maintained in `TRACKING/SPRINT_08_PHASE6_ACTIVE_PROFILES.md`.
+- Sprint 08 closure artifacts are published in `TRACKING/S8_PHASE6_ACTIVE_PROFILES_PACKET_2026-03-04.md`, `TRACKING/S8_PHASE6_ACTIVE_PROFILES_TRACEABILITY_MATRIX_2026-03-04.md`, and `TRACKING/S8_PHASE6_ACTIVE_PROFILES_DECISION_TEMPLATE_2026-03-04.md`.
+
+## S9 ARC residual hardening/operations tasks
+
+Planning basis:
+- DB-authoritative closure of S1 through S8 with architecture residuals from implementation plan sections `12` and `14`.
+- Objective: convert residual governance/security/reliability operations into pullable XS/S tasks.
+
+| ID | Epic | Task | Priority | Size | Sprint Target | Status | Dependencies |
+|---|---|---|---|---|---|---|---|
+| S9-001 | EPIC-10 | Establish API contract delta changelog discipline and release-note workflow | P0 | XS | S9 | Done | S8-008 |
+| S9-002 | EPIC-10 | Execute security/integrity closure audit for auth path-hardening upload limits and EBIN integrity logging | P0 | S | S9 | Done | S9-001 |
+| S9-003 | EPIC-10 | Operationalize architecture risk mitigations into recurring validation checks and evidence format | P0 | S | S9 | Done | S9-001 |
+| S9-004 | EPIC-10 | Establish recurring soak and SLO regression cadence with ownership and runbook schedule | P1 | S | S9 | Done | S9-003 |
+| S9-005 | EPIC-10 | Encode Atari ST milestone acceptance criteria as periodic release-gate checklist and report template | P0 | S | S9 | Done | S9-002, S9-004 |
+
+S9 planning note:
+- `S9-001` through `S9-005` are operational residual tasks derived from architecture immediate actions and risk sections after S8 closure.
+- Task cards are maintained in `TRACKING/TASK_CARDS_S9_ARC_RESIDUALS.md`.
+
+## S10 integration readiness tasks (soft/non-gating)
+
+Planning basis:
+- Objective: prepare integration/evidence scaffolding while emulated-hardware engine implementation is incomplete.
+- Status model for S10 execution outputs: `baseline_observed`, `needs_data`, `blocked_by_missing_engine`.
+
+| ID | Epic | Task | Priority | Size | Sprint Target | Status | Dependencies |
+|---|---|---|---|---|---|---|---|
+| S10-001 | EPIC-11 | Establish Section-11 integration-readiness matrix using soft status model | P0 | XS | S10 | Done | S9-005 |
+| S10-002 | EPIC-11 | Build placeholder fixture/harness scaffolding for missing emulated-hardware paths | P0 | S | S10 | Done | S10-001 |
+| S10-003 | EPIC-11 | Define observational SLO baseline reporting without hard threshold gates | P1 | XS | S10 | Done | S10-001 |
+| S10-004 | EPIC-11 | Publish integration-readiness confidence report with unblock prerequisites | P0 | S | S10 | Done | S10-002, S10-003 |
+| S10-005 | EPIC-11 | Execute S10 review gate and produce S11 hard-validation transition plan | P0 | XS | S10 | Done | S10-004 |
+
+S10 planning note:
+- `S10-001` through `S10-005` are readiness-first tasks and explicitly non-gating for product-quality closure.
+- Task cards are maintained in `TRACKING/TASK_CARDS_S10_INTEGRATION_READINESS.md`.
+- Sprint framing and non-goals are maintained in `TRACKING/SPRINT_10_INTEGRATION_READINESS.md`.
+
+## S11 pre-EBIN enablement tasks (hard-validation bridge)
+
+Planning basis:
+- Objective: complete pre-EBIN confidence requirements before active emulated EBIN device development.
+- Requirements baseline: `TRACKING/S11_PRE_EBIN_REQUIREMENTS_BASELINE_2026-03-04.md`.
+
+| ID | Epic | Task | Priority | Size | Sprint Target | Status | Dependencies |
+|---|---|---|---|---|---|---|---|
+| S11-001 | EPIC-12 | Implement register snapshot/stream parity and bus/memory filtered trace executable runtime paths | P0 | S | S11 | In Progress | S10-005 |
+| S11-002 | EPIC-12 | Enforce and hard-validate SD-only media resolver/runtime policy | P0 | S | S11 | In Progress | S11-001 |
+| S11-003 | EPIC-12 | Freeze EBIN ABI v1 + manifest compatibility contract and validator outcomes | P0 | S | S11 | Done | S11-001 |
+| S11-004 | EPIC-12 | Reconfirm S9-002 security invariants under S11 runtime changes | P0 | S | S11 | Done | S11-002, S11-003 |
+| S11-005 | EPIC-12 | Execute current-cycle reconfirmation fixtures for gates 07/09/10/12 | P0 | S | S11 | In Progress | S11-001, S11-004 |
+| S11-006 | EPIC-12 | Produce sustained SLO hard-threshold validation report | P0 | S | S11 | In Progress | S11-001, S11-005 |
+| S11-007 | EPIC-12 | Execute full Section-11 hard-validation release-gate and decision report | P0 | S | S11 | Done | S11-002, S11-003, S11-004, S11-005, S11-006 |
+| S11-008 | EPIC-12 | Assemble S11 packet and issue go/no-go for active EBIN device development | P0 | XS | S11 | Done | S11-007 |
+
+S11 planning note:
+- `S11-001` through `S11-008` are pre-EBIN hard-validation tasks.
+- Task cards are maintained in `TRACKING/TASK_CARDS_S11_PRE_EBIN_ENABLEMENT.md`.
+- Sprint framing is maintained in `TRACKING/SPRINT_11_PRE_EBIN_ENABLEMENT.md`.
+- Requirements traceability is maintained in `TRACKING/evidence/s11_pre_ebin_requirements_traceability_001.json`.
+
 ## Decomposition queue (required before pull)
 
 No pending decomposition for currently indexed `M/L` tasks.

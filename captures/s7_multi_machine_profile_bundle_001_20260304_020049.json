@@ -1,0 +1,19 @@
+{
+  "bundle_version": 1,
+  "task_id": "S7-001",
+  "generated_at": "20260304_020049",
+  "harness_capture": "captures/s7_multi_machine_profile_001_smoke_postfix_20260304_020049.txt",
+  "multi_machine_matrix": "TRACKING/evidence/s7_multi_machine_profile_matrix_001.json",
+  "summary": {
+    "baseline_machine": "atari_st",
+    "baseline_profile": "st_520_pal",
+    "validated_modules": 5,
+    "session_state": "running",
+    "resolve_components": 2,
+    "mega_st_machine_guard_code": "BAD_REQUEST",
+    "mega_st_profile_code": "MACHINE_PROFILE_NOT_FOUND",
+    "ste_profile_code": "MACHINE_PROFILE_NOT_FOUND",
+    "mega_ste_profile_code": "MACHINE_PROFILE_NOT_FOUND",
+    "resolve_unsupported_machine_code": "EBIN_NOT_FOUND"
+  }
+}

@@ -1,0 +1,55 @@
+health_check=ok attempts=1
+### engine_session_start
+POST /api/v2/engine/session/start
+HTTP 200
+{"ok":true}
+
+### fault_f001_bad_request_validate
+POST /api/v2/ebins/validate
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST","category":"ebin","retryable":false,"details":{"field":"module_id","reason":"required non-empty string"}}}
+
+fault_f001_bad_request_validate=pass code=BAD_REQUEST
+### fault_f001_bad_request_validate_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+fault_f001_bad_request_validate_health_probe=pass
+### fault_f002_abi_mismatch_validate
+POST /api/v2/ebins/validate
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_ABI_MISMATCH","category":"ebin","retryable":false,"details":{"field":"abi_version","reason":"unsupported major ABI; expected 1.x.x"}}}
+
+fault_f002_abi_mismatch_validate=pass code=EBIN_ABI_MISMATCH
+### fault_f002_abi_mismatch_validate_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+fault_f002_abi_mismatch_validate_health_probe=pass
+### fault_f003_probe_timeout_policy
+POST /api/v2/catalogs/floppies/probe-links
+HTTP 200
+{"ok":true,"data":{"catalog":"floppies","worker_id":"probe_000001","started_at_us":2077416412,"completed_at_us":2077419412,"policy":{"timeout_ms":1,"mark_dead_after_failures":1,"concurrency":16},"summary":{"probed":2,"online":0,"offline":0,"dead":2,"timed_out":1},"results":[{"entry_id":"disk.automation.a_093","state_before":"online","state_after":"dead","attempts":1,"timed_out":true,"latency_ms":2},{"entry_id":"disk.demos.dead_entry","state_before":"dead","state_after":"dead","attempts":1,"timed_out":false,"latency_ms":1}]}}
+
+fault_f003_probe_timeout_policy=pass worker_id=probe_000001
+### fault_f003_probe_timeout_policy_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+fault_f003_probe_timeout_policy_health_probe=pass
+### fault_f004_invalid_timeout_config
+POST /api/v2/catalogs/floppies/probe-links
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+fault_f004_invalid_timeout_config=pass code=BAD_REQUEST
+### fault_f004_invalid_timeout_config_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+fault_f004_invalid_timeout_config_health_probe=pass
+bundle_path=captures/s6_phase4_harness_bundle_001_20260304_011354.json

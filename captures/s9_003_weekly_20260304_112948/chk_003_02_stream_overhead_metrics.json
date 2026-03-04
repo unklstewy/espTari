@@ -1,0 +1,9 @@
+{
+  "video_http": 200,
+  "audio_http": 200,
+  "video_elapsed_ms": 19.145,
+  "audio_elapsed_ms": 13.726,
+  "video_payload_bytes": 2529,
+  "audio_payload_bytes": 2544,
+  "threshold_ms": 20.0
+}

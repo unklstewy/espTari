@@ -1,0 +1,132 @@
+{
+  "task_id": "S10-001",
+  "generated_at": "2026-03-04T12:20:00Z",
+  "status_model": {
+    "baseline_observed": "Harness/check path executes and emits expected evidence structure.",
+    "needs_data": "Path executes but data volume/coverage is insufficient for quality claims.",
+    "blocked_by_missing_engine": "Meaningful execution is blocked until emulated-hardware engine path exists."
+  },
+  "update_rules": [
+    "A criterion may advance from blocked_by_missing_engine to baseline_observed only when one executable probe/harness path emits a timestamped evidence artifact.",
+    "A criterion may advance from baseline_observed to needs_data when probe path is stable but runtime coverage is incomplete.",
+    "No criterion may be marked hard pass/fail in S10 artifacts."
+  ],
+  "criteria": [
+    {
+      "gate_id": "GATE-S11-01",
+      "criterion": "Lifecycle control via v2 APIs",
+      "status": "baseline_observed",
+      "evidence": [
+        "TRACKING/ACCEPTANCE_LOG.md",
+        "captures/s10_integration_readiness_002_20260304_115742.json"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-02",
+      "criterion": "SD-card-only media load policy",
+      "status": "blocked_by_missing_engine",
+      "evidence": [
+        "TRACKING/S10_002_FIXTURE_SCAFFOLD_2026-03-04.md"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-03",
+      "criterion": "EBIN upload/validate/load/unload",
+      "status": "baseline_observed",
+      "evidence": [
+        "TRACKING/S9_002_SECURITY_INTEGRITY_CLOSURE_REPORT_2026-03-04.md"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-04",
+      "criterion": "Browser-consumable audio/video streaming",
+      "status": "baseline_observed",
+      "evidence": [
+        "captures/s10_integration_readiness_002_20260304_115742.json",
+        "captures/s9_risk_validation_bundle_003_weekly_20260304_113935.json"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-05",
+      "criterion": "Register snapshot + stream parity",
+      "status": "blocked_by_missing_engine",
+      "evidence": [
+        "TRACKING/S10_002_FIXTURE_SCAFFOLD_2026-03-04.md"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-06",
+      "criterion": "Bus/memory filtered trace endpoints",
+      "status": "blocked_by_missing_engine",
+      "evidence": [
+        "TRACKING/S10_002_FIXTURE_SCAFFOLD_2026-03-04.md"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-07",
+      "criterion": "Input translation and profile mappings",
+      "status": "needs_data",
+      "evidence": [
+        "captures/input_mapping_negcase_20260302.txt"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-08",
+      "criterion": "Backpressure stability and drop metrics",
+      "status": "baseline_observed",
+      "evidence": [
+        "captures/s9_risk_validation_bundle_003_weekly_20260304_113935.json",
+        "captures/s10_integration_readiness_002_20260304_115742.json"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-09",
+      "criterion": "Browser capture policy modes",
+      "status": "needs_data",
+      "evidence": [
+        "TRACKING/S9_005_DRY_RUN_GATE_EXECUTION_2026-03-04.md"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-10",
+      "criterion": "Catalog resolution + missing asset download",
+      "status": "needs_data",
+      "evidence": [
+        "captures/catalog_79_semantics_1772498372.txt",
+        "captures/catalog_710_semantics_1772498777.txt"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-11",
+      "criterion": "Dead-link marking + scheduler refresh",
+      "status": "baseline_observed",
+      "evidence": [
+        "captures/s9_risk_validation_bundle_003_daily_20260304_114040.json"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-12",
+      "criterion": "Suspend-save and restore-resume compatibility",
+      "status": "needs_data",
+      "evidence": [
+        "TRACKING/PRQ_WORKING/PRQ-001_REVIEW_PACKET.md"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-13",
+      "criterion": "Hard SLO targets measured/exposed",
+      "status": "needs_data",
+      "evidence": [
+        "TRACKING/S10_003_OBSERVATIONAL_SLO_BASELINE_SAMPLE_2026-03-04.md"
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-14",
+      "criterion": "Debug clock slow-motion/single-step correctness",
+      "status": "baseline_observed",
+      "evidence": [
+        "captures/s9_risk_validation_bundle_003_weekly_20260304_113935.json"
+      ]
+    }
+  ]
+}

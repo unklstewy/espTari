@@ -10,8 +10,17 @@ esp_err_t esptari_web_send_json(httpd_req_t *req, const char *json, int status_c
     case 200:
         status = "200 OK";
         break;
+    case 202:
+        status = "202 Accepted";
+        break;
     case 201:
         status = "201 Created";
+        break;
+    case 401:
+        status = "401 Unauthorized";
+        break;
+    case 403:
+        status = "403 Forbidden";
         break;
     case 400:
         status = "400 Bad Request";
@@ -19,11 +28,17 @@ esp_err_t esptari_web_send_json(httpd_req_t *req, const char *json, int status_c
     case 404:
         status = "404 Not Found";
         break;
+    case 408:
+        status = "408 Request Timeout";
+        break;
     case 409:
         status = "409 Conflict";
         break;
     case 412:
         status = "412 Precondition Failed";
+        break;
+    case 413:
+        status = "413 Payload Too Large";
         break;
     default:
         break;

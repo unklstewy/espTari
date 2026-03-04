@@ -1,0 +1,14 @@
+{
+  "matrix_version": 1,
+  "task_id": "S8-002",
+  "sprint": "S8",
+  "description": "Active Mega ST lifecycle/API parity matrix",
+  "checks": [
+    {"id": "MS001_START", "expect": {"http": 200, "profile": "mega_st_pal", "state": "running"}},
+    {"id": "MS002_PAUSE", "expect": {"http": 200}},
+    {"id": "MS003_RESUME", "expect": {"http": 200}},
+    {"id": "MS004_RESET", "expect": {"http": 200, "state": "running"}},
+    {"id": "MS005_STOP", "expect": {"http": 200}},
+    {"id": "MS006_SESSION_PROFILE", "expect": {"http": 200, "profile": "mega_st_pal"}}
+  ]
+}

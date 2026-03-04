@@ -1,0 +1,61 @@
+{
+  "matrix_version": 1,
+  "task_id": "S6-006",
+  "sprint": "S6",
+  "description": "SLO sampling, threshold, and alarm semantic validation matrix",
+  "checks": [
+    {
+      "id": "SLO001_COLLECTOR_CONFIG_ACTIVATION",
+      "request": "POST /api/v2/metrics/performance/collectors/config",
+      "expect": {
+        "http": 200,
+        "state": "active",
+        "collector_revision_prefix": "slo_col_rev_"
+      }
+    },
+    {
+      "id": "SLO002_SAMPLE_SERIES_DETERMINISM",
+      "request": "GET /api/v2/metrics/performance/samples?session_id=ses_local&limit=6",
+      "expect": {
+        "http": 200,
+        "sample_seq_monotonic": true,
+        "window_monotonic": true,
+        "breach_presence": {
+          "jitter_ms_p95": true,
+          "dropped_frame_percent": true
+        }
+      }
+    },
+    {
+      "id": "SLO003_THRESHOLD_PAYLOAD_CONFORMANCE",
+      "request": "GET /api/v2/metrics/performance/thresholds?session_id=ses_local",
+      "expect": {
+        "http": 200,
+        "active_revision": "slo_thr_rev_02",
+        "keys": [
+          "input_latency_ms_p95_max",
+          "jitter_ms_p95_max",
+          "dropped_frame_percent_max"
+        ]
+      }
+    },
+    {
+      "id": "SLO004_ALARM_STATE_AND_TIMING",
+      "request": "GET /api/v2/metrics/performance/alarms?session_id=ses_local&limit=4",
+      "expect": {
+        "http": 200,
+        "states_alternating": true,
+        "timestamp_after_window_end": true,
+        "canonical_metric": "jitter_ms_p95"
+      }
+    },
+    {
+      "id": "SLO005_INPUT_VALIDATION_GUARDS",
+      "request": "GET /api/v2/metrics/performance/alarms?session_id=ses_local&limit=0",
+      "expect": {
+        "http": 400,
+        "error_code": "BAD_REQUEST"
+      }
+    }
+  ]
+}

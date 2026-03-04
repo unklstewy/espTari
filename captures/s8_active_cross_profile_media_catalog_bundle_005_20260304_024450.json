@@ -1,0 +1,11 @@
+{
+  "bundle_version": 1,
+  "task_id": "S8-005",
+  "generated_at": "20260304_024450",
+  "harness_capture": "captures/s8_active_cross_profile_media_catalog_005_smoke_postfix_20260304_024450.txt",
+  "matrix": "TRACKING/evidence/s8_active_cross_profile_media_catalog_matrix_005.json",
+  "summary": {
+    "profiles_active": ["st_520_pal", "mega_st_pal", "ste_pal", "mega_ste_pal"],
+    "media_blocker_code": "CATALOG_ENTRY_NOT_FOUND"
+  }
+}

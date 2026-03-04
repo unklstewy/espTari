@@ -1,0 +1,68 @@
+start run_id=20260304_123321 samples=120 interval_sec=0.5 progress_every=2
+route_check path=/api/v2/metrics/performance http=400 ok=True
+route_check path=/api/v2/metrics/performance/samples?limit=5 http=400 ok=True
+route_check path=/api/v2/metrics/performance/thresholds http=400 ok=True
+progress sample=2/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=0.6 eta_sec=34.7
+progress sample=4/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=1.8 eta_sec=52.3
+progress sample=6/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=3.3 eta_sec=63.0
+progress sample=8/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=4.9 eta_sec=68.2
+progress sample=10/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=6.7 eta_sec=74.2
+progress sample=12/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=8.0 eta_sec=71.7
+progress sample=14/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=9.2 eta_sec=69.6
+progress sample=16/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=10.3 eta_sec=67.1
+progress sample=18/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=11.8 eta_sec=67.1
+progress sample=20/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=13.8 eta_sec=68.9
+progress sample=22/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=15.7 eta_sec=69.9
+progress sample=24/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=16.9 eta_sec=67.5
+progress sample=26/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=18.8 eta_sec=67.9
+progress sample=28/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=20.6 eta_sec=67.6
+progress sample=30/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=21.9 eta_sec=65.7
+progress sample=32/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=23.1 eta_sec=63.5
+progress sample=34/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=24.6 eta_sec=62.3
+progress sample=36/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=25.9 eta_sec=60.4
+progress sample=38/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=27.1 eta_sec=58.4
+progress sample=40/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=28.6 eta_sec=57.2
+progress sample=42/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=30.2 eta_sec=56.0
+progress sample=44/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=32.3 eta_sec=55.8
+progress sample=46/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=34.5 eta_sec=55.5
+progress sample=48/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=36.3 eta_sec=54.5
+progress sample=50/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=37.6 eta_sec=52.6
+progress sample=52/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=38.8 eta_sec=50.7
+progress sample=54/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=40.0 eta_sec=48.9
+progress sample=56/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=41.3 eta_sec=47.3
+progress sample=58/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=42.6 eta_sec=45.5
+progress sample=60/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=43.8 eta_sec=43.8
+progress sample=62/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=44.9 eta_sec=42.0
+progress sample=64/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=46.6 eta_sec=40.8
+progress sample=66/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=47.8 eta_sec=39.1
+progress sample=68/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=48.9 eta_sec=37.4
+progress sample=70/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=50.4 eta_sec=36.0
+progress sample=72/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=51.9 eta_sec=34.6
+progress sample=74/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=53.6 eta_sec=33.3
+progress sample=76/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=54.9 eta_sec=31.8
+progress sample=78/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=56.1 eta_sec=30.2
+progress sample=80/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=57.3 eta_sec=28.7
+progress sample=82/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=58.5 eta_sec=27.1
+progress sample=84/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=60.1 eta_sec=25.8
+progress sample=86/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=61.3 eta_sec=24.2
+progress sample=88/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=62.5 eta_sec=22.7
+progress sample=90/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=63.8 eta_sec=21.3
+progress sample=92/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=65.0 eta_sec=19.8
+progress sample=94/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=66.2 eta_sec=18.3
+progress sample=96/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=67.5 eta_sec=16.9
+progress sample=98/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=68.7 eta_sec=15.4
+progress sample=100/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=69.8 eta_sec=14.0
+progress sample=102/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=71.8 eta_sec=12.7
+progress sample=104/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=73.0 eta_sec=11.2
+progress sample=106/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=74.2 eta_sec=9.8
+progress sample=108/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=75.4 eta_sec=8.4
+progress sample=110/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=76.7 eta_sec=7.0
+progress sample=112/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=77.8 eta_sec=5.6
+progress sample=114/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=79.7 eta_sec=4.2
+progress sample=116/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=81.4 eta_sec=2.8
+progress sample=118/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=83.3 eta_sec=1.4
+progress sample=120/120 http=400 input_latency_ms=na jitter_ms=na dropped_frame_rate_pct=na elapsed_sec=84.5 eta_sec=0.0
+aggregate={}
+status=conditional
+hard_eval_possible=False
+json_path=captures/s11_gate_13_sustained_slo_20260304_123321.json

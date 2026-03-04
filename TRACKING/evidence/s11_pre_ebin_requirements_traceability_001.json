@@ -1,0 +1,55 @@
+{
+  "artifact_id": "S11-PRE-EBIN-TRACE-001",
+  "generated_at": "2026-03-04T17:30:00Z",
+  "source_documents": [
+    "TRACKING/S11_PRE_EBIN_REQUIREMENTS_BASELINE_2026-03-04.md",
+    "TRACKING/TASK_CARDS_S11_PRE_EBIN_ENABLEMENT.md",
+    "TRACKING/SPRINT_11_PRE_EBIN_ENABLEMENT.md",
+    "TRACKING/S10_005_REVIEW_DECISION_AND_S11_TRANSITION_2026-03-04.md",
+    "TRACKING/S9_005_DRY_RUN_GATE_EXECUTION_2026-03-04.md",
+    "TRACKING/S9_002_SECURITY_INTEGRITY_CLOSURE_REPORT_2026-03-04.md"
+  ],
+  "requirements_to_tasks": [
+    {"requirement_id": "PRE-EBIN-01", "tasks": ["S11-001"]},
+    {"requirement_id": "PRE-EBIN-02", "tasks": ["S11-001"]},
+    {"requirement_id": "PRE-EBIN-03", "tasks": ["S11-002"]},
+    {"requirement_id": "PRE-EBIN-04", "tasks": ["S11-003"]},
+    {"requirement_id": "PRE-EBIN-05", "tasks": ["S11-004"]},
+    {"requirement_id": "PRE-EBIN-06", "tasks": ["S11-005"]},
+    {"requirement_id": "PRE-EBIN-07", "tasks": ["S11-006"]},
+    {"requirement_id": "PRE-EBIN-08", "tasks": ["S11-007", "S11-008"]}
+  ],
+  "entry_gate_for_active_ebin_device_dev": {
+    "required_requirements": [
+      "PRE-EBIN-01",
+      "PRE-EBIN-02",
+      "PRE-EBIN-03",
+      "PRE-EBIN-04"
+    ],
+    "decision_task": "S11-008"
+  },
+  "current_execution_status": {
+    "as_of": "2026-03-04",
+    "tasks": {
+      "S11-001": "completed",
+      "S11-002": "completed",
+      "S11-003": "completed",
+      "S11-004": "completed",
+      "S11-005": "partial",
+      "S11-006": "partial",
+      "S11-007": "completed_decision_fail",
+      "S11-008": "completed_decision_go_with_constraints"
+    },
+    "evidence": [
+      "TRACKING/S11_EXECUTION_STATUS_2026-03-04.md",
+      "TRACKING/S11_007_SECTION11_HARD_VALIDATION_GATE_REPORT_2026-03-04.md",
+      "TRACKING/S11_008_PRE_EBIN_GO_NO_GO_DECISION_2026-03-04.md",
+      "captures/s11_open_gates_coverage_20260304_122527.json",
+      "captures/s11_gate_07_input_translation_20260304_122924.json",
+      "captures/s11_gate_09_capture_policy_20260304_122924.json",
+      "captures/s11_gate_10_catalog_missing_asset_20260304_122925.json",
+      "captures/s11_gate_12_save_restore_20260304_122926.json",
+      "captures/s11_gate_13_sustained_slo_20260304_122926.json"
+    ]
+  }
+}

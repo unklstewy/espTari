@@ -1,0 +1,2 @@
+status=conditional
+json_path=captures/s11_gate_07_input_translation_20260304_122924.json

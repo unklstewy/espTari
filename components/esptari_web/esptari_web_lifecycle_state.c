@@ -10,6 +10,7 @@
 #include "esp_timer.h"
 #include "esptari_core.h"
 #include "esptari_web_http_utils.h"
+#include "esptari_web_audit.h"
 
 static esp_err_t send_guard_error(httpd_req_t *req,
                                   int status_code,
@@ -165,6 +166,7 @@ esp_err_t esptari_web_lifecycle_suspend_save_handler(httpd_req_t *req)
                            (strcmp(force_fail_query, "1") == 0 || strcmp(force_fail_query, "true") == 0);
 
     if (force_save_fail) {
+        esptari_web_audit_log("web_api", "/api/v2/engine/session/suspend-save", session_id_copy, "failed", "snapshot_persist_failed");
         esptari_session_status_t after_status;
         esptari_core_get_status(&after_status);
         char rollback_error[1024];
@@ -180,12 +182,14 @@ esp_err_t esptari_web_lifecycle_suspend_save_handler(httpd_req_t *req)
 
     esp_err_t err = esptari_core_suspend_save(snapshot_id_copy);
     if (err == ESP_ERR_INVALID_STATE) {
+        esptari_web_audit_log("web_api", "/api/v2/engine/session/suspend-save", session_id_copy, "failed", "invalid_session_state");
         return send_guard_error(req, 409, "INVALID_SESSION_STATE", "engine", false, "SUSP-REQ-01", "/api/v2/engine/session/suspend-save", "suspend-save is allowed only from running state");
     }
     if (err == ESP_ERR_INVALID_ARG) {
         return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-SUSPEND-01", "/api/v2/engine/session/suspend-save", "Invalid suspend-save arguments");
     }
     if (err != ESP_OK) {
+        esptari_web_audit_log("web_api", "/api/v2/engine/session/suspend-save", session_id_copy, "failed", "internal_error");
         esptari_session_status_t after_status;
         esptari_core_get_status(&after_status);
         char rollback_error[1024];
@@ -210,6 +214,7 @@ esp_err_t esptari_web_lifecycle_suspend_save_handler(httpd_req_t *req)
              (unsigned long long)after_status.last_transition_us,
              auto_resume ? "true" : "false",
              include_stream_state ? "true" : "false");
+    esptari_web_audit_log("web_api", "/api/v2/engine/session/suspend-save", session_id_copy, "success", "running_to_suspended");
     return esptari_web_send_json(req, resp, 200);
 }
 
@@ -276,12 +281,15 @@ esp_err_t esptari_web_lifecycle_restore_resume_handler(httpd_req_t *req)
 
     esp_err_t err = esptari_core_restore_resume(snapshot_id_copy, resume_running);
     if (err == ESP_ERR_INVALID_STATE) {
+        esptari_web_audit_log("web_api", "/api/v2/engine/session/restore-resume", session_id_copy, "failed", "engine_not_suspended");
         return send_guard_error(req, 409, "ENGINE_NOT_SUSPENDED", "engine", false, "REST-RES-01", "/api/v2/engine/session/restore-resume", "Restore-resume requires suspended state");
     }
     if (err == ESP_ERR_NOT_FOUND) {
+        esptari_web_audit_log("web_api", "/api/v2/engine/session/restore-resume", snapshot_id_copy, "failed", "snapshot_not_found");
         return send_guard_error(req, 404, "SNAPSHOT_NOT_FOUND", "snapshot", false, "REST-RES-03", "/api/v2/engine/session/restore-resume", "Requested snapshot was not found");
     }
     if (err == ESP_ERR_INVALID_RESPONSE) {
+        esptari_web_audit_log("web_api", "/api/v2/engine/session/restore-resume", snapshot_id_copy, "failed", "snapshot_incompatible");
         const char *rule_id = esptari_core_get_last_failed_compat_rule();
         char incompatible_resp[640];
         snprintf(incompatible_resp,
@@ -293,9 +301,11 @@ esp_err_t esptari_web_lifecycle_restore_resume_handler(httpd_req_t *req)
         return esptari_web_send_json(req, incompatible_resp, 409);
     }
     if (err == ESP_ERR_INVALID_ARG) {
+        esptari_web_audit_log("web_api", "/api/v2/engine/session/restore-resume", snapshot_id_copy, "failed", "bad_request");
         return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "REST-RES-01", "/api/v2/engine/session/restore-resume", "Invalid restore-resume arguments");
     }
     if (err != ESP_OK) {
+        esptari_web_audit_log("web_api", "/api/v2/engine/session/restore-resume", snapshot_id_copy, "failed", "restore_failed");
         return send_guard_error(req, 500, "SNAPSHOT_RESTORE_FAILED", "snapshot", false, "REST-RES-03", "/api/v2/engine/session/restore-resume", "Unhandled restore-resume failure");
     }
 
@@ -310,6 +320,7 @@ esp_err_t esptari_web_lifecycle_restore_resume_handler(httpd_req_t *req)
              resume_running ? "running" : "paused",
              (unsigned long long)after_status.last_transition_us,
              resume_running ? "suspended->running" : "suspended->paused");
+    esptari_web_audit_log("web_api", "/api/v2/engine/session/restore-resume", session_id_copy, "success", resume_running ? "suspended_to_running" : "suspended_to_paused");
     return esptari_web_send_json(req, resp, 200);
 }
 

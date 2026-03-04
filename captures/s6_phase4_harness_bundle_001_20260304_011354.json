@@ -1,0 +1,13 @@
+{
+  "bundle_version": 1,
+  "task_id": "S6-001",
+  "generated_at": "20260304_011354",
+  "harness_capture": "captures/s6_phase4_harness_001_smoke_postfix_20260304_011354.txt",
+  "fault_matrix": "TRACKING/evidence/s6_fault_injection_matrix_001.json",
+  "scenarios": [
+    {"fault_id":"F001_BAD_REQUEST_VALIDATE","status":"pass","error_code":"BAD_REQUEST"},
+    {"fault_id":"F002_ABI_MISMATCH_VALIDATE","status":"pass","error_code":"EBIN_ABI_MISMATCH"},
+    {"fault_id":"F003_PROBE_TIMEOUT_POLICY","status":"pass","worker_id":"probe_000001"},
+    {"fault_id":"F004_INVALID_TIMEOUT_CONFIG","status":"pass","error_code":"BAD_REQUEST"}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "bundle_version": 1,
+  "task_id": "S8-002",
+  "generated_at": "20260304_024449",
+  "harness_capture": "captures/s8_mega_st_active_lifecycle_002_smoke_postfix_20260304_024449.txt",
+  "matrix": "TRACKING/evidence/s8_mega_st_active_lifecycle_matrix_002.json",
+  "summary": {
+    "start_profile": "mega_st_pal",
+    "reset_state": "running",
+    "session_profile": "mega_st_pal"
+  }
+}

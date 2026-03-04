@@ -1,0 +1,63 @@
+health_check=ok attempts=1
+### session_stop_pre
+POST /api/v2/engine/session/stop
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-STOP","endpoint":"/api/v2/engine/session/stop","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### baseline_start_atari_st
+POST /api/v2/engine/session
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"st_520_pal","profile_manifest_validation":{"path":"/sdcard/config/engine_v2/machines/atari_st/st_520_pal.json","manifest_version":1,"schema_valid":true,"normalized_profile":"st_520_pal","validated_at_us":5745434278},"profile_wiring_validation":{"wiring_valid":true,"validated_modules":5,"step_order_length":5,"validated_at_us":5745434279},"resolved":{"rom_id":"rom.atari.st.01","rom_path":"/sdcard/roms/st/TOS104.ROM","tos_id":"tos.eu.1.04","tos_path":"/sdcard/tos/TOS104.IMG","first_disk_id":"disk.automation.a_093"}}}
+
+### video_extension_control_baseline
+POST /api/v2/stream/control
+HTTP 200
+{"ok":true,"data":{"stream":"video","type":"set_rate_limit","pacing":{"pacing_mode":"fixed_fps","target_fps":50,"max_burst_frames":2},"applied_at_us":5745504078}}
+
+### audio_extension_control_baseline
+POST /api/v2/stream/control
+HTTP 200
+{"ok":true,"data":{"stream":"audio","type":"set_rate_limit","pacing":{"pacing_mode":"fixed_hz","target_hz":240,"max_burst_chunks":2},"applied_at_us":5745678087}}
+
+### video_backward_envelope
+GET /api/v2/stream/video?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"stream":"video","event_seq":4,"event_timestamp_us":5746001014,"delivery":{"degraded":false,"reason":"none","dropped_events_since_last":0,"coalesced_updates":0,"throttle_active":false},"backpressure":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":5746001014},"backpressure_event":{"type":"stream_backpressure_telemetry","schema_version":1,"session_id":"ses_local","event_seq":4,"event_timestamp_us":5746001014,"stream":"video","metrics":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":5746001014}},"video_metadata_contract":{"channel":"video.metadata.v1","schema":"video_frame_meta_v1","required_fields":["type","schema_version","channel","session_id","frame_id","timestamp_us","width","height","pixel_format","payload_bytes"],"pixel_format_enum":["RGB565","XRGB8888","RGB888"],"ordering":"frame_id_strictly_ascending","payload_pairing":"frame_id_and_payload_bytes_must_match_following_binary_payload"},"video_frame_meta_sample":{"type":"video_frame_meta","schema_version":1,"channel":"video.metadata.v1","session_id":"ses_local","frame_id":3,"timestamp_us":5746001014,"width":640,"height":400,"pixel_format":"RGB565","payload_bytes":512000},"audio_metadata_contract":null,"audio_chunk_meta_sample":null,"register_snapshot_contract":null,"register_filter_selectors":null,"register_update_sample":null,"register_publisher":null,"bus_filter_contract":null,"bus_filter_selectors":null,"memory_filter_contract":null,"memory_filter_selectors":null,"bus_stream_publisher":null,"memory_stream_publisher":null,"filtered_stream_load_validation":null,"video_payload_emitter":{"checks":{"VID-EMIT-01":"pass","VID-EMIT-02":"pass","VID-EMIT-03":"pass"},"pacing":{"pacing_mode":"fixed_fps","target_fps":50,"max_burst_frames":2,"throttle_active":false},"state":{"last_frame_id":3,"emitted_pairs":3,"sequence_violations":0,"pairing_violations":0,"last_error":"none"}},"video_payload_sample":{"frame_id":3,"payload_bytes":512000,"binary_payload_emitted":true},"audio_payload_emitter":null,"audio_payload_sample":null,"media_attach_status_events":[],"media_disk_state_events":[],"slo_alarm":{"seq":0,"state":"normal","severity":"info"}}}
+
+### audio_backward_envelope
+GET /api/v2/stream/audio?session_id=ses_local
+HTTP 200
+{"ok":true,"data":{"stream":"audio","event_seq":5,"event_timestamp_us":5746060874,"delivery":{"degraded":false,"reason":"none","dropped_events_since_last":0,"coalesced_updates":0,"throttle_active":false},"backpressure":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":5746060874},"backpressure_event":{"type":"stream_backpressure_telemetry","schema_version":1,"session_id":"ses_local","event_seq":5,"event_timestamp_us":5746060874,"stream":"audio","metrics":{"queue_depth":32,"queue_capacity":128,"dropped_events":0,"dropped_events_since_last":0,"throttle_active":false,"high_watermark_depth":32,"high_watermark_ratio":0.250,"overflow_events_total":0,"throttle_transitions_total":0,"sample_timestamp_us":5746060874}},"video_metadata_contract":null,"video_frame_meta_sample":null,"audio_metadata_contract":{"channel":"audio.metadata.v1","schema":"audio_chunk_meta_v1","required_fields":["type","schema_version","channel","session_id","chunk_id","timestamp_us","sample_rate","channels","format","frames","payload_bytes"],"format_enum":["PCM_S16LE","PCM_F32LE"],"ordering":"chunk_id_strictly_ascending","payload_pairing":"chunk_id_and_payload_bytes_must_match_following_binary_payload"},"audio_chunk_meta_sample":{"type":"audio_chunk_meta","schema_version":1,"channel":"audio.metadata.v1","session_id":"ses_local","chunk_id":5,"timestamp_us":5746060874,"sample_rate":48000,"channels":2,"format":"PCM_S16LE","frames":1024,"payload_bytes":4096},"register_snapshot_contract":null,"register_filter_selectors":null,"register_update_sample":null,"register_publisher":null,"bus_filter_contract":null,"bus_filter_selectors":null,"memory_filter_contract":null,"memory_filter_selectors":null,"bus_stream_publisher":null,"memory_stream_publisher":null,"filtered_stream_load_validation":null,"video_payload_emitter":null,"video_payload_sample":null,"audio_payload_emitter":{"checks":{"AUD-EMIT-01":"pass","AUD-EMIT-02":"pass","AUD-EMIT-03":"pass"},"pacing":{"pacing_mode":"fixed_hz","target_hz":240,"max_burst_chunks":2,"throttle_active":false},"state":{"last_chunk_id":2,"emitted_pairs":2,"sequence_violations":0,"pairing_violations":0,"last_error":"none"}},"audio_payload_sample":{"chunk_id":2,"payload_bytes":4096,"binary_payload_emitted":true},"media_attach_status_events":[],"media_disk_state_events":[],"slo_alarm":{"seq":0,"state":"normal","severity":"info"}}}
+
+### invalid_extension_usage_control_guard
+POST /api/v2/stream/control
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+### invalid_extension_usage_video_schema_guard
+GET /api/v2/stream/video?session_id=ses_local&metadata_schema_version=2
+HTTP 400
+{"ok":false,"error":{"code":"UNSUPPORTED_VERSION"}}
+
+### ste_profile_guard
+POST /api/v2/engine/session
+HTTP 404
+{"ok":false,"error":{"code":"MACHINE_PROFILE_NOT_FOUND","details":{"path":"/sdcard/config/engine_v2/machines/atari_st/ste_pal.json","reason":"manifest not found"}}}
+
+### session_stop_for_control_guard
+POST /api/v2/engine/session/stop
+HTTP 200
+{"ok":true}
+
+### stopped_control_guard
+POST /api/v2/stream/control
+HTTP 409
+{"ok":false,"error":{"code":"ENGINE_NOT_RUNNING"}}
+
+### post_checks_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+s7_ste_extension_controls=pass baseline=atari_st/st_520_pal ste_guard=MACHINE_PROFILE_NOT_FOUND invalid_control=BAD_REQUEST
+bundle_path=captures/s7_ste_extension_controls_bundle_004_20260304_021502.json

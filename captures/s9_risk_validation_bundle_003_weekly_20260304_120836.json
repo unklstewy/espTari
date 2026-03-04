@@ -1,0 +1,135 @@
+{
+  "bundle_version": 1,
+  "task_id": "S9-003",
+  "run_id": "20260304_120836",
+  "generated_at": "2026-03-04T17:08:36Z",
+  "cadence": "weekly",
+  "checks": [
+    {
+      "check_id": "CHK-RISK-003-01",
+      "risk_id": "RISK-ABI-CHURN",
+      "status": "pass",
+      "threshold_ref": "THR-RISK-003-01",
+      "signal": "Canonical ABI guard-code behavior and no unexpected positive regressions",
+      "metrics": {
+        "negative_cases_total": 2,
+        "negative_cases_passed": 2,
+        "resolve_http": 404,
+        "resolve_code": "EBIN_NOT_FOUND",
+        "validate_http": 400,
+        "validate_code": "BAD_REQUEST",
+        "resolve_elapsed_ms": 15.439,
+        "validate_elapsed_ms": 18.032
+      },
+      "artifacts": [
+        "captures/s9_003_weekly_20260304_120836/chk_003_01_abi_gate_metrics.json",
+        "captures/s9_risk_validation_003_weekly_20260304_120836.txt"
+      ],
+      "notes": ""
+    },
+    {
+      "check_id": "CHK-RISK-003-02",
+      "risk_id": "RISK-STREAM-OVERHEAD",
+      "status": "pass",
+      "threshold_ref": "THR-RISK-003-02",
+      "signal": "Envelope latency sample is within threshold and stream payloads are retrievable",
+      "metrics": {
+        "video_http": 200,
+        "audio_http": 200,
+        "video_elapsed_ms": 26.003,
+        "audio_elapsed_ms": 31.765,
+        "video_payload_bytes": 2536,
+        "audio_payload_bytes": 2552,
+        "threshold_ms": 130.0
+      },
+      "artifacts": [
+        "captures/s9_003_weekly_20260304_120836/chk_003_02_stream_overhead_metrics.json",
+        "captures/s9_risk_validation_003_weekly_20260304_120836.txt"
+      ],
+      "notes": ""
+    },
+    {
+      "check_id": "CHK-RISK-003-05",
+      "risk_id": "RISK-TRACE-PRESSURE",
+      "status": "pass",
+      "threshold_ref": "THR-RISK-003-05",
+      "signal": "No nominal drop/throttle condition in sampled backpressure telemetry",
+      "metrics": {
+        "video_dropped_events_since_last": 0,
+        "audio_dropped_events_since_last": 0,
+        "video_throttle_active": false,
+        "audio_throttle_active": false,
+        "video_queue_depth": 32,
+        "audio_queue_depth": 32
+      },
+      "artifacts": [
+        "captures/s9_003_weekly_20260304_120836/chk_003_05_trace_pressure_metrics.json",
+        "captures/s9_risk_validation_003_weekly_20260304_120836.txt"
+      ],
+      "notes": ""
+    },
+    {
+      "check_id": "CHK-RISK-003-07",
+      "risk_id": "RISK-DEBUG-MODE-PERTURBATION",
+      "status": "pass",
+      "threshold_ref": "THR-RISK-003-07",
+      "signal": "Deterministic clock mode/step behavior and stable guard semantics",
+      "metrics": {
+        "set_single_step_http": 200,
+        "step_http": 200,
+        "state_http": 200,
+        "set_realtime_http": 200,
+        "steps_requested": 2,
+        "ticks_committed": 2,
+        "state_mode_before_realtime": "single_step",
+        "elapsed_ms": {
+          "set_single_step": 15.073,
+          "step": 28.517,
+          "state": 27.429,
+          "set_realtime": 21.72
+        }
+      },
+      "artifacts": [
+        "captures/s9_003_weekly_20260304_120836/chk_003_07_debug_perturbation_metrics.json",
+        "captures/s9_risk_validation_003_weekly_20260304_120836.txt"
+      ],
+      "notes": ""
+    },
+    {
+      "check_id": "CHK-RISK-003-03",
+      "risk_id": "RISK-SD-IO-LATENCY",
+      "status": "not-run",
+      "threshold_ref": "THR-RISK-003-03",
+      "signal": "Daily cadence check omitted from weekly bundle",
+      "metrics": {},
+      "artifacts": [],
+      "notes": "Scheduled in daily run"
+    },
+    {
+      "check_id": "CHK-RISK-003-04",
+      "risk_id": "RISK-DEAD-LINK-RESILIENCE",
+      "status": "not-run",
+      "threshold_ref": "THR-RISK-003-04",
+      "signal": "Daily cadence check omitted from weekly bundle",
+      "metrics": {},
+      "artifacts": [],
+      "notes": "Scheduled in daily run"
+    },
+    {
+      "check_id": "CHK-RISK-003-06",
+      "risk_id": "RISK-SAVESTATE-DRIFT",
+      "status": "not-run",
+      "threshold_ref": "THR-RISK-003-06",
+      "signal": "Per-release check omitted from weekly bundle",
+      "metrics": {},
+      "artifacts": [],
+      "notes": "Scheduled in per-release run"
+    }
+  ],
+  "summary": {
+    "overall_status": "pass",
+    "pass_count": 4,
+    "fail_count": 0,
+    "not_run_count": 3
+  }
+}

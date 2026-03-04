@@ -1,0 +1,13 @@
+{
+  "matrix_version": 1,
+  "task_id": "S8-005",
+  "sprint": "S8",
+  "description": "Active cross-profile media/catalog/session parity matrix",
+  "checks": [
+    {"id": "CM001_ATARI_ST", "expect": {"http": 200, "profile": "st_520_pal"}},
+    {"id": "CM002_MEGA_ST", "expect": {"http": 200, "profile": "mega_st_pal"}},
+    {"id": "CM003_STE", "expect": {"http": 200, "profile": "ste_pal"}},
+    {"id": "CM004_MEGA_STE", "expect": {"http": 200, "profile": "mega_ste_pal"}},
+    {"id": "CM005_MEDIA_BLOCKER", "expect": {"http": 404, "error_code": "CATALOG_ENTRY_NOT_FOUND"}}
+  ]
+}

@@ -1,0 +1,61 @@
+health_check=ok attempts=1
+### session_stop_pre
+POST /api/v2/engine/session/stop
+HTTP 200
+{"ok":true}
+
+### baseline_start_atari_st
+POST /api/v2/engine/session
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"st_520_pal","profile_manifest_validation":{"path":"/sdcard/config/engine_v2/machines/atari_st/st_520_pal.json","manifest_version":1,"schema_valid":true,"normalized_profile":"st_520_pal","validated_at_us":4892698100},"profile_wiring_validation":{"wiring_valid":true,"validated_modules":5,"step_order_length":5,"validated_at_us":4892698101},"resolved":{"rom_id":"rom.atari.st.01","rom_path":"/sdcard/roms/st/TOS104.ROM","tos_id":"tos.eu.1.04","tos_path":"/sdcard/tos/TOS104.IMG","first_disk_id":"disk.automation.a_093"}}}
+
+baseline_start_atari_st=pass machine=atari_st profile=st_520_pal validated_modules=5
+### session_state_parity
+GET /api/v2/engine/session
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","run_mode":"realtime","machine":"atari_st","profile":"st_520_pal","snapshot_at_us":11692011657,"uptime_ms":185,"cycle_counter":93806765028,"tick_counter":7817230419,"loaded_modules":[],"runtime":{"scheduler_hz":8000000,"timestamp_origin_us":3874781238,"timestamp_last_emitted_us":11692011657,"timestamp_regressions":0,"last_transition_at_us":4892698308,"last_error":null},"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+
+session_state_parity=pass machine=atari_st profile=st_520_pal state=running
+### resolve_atari_st_components
+POST /api/v2/ebins/resolve
+HTTP 200
+{"ok":true,"data":{"machine":"atari_st","version_policy":"latest_compatible","resolved":[{"component":"cpu","module_id":"st.cpu.m68k","version":"1.0.0","path":"/sdcard/ebins/atari_st/cpu/st.cpu.m68k-1.0.0.ebin","selection_policy":"latest_compatible"},{"component":"video","module_id":"st.video.shifter","version":"1.0.0","path":"/sdcard/ebins/atari_st/video/st.video.shifter-1.0.0.ebin","selection_policy":"latest_compatible"}],"resolved_count":2}}
+
+resolve_atari_st_components=pass machine=atari_st components=2
+### mega_st_machine_guard
+POST /api/v2/engine/session
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST","details":{"path":"/sdcard/config/engine_v2/machines/atari_st/st_520_pal.json","reason":"machine/profile mismatch"}}}
+
+mega_st_machine_guard=pass code=BAD_REQUEST reason=machine/profile mismatch
+### mega_st_profile_not_found
+POST /api/v2/engine/session
+HTTP 404
+{"ok":false,"error":{"code":"MACHINE_PROFILE_NOT_FOUND","details":{"path":"/sdcard/config/engine_v2/machines/atari_st/mega_st_pal.json","reason":"manifest not found"}}}
+
+mega_st_profile_not_found=pass code=MACHINE_PROFILE_NOT_FOUND
+### ste_profile_not_found
+POST /api/v2/engine/session
+HTTP 404
+{"ok":false,"error":{"code":"MACHINE_PROFILE_NOT_FOUND","details":{"path":"/sdcard/config/engine_v2/machines/atari_st/ste_pal.json","reason":"manifest not found"}}}
+
+ste_profile_not_found=pass code=MACHINE_PROFILE_NOT_FOUND
+### mega_ste_profile_not_found
+POST /api/v2/engine/session
+HTTP 404
+{"ok":false,"error":{"code":"MACHINE_PROFILE_NOT_FOUND","details":{"path":"/sdcard/config/engine_v2/machines/atari_st/mega_ste_pal.json","reason":"manifest not found"}}}
+
+mega_ste_profile_not_found=pass code=MACHINE_PROFILE_NOT_FOUND
+### resolve_unsupported_machine
+POST /api/v2/ebins/resolve
+HTTP 404
+{"ok":false,"error":{"code":"EBIN_NOT_FOUND","category":"ebin","retryable":false,"details":{"field":"machine","reason":"resolver_machine_not_indexed"}}}
+
+resolve_unsupported_machine=pass code=EBIN_NOT_FOUND reason=resolver_machine_not_indexed
+### post_checks_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+s7_multi_machine_profile=pass baseline_machine=atari_st baseline_profile=st_520_pal resolve_components=2
+bundle_path=captures/s7_multi_machine_profile_bundle_001_20260304_020049.json

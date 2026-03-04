@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "S11 Gate13 Live Smoke",
+			"type": "shell",
+			"command": "SAMPLES=120 INTERVAL_SEC=0.5 PROGRESS_EVERY=2 ./tools/smoke_s11_gate_13_sustained_slo.sh | tee captures/s11_gate_13_live_follow.log",
+			"isBackground": false
+		}
+	]
+}

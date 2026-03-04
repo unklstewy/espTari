@@ -1,0 +1,11 @@
+{
+  "bundle_version": 1,
+  "task_id": "S8-007",
+  "generated_at": "20260304_024451",
+  "harness_capture": "captures/s8_active_profile_switch_isolation_007_smoke_postfix_20260304_024451.txt",
+  "matrix": "TRACKING/evidence/s8_active_profile_switch_isolation_matrix_007.json",
+  "summary": {
+    "switch_sequence": ["st_520_pal", "ste_pal", "mega_ste_pal", "mega_st_pal"],
+    "fallback_code": "BAD_REQUEST"
+  }
+}

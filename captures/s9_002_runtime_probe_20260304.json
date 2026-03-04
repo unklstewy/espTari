@@ -1,0 +1,87 @@
+{
+  "task": "S9-002",
+  "runtime_probe": "2026-03-04",
+  "controls": {
+    "AUTH-01": "fail",
+    "AUTH-02": "fail",
+    "PATH-01": "fail",
+    "PATH-02": "fail",
+    "UPLOAD-02": "fail",
+    "EBIN-02": "pass"
+  },
+  "checks": [
+    {
+      "control": "AUTH-01",
+      "check": "missing bearer -> UNAUTHORIZED",
+      "status": "fail",
+      "detail": {
+        "http": 200,
+        "code": null
+      }
+    },
+    {
+      "control": "AUTH-02",
+      "check": "insufficient scope -> FORBIDDEN",
+      "status": "fail",
+      "detail": {
+        "http": 200,
+        "code": null
+      }
+    },
+    {
+      "control": "PATH-01",
+      "check": "outside SD allowlist rejected",
+      "status": "fail",
+      "detail": {
+        "http": 200,
+        "code": null
+      }
+    },
+    {
+      "control": "PATH-02",
+      "check": "traversal segment rejected",
+      "status": "fail",
+      "detail": {
+        "http": 200,
+        "code": null
+      }
+    },
+    {
+      "control": "PATH-02",
+      "check": "mixed separator rejected",
+      "status": "fail",
+      "detail": {
+        "http": 200,
+        "code": null
+      }
+    },
+    {
+      "control": "UPLOAD-02",
+      "check": "start staged upload accepted",
+      "status": "fail",
+      "detail": {
+        "http": 500,
+        "code": null,
+        "uploadId": null
+      }
+    },
+    {
+      "control": "EBIN-02",
+      "check": "validation failure path reachable",
+      "status": "pass",
+      "detail": {
+        "http": 400,
+        "code": "BAD_REQUEST"
+      }
+    },
+    {
+      "control": "EBIN-02",
+      "check": "session transition path reachable",
+      "status": "pass",
+      "detail": {
+        "http": 409,
+        "code": "INVALID_SESSION_STATE"
+      }
+    }
+  ]
+}

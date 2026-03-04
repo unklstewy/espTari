@@ -1,0 +1,104 @@
+{
+  "matrix_version": 1,
+  "task_id": "S6-001",
+  "sprint": "S6",
+  "description": "Deterministic fault-injection matrix for phase-4 hardening harness baseline",
+  "base_url": "${BASE_URL:-http://esptari.local}",
+  "precondition": {
+    "health_endpoint": "/api/v2/engine/health",
+    "engine_start_endpoint": "/api/v2/engine/session/start",
+    "expect_http": [200, 409]
+  },
+  "fault_classes": [
+    {
+      "fault_id": "F001_BAD_REQUEST_VALIDATE",
+      "domain": "ebin_validate",
+      "request": {
+        "method": "POST",
+        "path": "/api/v2/ebins/validate",
+        "body": {
+          "module_type": "cpu"
+        }
+      },
+      "expect": {
+        "http": 400,
+        "error_code": "BAD_REQUEST"
+      },
+      "survivability_probe": {
+        "method": "GET",
+        "path": "/api/v2/engine/health",
+        "http": 200
+      }
+    },
+    {
+      "fault_id": "F002_ABI_MISMATCH_VALIDATE",
+      "domain": "ebin_validate",
+      "request": {
+        "method": "POST",
+        "path": "/api/v2/ebins/validate",
+        "body": {
+          "module_id": "st.cpu.m68k",
+          "module_type": "cpu",
+          "machine_targets": ["atari_st"],
+          "abi_version": "2.0.0",
+          "api_contract_version": "1.0.0",
+          "exports": ["init"],
+          "dependencies": [],
+          "build_fingerprint": "build_s6_001",
+          "payload_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        }
+      },
+      "expect": {
+        "http": 409,
+        "error_code": "EBIN_ABI_MISMATCH"
+      },
+      "survivability_probe": {
+        "method": "GET",
+        "path": "/api/v2/engine/health",
+        "http": 200
+      }
+    },
+    {
+      "fault_id": "F003_PROBE_TIMEOUT_POLICY",
+      "domain": "catalog_probe",
+      "request": {
+        "method": "POST",
+        "path": "/api/v2/catalogs/floppies/probe-links",
+        "body": {
+          "limit": 2,
+          "timeout_ms": 1,
+          "mark_dead_after_failures": 1
+        }
+      },
+      "expect": {
+        "http": 200
+      },
+      "survivability_probe": {
+        "method": "GET",
+        "path": "/api/v2/engine/health",
+        "http": 200
+      }
+    },
+    {
+      "fault_id": "F004_INVALID_TIMEOUT_CONFIG",
+      "domain": "catalog_probe",
+      "request": {
+        "method": "POST",
+        "path": "/api/v2/catalogs/floppies/probe-links",
+        "body": {
+          "timeout_ms": 0,
+          "mark_dead_after_failures": 1
+        }
+      },
+      "expect": {
+        "http": 400,
+        "error_code": "BAD_REQUEST"
+      },
+      "survivability_probe": {
+        "method": "GET",
+        "path": "/api/v2/engine/health",
+        "http": 200
+      }
+    }
+  ]
+}

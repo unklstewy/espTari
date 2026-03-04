@@ -1,0 +1,11 @@
+{
+  "bundle_version": 1,
+  "task_id": "S8-003",
+  "generated_at": "20260304_024449",
+  "harness_capture": "captures/s8_ste_active_extension_controls_003_smoke_postfix_20260304_024449.txt",
+  "matrix": "TRACKING/evidence/s8_ste_active_extension_controls_matrix_003.json",
+  "summary": {
+    "ste_profile": "ste_pal",
+    "invalid_control_code": "BAD_REQUEST"
+  }
+}

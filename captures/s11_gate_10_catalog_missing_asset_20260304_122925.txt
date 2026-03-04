@@ -1,0 +1,2 @@
+status=conditional
+json_path=captures/s11_gate_10_catalog_missing_asset_20260304_122925.json

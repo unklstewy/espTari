@@ -7,6 +7,7 @@
 #include "esptari_web_core_status.h"
 #include "esptari_web_debug.h"
 #include "esptari_web_files.h"
+#include "esptari_web_auth.h"
 #include "esptari_web_lifecycle.h"
 #include "esptari_web_media.h"
 #include "esptari_web_input.h"
@@ -36,6 +37,8 @@ void esptari_web_init(uint16_t port)
         server_handle = NULL;
         return;
     }
+
+    esptari_web_auth_set_token_mode(true);
 
     esptari_web_core_status_register_routes(server_handle);
     esptari_web_lifecycle_register_routes(server_handle);

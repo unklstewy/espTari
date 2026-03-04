@@ -1,0 +1,69 @@
+health_check=ok attempts=1
+### engine_session_start
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### create_schedule_a
+POST /api/v2/catalog-sync/schedules
+HTTP 201
+{"ok":true,"data":{"schedule_id":"sch_000001","job_type":"floppy_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":true,"catch_up":false,"created_at_us":3298680553,"updated_at_us":3298680553,"last_run_at_us":null,"next_run_at_us":21600000000,"last_result":"none","last_error_code":null}}
+
+### create_schedule_a_conflict
+POST /api/v2/catalog-sync/schedules
+HTTP 409
+{"ok":false,"error":{"code":"CONFLICT","category":"scheduler","retryable":false}}
+
+### create_schedule_b
+POST /api/v2/catalog-sync/schedules
+HTTP 201
+{"ok":true,"data":{"schedule_id":"sch_000002","job_type":"rom_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":true,"catch_up":true,"created_at_us":3298780499,"updated_at_us":3298780499,"last_run_at_us":null,"next_run_at_us":21600000000,"last_result":"none","last_error_code":null}}
+
+### list_schedules
+GET /api/v2/catalog-sync/schedules
+HTTP 200
+{"ok":true,"data":{"scheduler_now_us":3298839847,"schedules":[{"schedule_id":"sch_000001","job_type":"floppy_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":true,"catch_up":false,"created_at_us":3298680553,"updated_at_us":3298680553,"last_run_at_us":null,"next_run_at_us":21600000000,"last_result":"none","last_error_code":null},{"schedule_id":"sch_000002","job_type":"rom_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":true,"catch_up":true,"created_at_us":3298780499,"updated_at_us":3298780499,"last_run_at_us":null,"next_run_at_us":21600000000,"last_result":"none","last_error_code":null}]}}
+
+list_order=pass mode=tie_by_schedule_id schedule_a_next=21600000000 schedule_b_next=21600000000
+### patch_schedule_b_disable
+PATCH /api/v2/catalog-sync/schedules/sch_000002
+HTTP 200
+{"ok":true,"data":{"schedule_id":"sch_000002","job_type":"rom_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":false,"catch_up":true,"created_at_us":3298780499,"updated_at_us":3298886417,"last_run_at_us":null,"next_run_at_us":21600000000,"last_result":"none","last_error_code":null}}
+
+### patch_schedule_b_enable_and_toggle_catchup
+PATCH /api/v2/catalog-sync/schedules/sch_000002
+HTTP 200
+{"ok":true,"data":{"schedule_id":"sch_000002","job_type":"rom_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":true,"catch_up":false,"created_at_us":3298780499,"updated_at_us":3298943328,"last_run_at_us":null,"next_run_at_us":21600000000,"last_result":"none","last_error_code":null}}
+
+### patch_schedule_b_invalid
+PATCH /api/v2/catalog-sync/schedules/sch_000002
+HTTP 400
+{"ok":false,"error":{"code":"SCRAPER_SCHEDULE_INVALID","category":"scheduler","retryable":false}}
+
+### get_schedule_b
+GET /api/v2/catalog-sync/schedules/sch_000002
+HTTP 200
+{"ok":true,"data":{"scheduler_now_us":3299062252,"schedule":{"schedule_id":"sch_000002","job_type":"rom_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":true,"catch_up":false,"created_at_us":3298780499,"updated_at_us":3298943328,"last_run_at_us":null,"next_run_at_us":21600000000,"last_result":"none","last_error_code":null}}}
+
+### recovery_report
+GET /api/v2/catalog-sync/recovery
+HTTP 200
+{"ok":true,"data":{"recovery_run_id":"sched_recover_680237","scheduler_now_us":3298680237,"loaded":0,"validated":0,"recomputed_next_run":0,"quarantined":0,"quarantine":[]}}
+
+### delete_schedule_a
+DELETE /api/v2/catalog-sync/schedules/sch_000001
+HTTP 200
+{"ok":true,"data":{"schedule_id":"sch_000001","status":"deleted"}}
+
+### delete_schedule_b
+DELETE /api/v2/catalog-sync/schedules/sch_000002
+HTTP 200
+{"ok":true,"data":{"schedule_id":"sch_000002","status":"deleted"}}
+
+### post_checks_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+scheduler_recovery=pass order_mode=tie_by_schedule_id recovery_run_id=sched_recover_680237 loaded=0 validated=0 recomputed=0 quarantined=0
+bundle_path=captures/s6_scheduler_recovery_bundle_005_20260304_013415.json

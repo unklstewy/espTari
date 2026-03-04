@@ -35,6 +35,16 @@ Use these as the active source of truth for current delivery state:
 - `S5_RUNTIME_UNLOCK_DECISION_TEMPLATE_2026-03-04.md`
 - `SPRINT_02_CLOSURE_REPORT_2026-03-04.md`
 - `PROGRAM_STATUS_SNAPSHOT_2026-03-04.md`
+- `SPRINT_06_PHASE4_HARDENING.md`
+- `TASK_CARDS_S6_PHASE4_HARDENING.md`
+- `S6_PHASE4_HARDENING_PACKET_2026-03-04.md`
+- `S6_PHASE4_HARDENING_TRACEABILITY_MATRIX_2026-03-04.md`
+- `S6_PHASE4_HARDENING_DECISION_TEMPLATE_2026-03-04.md`
+- `SPRINT_07_PHASE5_MULTI_MACHINE.md`
+- `TASK_CARDS_S7_PHASE5_MULTI_MACHINE.md`
+- `API_CONTRACT_DELTA_LOG.md`
+- `API_CONTRACT_DELTA_TEMPLATE.md`
+- `API_CONTRACT_DELTA_WORKFLOW.md`
 
 Legacy/superseded markdown snapshot is preserved under:
 
@@ -66,6 +76,13 @@ Legacy/superseded markdown snapshot is preserved under:
 22. [S5 Runtime Unlock Decision Template (2026-03-04)](S5_RUNTIME_UNLOCK_DECISION_TEMPLATE_2026-03-04.md)
 23. [Sprint 02 Closure Report (2026-03-04)](SPRINT_02_CLOSURE_REPORT_2026-03-04.md)
 24. [Program Status Snapshot (2026-03-04)](PROGRAM_STATUS_SNAPSHOT_2026-03-04.md)
+25. [Sprint 06 - Phase 4 Robustness + Conformance Hardening](SPRINT_06_PHASE4_HARDENING.md)
+26. [Task Cards: Sprint 06 Phase-4 Hardening](TASK_CARDS_S6_PHASE4_HARDENING.md)
+27. [S6 Phase-4 Hardening Review Packet (2026-03-04)](S6_PHASE4_HARDENING_PACKET_2026-03-04.md)
+28. [S6 Phase-4 Hardening Traceability Matrix (2026-03-04)](S6_PHASE4_HARDENING_TRACEABILITY_MATRIX_2026-03-04.md)
+29. [S6 Phase-4 Hardening Decision Template (2026-03-04)](S6_PHASE4_HARDENING_DECISION_TEMPLATE_2026-03-04.md)
+30. [Sprint 07 - Phase 5 Multi-Machine Enablement](SPRINT_07_PHASE5_MULTI_MACHINE.md)
+31. [Task Cards: Sprint 07 Phase-5 Multi-Machine Enablement](TASK_CARDS_S7_PHASE5_MULTI_MACHINE.md)
 1. [Backlog and Task Index](BACKLOG.md)
 2. [Kanban Board](KANBAN_BOARD.md)
 3. [Acceptance Log](ACCEPTANCE_LOG.md)
@@ -79,6 +96,13 @@ Legacy/superseded markdown snapshot is preserved under:
 11. [Program Status Snapshot (2026-03-04)](PROGRAM_STATUS_SNAPSHOT_2026-03-04.md)
 12. [Umbrella Closure Report (2026-03-03)](UMBRELLA_CLOSURE_REPORT_2026-03-03.md)
 13. [Legacy Tracking Snapshot (archived 2026-03-03)](_archive/legacy_markdown_2026-03-03/README.md)
+14. [Sprint 06 - Phase 4 Robustness + Conformance Hardening](SPRINT_06_PHASE4_HARDENING.md)
+15. [Task Cards: Sprint 06 Phase-4 Hardening](TASK_CARDS_S6_PHASE4_HARDENING.md)
+16. [S6 Phase-4 Hardening Review Packet (2026-03-04)](S6_PHASE4_HARDENING_PACKET_2026-03-04.md)
+17. [S6 Phase-4 Hardening Traceability Matrix (2026-03-04)](S6_PHASE4_HARDENING_TRACEABILITY_MATRIX_2026-03-04.md)
+18. [S6 Phase-4 Hardening Decision Template (2026-03-04)](S6_PHASE4_HARDENING_DECISION_TEMPLATE_2026-03-04.md)
+19. [Sprint 07 - Phase 5 Multi-Machine Enablement](SPRINT_07_PHASE5_MULTI_MACHINE.md)
+20. [Task Cards: Sprint 07 Phase-5 Multi-Machine Enablement](TASK_CARDS_S7_PHASE5_MULTI_MACHINE.md)
 
 ## Cadence
 

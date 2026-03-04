@@ -1,0 +1,13 @@
+{
+  "bundle_version": 1,
+  "task_id": "S6-004",
+  "generated_at": "20260304_012443",
+  "harness_capture": "captures/s6_catalog_reliability_004_smoke_postfix_20260304_012443.txt",
+  "reliability_matrix": "TRACKING/evidence/s6_catalog_reliability_matrix_004.json",
+  "summary": {
+    "probe_worker_id": "probe_000002",
+    "probe_timed_out": 0,
+    "dead_retry_failures": 1,
+    "dead_retry_successes": 1
+  }
+}

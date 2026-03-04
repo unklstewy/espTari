@@ -1,0 +1,29 @@
+{
+  "matrix_version": 1,
+  "task_id": "S6-003",
+  "sprint": "S6",
+  "description": "Deterministic bounded soak profile for long-run stability baseline",
+  "profile": {
+    "samples": 24,
+    "interval_seconds": 1,
+    "required_health_http": 200,
+    "required_status_http": 200,
+    "required_health_ok": true,
+    "required_status_ok": true,
+    "allowed_runtime_states": ["running", "paused", "idle", "unknown"]
+  },
+  "pass_thresholds": {
+    "health_success_rate": 1.0,
+    "status_success_rate": 1.0,
+    "transport_failures": 0,
+    "parse_failures": 0
+  },
+  "preconditions": [
+    "GET /api/v2/engine/health -> 200",
+    "POST /api/v2/engine/session/start -> 200|409"
+  ],
+  "postconditions": [
+    "GET /api/v2/engine/health -> 200",
+    "GET /api/v2/engine/status -> 200"
+  ]
+}

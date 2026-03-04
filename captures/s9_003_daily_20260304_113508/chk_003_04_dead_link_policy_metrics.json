@@ -1,0 +1,13 @@
+{
+  "entry_id": "disk.automation.a_093",
+  "mark_dead_http": 200,
+  "download_without_retry_http": 409,
+  "download_without_retry_code": "CATALOG_LINK_DEAD",
+  "entry_read_http": 200,
+  "availability_state": "dead",
+  "elapsed_ms": {
+    "mark_dead": 31.549,
+    "download_without_retry": 33.164,
+    "entry_read": 57.234
+  }
+}

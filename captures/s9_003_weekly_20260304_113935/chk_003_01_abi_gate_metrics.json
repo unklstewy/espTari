@@ -1,0 +1,10 @@
+{
+  "negative_cases_total": 2,
+  "negative_cases_passed": 2,
+  "resolve_http": 404,
+  "resolve_code": "EBIN_NOT_FOUND",
+  "validate_http": 400,
+  "validate_code": "BAD_REQUEST",
+  "resolve_elapsed_ms": 30.673,
+  "validate_elapsed_ms": 22.579
+}

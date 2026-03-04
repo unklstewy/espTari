@@ -1,0 +1,17 @@
+{
+  "bundle_version": 1,
+  "task_id": "S6-005",
+  "generated_at": "20260304_013415",
+  "harness_capture": "captures/s6_scheduler_recovery_005_smoke_postfix_20260304_013415.txt",
+  "scheduler_recovery_matrix": "TRACKING/evidence/s6_scheduler_recovery_matrix_005.json",
+  "summary": {
+    "schedule_a_id": "sch_000001",
+    "schedule_b_id": "sch_000002",
+    "list_order_mode": "tie_by_schedule_id",
+    "recovery_run_id": "sched_recover_680237",
+    "recovery_loaded": 0,
+    "recovery_validated": 0,
+    "recovery_recomputed_next_run": 0,
+    "recovery_quarantined": 0
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "task": "S11-open-gates-test-set",
+  "run_id": "20260304_122527",
+  "base_url": "http://esptari.local",
+  "target_gate": "all",
+  "results": [
+    {
+      "gate_id": "GATE-S11-02",
+      "status": "pass",
+      "checks": [
+        {
+          "name": "outside_allowlist_rejected",
+          "http": 400,
+          "code": "PATH_NOT_ALLOWED",
+          "ok": true
+        },
+        {
+          "name": "sd_path_probe_reachable",
+          "http": 200,
+          "code": null,
+          "ok": true
+        }
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-05",
+      "status": "pass",
+      "checks": [
+        {
+          "candidate": "/api/v2/inspect/registers/snapshot?session_id=ses_local",
+          "http": 409,
+          "code": "INVALID_SESSION_STATE",
+          "ok": true
+        },
+        {
+          "candidate": "/api/v2/inspect/registers/stream?session_id=ses_local",
+          "http": 409,
+          "code": "ENGINE_NOT_RUNNING",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-06",
+      "status": "pass",
+      "checks": [
+        {
+          "candidate": "/api/v2/inspect/bus/stream?session_id=ses_local",
+          "http": 409,
+          "code": "ENGINE_NOT_RUNNING",
+          "ok": true
+        },
+        {
+          "candidate": "/api/v2/inspect/memory/stream?session_id=ses_local",
+          "http": 409,
+          "code": "ENGINE_NOT_RUNNING",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-07",
+      "status": "conditional",
+      "checks": [
+        {
+          "candidate": "/api/v2/input/mappings",
+          "http": 200,
+          "code": null,
+          "ok": true
+        },
+        {
+          "candidate": "/api/v2/input/events",
+          "http": 404,
+          "code": null,
+          "ok": false
+        }
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-09",
+      "status": "conditional",
+      "checks": [
+        {
+          "candidate": "/api/v2/input/capture",
+          "http": 404,
+          "code": null,
+          "ok": false
+        },
+        {
+          "candidate": "/api/v2/input/capture",
+          "http": 404,
+          "code": null,
+          "ok": false
+        }
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-10",
+      "status": "conditional",
+      "checks": [
+        {
+          "candidate": "/api/v2/catalogs/list",
+          "http": 200,
+          "code": null,
+          "ok": true
+        },
+        {
+          "candidate": "/api/v2/catalogs/rom_catalog/missing-report",
+          "http": 404,
+          "code": "CATALOG_NOT_FOUND",
+          "ok": false
+        }
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-12",
+      "status": "conditional",
+      "checks": [
+        {
+          "candidate": "/api/v2/engine/session/suspend-save",
+          "http": 409,
+          "code": "INVALID_SESSION_STATE",
+          "ok": true
+        },
+        {
+          "candidate": "/api/v2/snapshots/restore/validate",
+          "http": 404,
+          "code": null,
+          "ok": false
+        }
+      ]
+    },
+    {
+      "gate_id": "GATE-S11-13",
+      "status": "conditional",
+      "checks": [
+        {
+          "candidate": "/api/v2/metrics/performance",
+          "http": 400,
+          "code": "BAD_REQUEST",
+          "ok": true
+        },
+        {
+          "candidate": "/api/v2/metrics/performance/samples?limit=20",
+          "http": 400,
+          "code": "BAD_REQUEST",
+          "ok": true
+        },
+        {
+          "candidate": "/api/v2/metrics/performance/thresholds",
+          "http": 400,
+          "code": "BAD_REQUEST",
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "pass_count": 3,
+    "conditional_count": 5,
+    "fail_count": 0
+  }
+}

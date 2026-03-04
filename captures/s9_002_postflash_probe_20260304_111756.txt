@@ -1,0 +1,12 @@
+health_check_loop=start
+health_check=ok attempts=3
+AUTH-01 :: missing bearer -> UNAUTHORIZED :: PASS :: {'http': 401, 'code': 'UNAUTHORIZED'}
+AUTH-02 :: insufficient scope -> FORBIDDEN :: PASS :: {'http': 403, 'code': 'FORBIDDEN'}
+PATH-01 :: outside SD allowlist rejected :: FAIL :: {'http': 401, 'code': 'UNAUTHORIZED'}
+PATH-02 :: traversal segment rejected :: FAIL :: {'http': 401, 'code': 'UNAUTHORIZED'}
+PATH-02 :: mixed separator rejected :: FAIL :: {'http': 401, 'code': 'UNAUTHORIZED'}
+UPLOAD-02 :: start staged upload accepted :: FAIL :: {'http': 401, 'code': 'UNAUTHORIZED', 'uploadId': None}
+EBIN-02 :: validation failure path reachable :: FAIL :: {'http': 401, 'code': 'UNAUTHORIZED'}
+EBIN-02 :: session transition path reachable :: PASS :: {'http': 409, 'code': 'INVALID_SESSION_STATE'}
+postflash_probe_bundle=captures/s9_002_postflash_probe_bundle_20260304_111756.json
+controls={"AUTH-01": "pass", "AUTH-02": "pass", "EBIN-02": "fail", "PATH-01": "fail", "PATH-02": "fail", "UPLOAD-02": "fail"}

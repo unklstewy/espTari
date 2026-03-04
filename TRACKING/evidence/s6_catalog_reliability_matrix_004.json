@@ -1,0 +1,54 @@
+{
+  "matrix_version": 1,
+  "task_id": "S6-004",
+  "sprint": "S6",
+  "description": "Catalog reliability validation matrix aligned to API 7.10",
+  "catalog": "floppies",
+  "entry_id": "disk.demos.dead_entry",
+  "checks": [
+    {
+      "id": "C001_PROBE_TIMEOUT_CLASSIFICATION",
+      "request": "POST /api/v2/catalogs/floppies/probe-links",
+      "expect": {
+        "http": 200,
+        "summary_field": "timed_out",
+        "timed_out_min": 0
+      }
+    },
+    {
+      "id": "C002_PROBE_INVALID_TIMEOUT_BLOCKER",
+      "request": "POST /api/v2/catalogs/floppies/probe-links",
+      "expect": {
+        "http": 400,
+        "error_code": "BAD_REQUEST"
+      }
+    },
+    {
+      "id": "C003_DEAD_LINK_BLOCKS_DOWNLOAD_WITHOUT_OVERRIDE",
+      "request": "POST /api/v2/catalogs/floppies/download-entry",
+      "expect": {
+        "http": 409,
+        "error_code": "CATALOG_LINK_DEAD"
+      }
+    },
+    {
+      "id": "C004_DEAD_RETRY_FAILURE_TELEMETRY",
+      "request": "POST /api/v2/catalogs/floppies/download-entry",
+      "expect": {
+        "http": 409,
+        "error_code": "CATALOG_SYNC_FAILED",
+        "entry_state_after": "dead",
+        "dead_retry_failures_min": 1
+      }
+    },
+    {
+      "id": "C005_DEAD_RETRY_SUCCESS_RECOVERY",
+      "request": "POST /api/v2/catalogs/floppies/download-entry",
+      "expect": {
+        "http": 200,
+        "availability_state": "online",
+        "dead_retry_successes_min": 1
+      }
+    }
+  ]
+}

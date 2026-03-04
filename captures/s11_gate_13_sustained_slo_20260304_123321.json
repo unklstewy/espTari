@@ -1,0 +1,26 @@
+{
+  "gate": "GATE-S11-13",
+  "run_id": "20260304_123321",
+  "samples_requested": 120,
+  "interval_sec": 0.5,
+  "status": "conditional",
+  "route_checks": [
+    {
+      "path": "/api/v2/metrics/performance",
+      "http": 400,
+      "ok": true
+    },
+    {
+      "path": "/api/v2/metrics/performance/samples?limit=5",
+      "http": 400,
+      "ok": true
+    },
+    {
+      "path": "/api/v2/metrics/performance/thresholds",
+      "http": 400,
+      "ok": true
+    }
+  ],
+  "metrics_aggregate": {},
+  "hard_eval_possible": false
+}

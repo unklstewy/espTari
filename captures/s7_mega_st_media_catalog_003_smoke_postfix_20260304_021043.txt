@@ -1,0 +1,68 @@
+health_check=ok attempts=1
+### session_stop_pre
+POST /api/v2/engine/session/stop
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-STOP","endpoint":"/api/v2/engine/session/stop","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### baseline_start_atari_st
+POST /api/v2/engine/session
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"st_520_pal","profile_manifest_validation":{"path":"/sdcard/config/engine_v2/machines/atari_st/st_520_pal.json","manifest_version":1,"schema_valid":true,"normalized_profile":"st_520_pal","validated_at_us":5486470200},"profile_wiring_validation":{"wiring_valid":true,"validated_modules":5,"step_order_length":5,"validated_at_us":5486470200},"resolved":{"rom_id":"rom.atari.st.01","rom_path":"/sdcard/roms/st/TOS104.ROM","tos_id":"tos.eu.1.04","tos_path":"/sdcard/tos/TOS104.IMG","first_disk_id":"disk.automation.a_093"}}}
+
+### catalog_lookup_baseline
+GET /api/v2/catalogs/floppies/entries/disk.automation.a_093
+HTTP 200
+{"ok":true,"data":{"id":"disk.automation.a_093","local_path":"/sdcard/disks/st/AUTOMATION/A_093.ST","hosted_url":"http://ataristdb.sidecartridge.com/AUTOMATION/A_093.ST","availability_state":"dead","availability_checked_at":"2026-03-01T15:22:01Z","download_fail_count":1,"dead_marked":true,"dead_source":"probe_threshold","last_dead_reason":"probe timeout threshold reached","last_dead_marked_at_us":2077416412,"dead_retry_attempts":0,"dead_retry_successes":0,"dead_retry_failures":0,"last_dead_retry_at_us":null,"last_dead_retry_result":"none"}}
+
+### media_rom_attach_baseline
+POST /api/v2/media/rom/attach
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","rom":{"id":"rom.atari.st.01","catalog":"rom","local_path":"/sdcard/roms/st/TOS104.ROM","binding":{"machine":"atari_st","profile":"st_520_pal","binding_result":"matched"}},"rom_id":"rom.atari.st.01","result":"applied","phase":"applied","phase_history":["validated","mounted","applied"],"request_id":"req_5486584318","mount":{"slot":"rom.primary","mounted_path":"/sdcard/roms/st/TOS104.ROM","mounted_at_us":5486584364},"apply":{"applied_at_us":5486584371,"runtime_generation":1},"attached_at_us":5486584371}}
+
+### media_disk_attach_baseline
+POST /api/v2/media/disk/attach
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","drive":"A","disk":{"id":"disk.automation.a_093","catalog":"disk","local_path":"/sdcard/disks/st/AUTOMATION/A_093.ST","format":"st","write_protect":true,"binding_result":"matched"},"disk_id":"disk.automation.a_093","result":"active","phase_history":["validated","mounted","active"],"request_id":"req_5486643094","mount":{"mounted_at_us":5486643107,"mounted_path":"/sdcard/disks/st/AUTOMATION/A_093.ST"},"runtime":{"active_at_us":5486643132,"generation":2},"attached_at_us":5486643132}}
+
+### session_continuity_after_attach
+GET /api/v2/engine/session
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","run_mode":"realtime","machine":"atari_st","profile":"st_520_pal","snapshot_at_us":16437624033,"uptime_ms":226,"cycle_counter":150754113540,"tick_counter":12562842795,"loaded_modules":[],"runtime":{"scheduler_hz":8000000,"timestamp_origin_us":3874781238,"timestamp_last_emitted_us":16437624033,"timestamp_regressions":0,"last_transition_at_us":5486470404,"last_error":null},"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+
+### media_disk_eject_baseline
+POST /api/v2/media/disk/eject
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","drive":"A","result":"ejected","phase_history":["detached","ejected"],"request_id":"req_5487010025","ejected_disk_id":"disk.automation.a_093","ejected_at_us":5487010043}}
+
+### media_missing_disk_guard
+POST /api/v2/media/disk/attach
+HTTP 404
+{"ok":false,"error":{"code":"CATALOG_ENTRY_NOT_FOUND","category":"catalog","message":"Requested catalog entry was not found","retryable":false,"details":{"catalog":"floppies","entry_id":"disk.missing.s7_003","request_field":"disk_id"}}}
+
+### media_force_active_fail_guard
+POST /api/v2/media/disk/attach
+HTTP 409
+{"ok":false,"error":{"code":"MEDIA_ATTACH_FAILED","category":"engine","message":"Disk active phase failed; previous disk restored","retryable":false,"details":{"session_id":"ses_local","drive":"B","disk_id":"disk.automation.a_093","failed_phase":"active","request_id":"req_5487087073"}}}
+
+### mega_st_bootstrap_guard
+POST /api/v2/engine/session
+HTTP 404
+{"ok":false,"error":{"code":"MACHINE_PROFILE_NOT_FOUND","details":{"path":"/sdcard/config/engine_v2/machines/atari_st/mega_st_pal.json","reason":"manifest not found"}}}
+
+### session_stop_for_media_guard
+POST /api/v2/engine/session/stop
+HTTP 200
+{"ok":true}
+
+### media_attach_stopped_guard
+POST /api/v2/media/rom/attach
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Media attach requires running or paused state","retryable":false}}
+
+### post_checks_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+s7_mega_st_media_catalog=pass baseline=atari_st/st_520_pal missing_guard=CATALOG_ENTRY_NOT_FOUND mega_guard=MACHINE_PROFILE_NOT_FOUND
+bundle_path=captures/s7_mega_st_media_catalog_bundle_003_20260304_021043.json

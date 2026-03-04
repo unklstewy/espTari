@@ -1,0 +1,93 @@
+{
+  "matrix_version": 1,
+  "task_id": "S7-005",
+  "sprint": "S7",
+  "description": "Mega STe extension compatibility-delta validation matrix against STe baseline extension contract and canonical fallback guards",
+  "checks": [
+    {
+      "id": "MSE001_BASELINE_START_AND_CONTEXT",
+      "request": "POST+GET /api/v2/engine/session",
+      "expect": {
+        "start_http": 200,
+        "machine": "atari_st",
+        "profile": "st_520_pal",
+        "state": "running"
+      }
+    },
+    {
+      "id": "MSE002_BASELINE_EXTENSION_CONTROL_COMPAT",
+      "request": "POST /api/v2/stream/control for video/audio set_rate_limit",
+      "expect": {
+        "video_http": 200,
+        "video_pacing_mode": "fixed_fps",
+        "video_target_fps": 50,
+        "audio_http": 200,
+        "audio_pacing_mode": "fixed_hz",
+        "audio_target_hz": 240
+      }
+    },
+    {
+      "id": "MSE003_BACKWARD_ENVELOPE_COMPAT",
+      "request": "GET /api/v2/stream/video + GET /api/v2/stream/audio",
+      "expect": {
+        "video_http": 200,
+        "audio_http": 200,
+        "video_extension_field_absent": "ste_extensions",
+        "audio_extension_field_absent": "ste_extensions"
+      }
+    },
+    {
+      "id": "MSE004_STE_PROFILE_GUARD_BASELINE",
+      "request": "POST /api/v2/engine/session machine=atari_st profile=ste_pal",
+      "expect": {
+        "http": 404,
+        "error_code": "MACHINE_PROFILE_NOT_FOUND",
+        "manifest_path_suffix": "/ste_pal.json"
+      }
+    },
+    {
+      "id": "MSE005_MEGA_STE_PROFILE_GUARD_DELTA",
+      "request": "POST /api/v2/engine/session machine=atari_st profile=mega_ste_pal",
+      "expect": {
+        "http": 404,
+        "error_code": "MACHINE_PROFILE_NOT_FOUND",
+        "manifest_path_suffix": "/mega_ste_pal.json"
+      }
+    },
+    {
+      "id": "MSE006_COMPATIBILITY_DELTA_ASSERTION",
+      "request": "Compare ste_pal vs mega_ste_pal guard envelopes",
+      "expect": {
+        "error_code_equivalent": true,
+        "manifest_path_distinct": true,
+        "fallback_class": "profile_manifest_absent"
+      }
+    },
+    {
+      "id": "MSE007_UNSUPPORTED_EXTENSION_FALLBACK",
+      "request": "POST /api/v2/stream/control invalid pacing_mode + GET /api/v2/stream/audio invalid metadata_schema_version",
+      "expect": {
+        "control_http": 400,
+        "control_error_code": "BAD_REQUEST",
+        "audio_schema_http": 400,
+        "audio_schema_error_code": "UNSUPPORTED_VERSION"
+      }
+    },
+    {
+      "id": "MSE008_STOPPED_CONTROL_FALLBACK",
+      "request": "POST /api/v2/stream/control from stopped",
+      "expect": {
+        "http": 409,
+        "error_code": "ENGINE_NOT_RUNNING"
+      }
+    },
+    {
+      "id": "MSE009_POST_HEALTH_SURVIVABILITY",
+      "request": "GET /api/v2/engine/health",
+      "expect": {
+        "http": 200,
+        "ok": true
+      }
+    }
+  ]
+}

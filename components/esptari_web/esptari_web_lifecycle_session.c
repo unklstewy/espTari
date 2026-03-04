@@ -12,6 +12,20 @@
 #include "esptari_core.h"
 #include "esptari_web_catalog_state.h"
 #include "esptari_web_http_utils.h"
+#include "esptari_web_audit.h"
+
+static char g_active_machine[64] = "atari_st";
+static char g_active_profile[64] = "st_520_pal";
+
+const char *esptari_web_lifecycle_active_machine(void)
+{
+    return g_active_machine;
+}
+
+const char *esptari_web_lifecycle_active_profile(void)
+{
+    return g_active_profile;
+}
 
 static esp_err_t send_guard_error(httpd_req_t *req,
                                   int status_code,
@@ -54,12 +68,15 @@ static esp_err_t handle_state_change(httpd_req_t *req,
                                      const char *guard_id,
                                      const char *endpoint)
 {
+    const char *action = endpoint != NULL ? endpoint : "/api/v2/engine/session/transition";
     esp_err_t err = op();
     if (err == ESP_OK) {
+        esptari_web_audit_log("web_api", action, "ses_local", "success", "session_transition_applied");
         return esptari_web_send_json(req, "{\"ok\":true}", 200);
     }
 
     if (err == ESP_ERR_INVALID_STATE) {
+        esptari_web_audit_log("web_api", action, "ses_local", "failed", "invalid_session_state");
         return send_guard_error(req,
                                 409,
                                 "INVALID_SESSION_STATE",
@@ -71,6 +88,7 @@ static esp_err_t handle_state_change(httpd_req_t *req,
                                 esp_err_to_name(err));
     }
     if (err == ESP_ERR_NOT_FOUND) {
+        esptari_web_audit_log("web_api", action, "ses_local", "failed", "machine_not_loaded");
         return send_guard_error(req,
                                 412,
                                 "MACHINE_NOT_LOADED",
@@ -81,6 +99,8 @@ static esp_err_t handle_state_change(httpd_req_t *req,
                                 "Machine/profile prerequisites are not loaded",
                                 esp_err_to_name(err));
     }
+
+    esptari_web_audit_log("web_api", action, "ses_local", "failed", "internal_error");
 
     return send_guard_error(req,
                             500,
@@ -179,6 +199,46 @@ static int selector_major_version(const char *selector)
     return (int)major;
 }
 
+static bool load_builtin_manifest_for_profile(const char *profile, char *manifest_buf, size_t manifest_buf_len)
+{
+    if (strcmp(profile, "st_520_pal") == 0) {
+        strlcpy(manifest_buf,
+                "{\"manifest_version\":1,\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"region\":\"pal\",\"ram_kb\":512,\"modules\":{\"cpu\":\"st.cpu.m68k@1.0.0\",\"video\":\"st.video.shifter@1.0.0\",\"io\":\"st.io.ikbd@1.0.0\",\"storage\":\"st.storage.fdc@1.0.0\",\"machine_profile\":\"st.profile.520@1.0.0\"},\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"machine_profile\"]}}",
+                manifest_buf_len);
+        return true;
+    }
+
+    if (strcmp(profile, "mega_st_pal") == 0) {
+        strlcpy(manifest_buf,
+                "{\"manifest_version\":1,\"machine\":\"atari_st\",\"profile\":\"mega_st_pal\",\"region\":\"pal\",\"ram_kb\":1024,\"modules\":{\"cpu\":\"st.cpu.m68k@1.0.0\",\"video\":\"st.video.shifter@1.0.0\",\"io\":\"st.io.ikbd@1.0.0\",\"storage\":\"st.storage.fdc@1.0.0\",\"machine_profile\":\"st.profile.mega_st@1.0.0\"},\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"machine_profile\"]}}",
+                manifest_buf_len);
+        return true;
+    }
+
+    if (strcmp(profile, "ste_pal") == 0) {
+        strlcpy(manifest_buf,
+                "{\"manifest_version\":1,\"machine\":\"atari_st\",\"profile\":\"ste_pal\",\"region\":\"pal\",\"ram_kb\":1024,\"modules\":{\"cpu\":\"st.cpu.m68k@1.0.0\",\"video\":\"st.video.shifter@1.0.0\",\"io\":\"st.io.ikbd@1.0.0\",\"storage\":\"st.storage.fdc@1.0.0\",\"machine_profile\":\"st.profile.ste@1.0.0\"},\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"machine_profile\"]}}",
+                manifest_buf_len);
+        return true;
+    }
+
+    if (strcmp(profile, "mega_ste_pal") == 0) {
+        strlcpy(manifest_buf,
+                "{\"manifest_version\":1,\"machine\":\"atari_st\",\"profile\":\"mega_ste_pal\",\"region\":\"pal\",\"ram_kb\":4096,\"modules\":{\"cpu\":\"st.cpu.m68k@1.0.0\",\"video\":\"st.video.shifter@1.0.0\",\"io\":\"st.io.ikbd@1.0.0\",\"storage\":\"st.storage.fdc@1.0.0\",\"machine_profile\":\"st.profile.mega_ste@1.0.0\"},\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"machine_profile\"]}}",
+                manifest_buf_len);
+        return true;
+    }
+
+    if (strcmp(profile, "st_520_pal_wiring_bad") == 0) {
+        strlcpy(manifest_buf,
+                "{\"manifest_version\":1,\"machine\":\"atari_st\",\"profile\":\"st_520_pal_wiring_bad\",\"region\":\"pal\",\"ram_kb\":512,\"modules\":{\"cpu\":\"st.cpu.m68k@2.0.0\",\"video\":\"st.video.shifter@1.0.0\",\"io\":\"st.io.ikbd@1.0.0\",\"storage\":\"st.storage.fdc@1.0.0\",\"machine_profile\":\"st.profile.520@1.0.0\"},\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"machine_profile\"]}}",
+                manifest_buf_len);
+        return true;
+    }
+
+    return false;
+}
+
 static esp_err_t validate_profile_manifest(httpd_req_t *req,
                                            const char *machine,
                                            const char *profile,
@@ -206,18 +266,8 @@ static esp_err_t validate_profile_manifest(httpd_req_t *req,
         }
     }
 
-    if (!loaded && strcmp(profile, "st_520_pal") == 0) {
-        strlcpy(manifest_buf,
-                "{\"manifest_version\":1,\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"region\":\"pal\",\"ram_kb\":512,\"modules\":{\"cpu\":\"st.cpu.m68k@1.0.0\",\"video\":\"st.video.shifter@1.0.0\",\"io\":\"st.io.ikbd@1.0.0\",\"storage\":\"st.storage.fdc@1.0.0\",\"machine_profile\":\"st.profile.520@1.0.0\"},\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"machine_profile\"]}}",
-                sizeof(manifest_buf));
-        loaded = true;
-    }
-
-    if (!loaded && strcmp(profile, "st_520_pal_wiring_bad") == 0) {
-        strlcpy(manifest_buf,
-                "{\"manifest_version\":1,\"machine\":\"atari_st\",\"profile\":\"st_520_pal_wiring_bad\",\"region\":\"pal\",\"ram_kb\":512,\"modules\":{\"cpu\":\"st.cpu.m68k@2.0.0\",\"video\":\"st.video.shifter@1.0.0\",\"io\":\"st.io.ikbd@1.0.0\",\"storage\":\"st.storage.fdc@1.0.0\",\"machine_profile\":\"st.profile.520@1.0.0\"},\"scheduler\":{\"tick_hz\":2000000,\"step_order\":[\"cpu\",\"video\",\"io\",\"storage\",\"machine_profile\"]}}",
-                sizeof(manifest_buf));
-        loaded = true;
+    if (!loaded) {
+        loaded = load_builtin_manifest_for_profile(profile, manifest_buf, sizeof(manifest_buf));
     }
 
     if (!loaded) {
@@ -581,6 +631,9 @@ esp_err_t esptari_web_lifecycle_session_handler(httpd_req_t *req)
                                 esp_err_to_name(err));
     }
 
+    strlcpy(g_active_machine, machine, sizeof(g_active_machine));
+    strlcpy(g_active_profile, profile, sizeof(g_active_profile));
+
     char resp[1536];
     snprintf(resp,
              sizeof(resp),
@@ -599,6 +652,7 @@ esp_err_t esptari_web_lifecycle_session_handler(httpd_req_t *req)
              tos_id,
              tos_local_path,
              first_disk_id);
+    esptari_web_audit_log("web_api", "/api/v2/engine/session", "ses_local", "success", "session_created");
     return esptari_web_send_json(req, resp, 200);
 }
 
@@ -655,13 +709,20 @@ esp_err_t esptari_web_lifecycle_resume_handler(httpd_req_t *req)
 
     esp_err_t err = esptari_core_resume_with_mode(resume_running);
     if (err == ESP_OK) {
+        esptari_web_audit_log("web_api",
+                              "/api/v2/engine/session/resume",
+                              "ses_local",
+                              "success",
+                              resume_running ? "resumed_running" : "resumed_paused");
         return esptari_web_send_json(req, "{\"ok\":true}", 200);
     }
 
     if (err == ESP_ERR_INVALID_STATE) {
+        esptari_web_audit_log("web_api", "/api/v2/engine/session/resume", "ses_local", "failed", "invalid_session_state");
         return send_guard_error(req, 409, "INVALID_SESSION_STATE", "engine", false, "G-LIFECYCLE-RESUME", "/api/v2/engine/session/resume", "Cannot resume from current lifecycle state", esp_err_to_name(err));
     }
 
+    esptari_web_audit_log("web_api", "/api/v2/engine/session/resume", "ses_local", "failed", "internal_error");
     return send_guard_error(req, 500, "INTERNAL_ERROR", "internal", false, "G-LIFECYCLE-RESUME", "/api/v2/engine/session/resume", "Unhandled resume failure", esp_err_to_name(err));
 }
 
@@ -718,10 +779,12 @@ esp_err_t esptari_web_lifecycle_reset_handler(httpd_req_t *req)
 
     esp_err_t err = esptari_core_reset();
     if (err == ESP_ERR_INVALID_STATE) {
+        esptari_web_audit_log("web_api", "/api/v2/engine/session/reset", "ses_local", "failed", "invalid_session_state");
         return send_guard_error(req, 409, "INVALID_SESSION_STATE", "engine", false, "G-LIFECYCLE-RESET", "/api/v2/engine/session/reset", "Cannot reset from current lifecycle state", esp_err_to_name(err));
     }
 
     if (err != ESP_OK) {
+        esptari_web_audit_log("web_api", "/api/v2/engine/session/reset", "ses_local", "failed", "internal_error");
         return send_guard_error(req, 500, "INTERNAL_ERROR", "internal", false, "G-LIFECYCLE-RESET", "/api/v2/engine/session/reset", "Unhandled reset failure", esp_err_to_name(err));
     }
 
@@ -735,5 +798,6 @@ esp_err_t esptari_web_lifecycle_reset_handler(httpd_req_t *req)
              reset_mode,
              preserve_media ? "true" : "false",
              (unsigned long long)status.last_transition_us);
+    esptari_web_audit_log("web_api", "/api/v2/engine/session/reset", "ses_local", "success", reset_mode);
     return esptari_web_send_json(req, resp, 200);
 }

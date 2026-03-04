@@ -8,6 +8,7 @@
 #include "esptari_core.h"
 #include "esptari_web_debug.h"
 #include "esptari_web_http_utils.h"
+#include "esptari_web_lifecycle_session.h"
 #include "esptari_web_stream.h"
 
 #define send_json esptari_web_send_json
@@ -62,14 +63,18 @@ static esp_err_t session_state_handler(httpd_req_t *req)
     esptari_web_debug_get_runtime_snapshot(&debug_snapshot);
     esptari_web_stream_runtime_snapshot_t stream_snapshot = {0};
     esptari_web_stream_get_runtime_snapshot(&stream_snapshot);
+    const char *active_machine = esptari_web_lifecycle_active_machine();
+    const char *active_profile = esptari_web_lifecycle_active_profile();
 
     char resp[1536];
     snprintf(resp,
              sizeof(resp),
-             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"state\":\"%s\",\"run_mode\":\"%s\",\"machine\":\"atari_st\",\"profile\":\"st_520_pal\",\"snapshot_at_us\":%llu,\"uptime_ms\":%llu,\"cycle_counter\":%llu,\"tick_counter\":%llu,\"loaded_modules\":[],\"runtime\":{\"scheduler_hz\":%lu,\"timestamp_origin_us\":%llu,\"timestamp_last_emitted_us\":%llu,\"timestamp_regressions\":%llu,\"last_transition_at_us\":%llu,\"last_error\":null},\"stream_health\":{\"video\":{\"connected_clients\":0,\"dropped_packets\":%llu},\"audio\":{\"connected_clients\":0,\"dropped_packets\":%llu}}}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"state\":\"%s\",\"run_mode\":\"%s\",\"machine\":\"%s\",\"profile\":\"%s\",\"snapshot_at_us\":%llu,\"uptime_ms\":%llu,\"cycle_counter\":%llu,\"tick_counter\":%llu,\"loaded_modules\":[],\"runtime\":{\"scheduler_hz\":%lu,\"timestamp_origin_us\":%llu,\"timestamp_last_emitted_us\":%llu,\"timestamp_regressions\":%llu,\"last_transition_at_us\":%llu,\"last_error\":null},\"stream_health\":{\"video\":{\"connected_clients\":0,\"dropped_packets\":%llu},\"audio\":{\"connected_clients\":0,\"dropped_packets\":%llu}}}}",
              session_id,
              esptari_core_state_to_string(status.state),
              debug_snapshot.run_mode,
+             active_machine,
+             active_profile,
              (unsigned long long)debug_snapshot.timestamp_last_emitted_us,
              (unsigned long long)uptime_ms,
              (unsigned long long)debug_snapshot.cycle_counter,

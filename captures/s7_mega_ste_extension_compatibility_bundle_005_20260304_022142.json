@@ -1,0 +1,20 @@
+{
+  "bundle_version": 1,
+  "task_id": "S7-005",
+  "generated_at": "20260304_022142",
+  "harness_capture": "captures/s7_mega_ste_extension_compatibility_005_smoke_postfix_20260304_022142.txt",
+  "mega_ste_extension_compatibility_matrix": "TRACKING/evidence/s7_mega_ste_extension_compatibility_matrix_005.json",
+  "summary": {
+    "baseline_machine": "atari_st",
+    "baseline_profile": "st_520_pal",
+    "video_pacing_mode": "fixed_fps",
+    "audio_pacing_mode": "fixed_hz",
+    "ste_guard_code": "MACHINE_PROFILE_NOT_FOUND",
+    "mega_ste_guard_code": "MACHINE_PROFILE_NOT_FOUND",
+    "ste_guard_path": "/sdcard/config/engine_v2/machines/atari_st/ste_pal.json",
+    "mega_ste_guard_path": "/sdcard/config/engine_v2/machines/atari_st/mega_ste_pal.json",
+    "unsupported_control_code": "BAD_REQUEST",
+    "unsupported_audio_schema_code": "UNSUPPORTED_VERSION",
+    "stopped_control_guard_code": "ENGINE_NOT_RUNNING"
+  }
+}

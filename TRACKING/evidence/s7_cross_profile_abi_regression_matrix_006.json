@@ -1,0 +1,92 @@
+{
+  "matrix_version": 1,
+  "task_id": "S7-006",
+  "sprint": "S7",
+  "description": "Cross-profile compatibility matrix and ABI/regression guard suite across Atari ST, Mega ST, STe, and Mega STe profile surfaces",
+  "checks": [
+    {
+      "id": "CP001_ATARI_ST_BASELINE_START",
+      "request": "POST /api/v2/engine/session machine=atari_st profile=st_520_pal",
+      "expect": {
+        "http": 200,
+        "machine": "atari_st",
+        "profile": "st_520_pal",
+        "state": "running"
+      }
+    },
+    {
+      "id": "CP002_PROFILE_GUARD_MATRIX",
+      "request": "POST /api/v2/engine/session for ste_pal, mega_st_pal, mega_ste_pal",
+      "expect": {
+        "ste_http": 404,
+        "ste_code": "MACHINE_PROFILE_NOT_FOUND",
+        "mega_st_http": 404,
+        "mega_st_code": "MACHINE_PROFILE_NOT_FOUND",
+        "mega_ste_http": 404,
+        "mega_ste_code": "MACHINE_PROFILE_NOT_FOUND"
+      }
+    },
+    {
+      "id": "CP003_MACHINE_PROFILE_MISMATCH_GUARD",
+      "request": "POST /api/v2/engine/session machine=mega_st profile=st_520_pal",
+      "expect": {
+        "http": 400,
+        "error_code": "BAD_REQUEST",
+        "reason": "machine/profile mismatch"
+      }
+    },
+    {
+      "id": "CP004_RESOLVER_MACHINE_GUARD",
+      "request": "POST /api/v2/ebins/resolve machine=mega_st",
+      "expect": {
+        "http": 404,
+        "error_code": "EBIN_NOT_FOUND",
+        "reason": "resolver_machine_not_indexed"
+      }
+    },
+    {
+      "id": "CP005_ABI_GUARD_REGRESSION",
+      "request": "POST /api/v2/ebins/validate abi_version=2.0.0",
+      "expect": {
+        "http": 409,
+        "error_code": "EBIN_ABI_MISMATCH"
+      }
+    },
+    {
+      "id": "CP006_SESSION_ENVELOPE_REGRESSION",
+      "request": "GET /api/v2/engine/session",
+      "expect": {
+        "http": 200,
+        "required_fields": [
+          "session_id",
+          "state",
+          "run_mode",
+          "machine",
+          "profile",
+          "tick_counter",
+          "cycle_counter"
+        ]
+      }
+    },
+    {
+      "id": "CP007_STREAM_ENVELOPE_REGRESSION",
+      "request": "GET /api/v2/stream/video + /api/v2/stream/audio + invalid metadata schema probes",
+      "expect": {
+        "video_http": 200,
+        "audio_http": 200,
+        "video_invalid_schema_http": 400,
+        "video_invalid_schema_code": "UNSUPPORTED_VERSION",
+        "audio_invalid_schema_http": 400,
+        "audio_invalid_schema_code": "UNSUPPORTED_VERSION"
+      }
+    },
+    {
+      "id": "CP008_POST_HEALTH_SURVIVABILITY",
+      "request": "GET /api/v2/engine/health",
+      "expect": {
+        "http": 200,
+        "ok": true
+      }
+    }
+  ]
+}

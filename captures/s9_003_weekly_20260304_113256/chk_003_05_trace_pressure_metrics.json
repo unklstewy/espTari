@@ -1,0 +1,8 @@
+{
+  "video_dropped_events_since_last": 0,
+  "audio_dropped_events_since_last": 0,
+  "video_throttle_active": false,
+  "audio_throttle_active": false,
+  "video_queue_depth": 32,
+  "audio_queue_depth": 32
+}

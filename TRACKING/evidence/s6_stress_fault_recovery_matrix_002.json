@@ -1,0 +1,54 @@
+{
+  "matrix_version": 1,
+  "task_id": "S6-002",
+  "sprint": "S6",
+  "description": "Deterministic stress/fault-recovery execution matrix with survivability assertions",
+  "cycles": 3,
+  "base_url": "${BASE_URL:-http://esptari.local}",
+  "seed_module": "st.cpu.m68k",
+  "fault_sequence": [
+    {
+      "fault_id": "R001_LOAD_BIND_FAILURE",
+      "endpoint": "/api/v2/ebins/load",
+      "expect": {
+        "http": 409,
+        "error_code": "EBIN_INVALID",
+        "recovery_action": "rollback_previous_active_module",
+        "runtime_state": "running"
+      }
+    },
+    {
+      "fault_id": "R002_LOAD_INIT_FALLBACK",
+      "endpoint": "/api/v2/ebins/load",
+      "expect": {
+        "http": 409,
+        "error_code": "EBIN_INVALID",
+        "recovery_action": "fallback_module_set_activated",
+        "runtime_state": "running"
+      }
+    },
+    {
+      "fault_id": "R003_UNLOAD_DRAIN_FAILURE",
+      "endpoint": "/api/v2/ebins/unload",
+      "expect": {
+        "http": 409,
+        "error_code": "EBIN_INVALID",
+        "stage": "drain",
+        "runtime_state": "recoverable_error"
+      }
+    }
+  ],
+  "survivability_probes": [
+    {
+      "method": "GET",
+      "path": "/api/v2/engine/health",
+      "expect_http": 200,
+      "expect_ok": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v2/engine/session/start",
+      "expect_http_any_of": [200, 409]
+    }
+  ]
+}

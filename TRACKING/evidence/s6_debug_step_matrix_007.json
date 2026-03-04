@@ -1,0 +1,69 @@
+{
+  "matrix_version": 1,
+  "task_id": "S6-007",
+  "sprint": "S6",
+  "description": "Debug clock transition, single-step determinism, and diagnostic payload integrity matrix",
+  "checks": [
+    {
+      "id": "DBG001_CLOCK_MODE_TRANSITIONS",
+      "request": "POST /api/v2/debug/clock/mode",
+      "expect": {
+        "realtime_to_slow_motion_http": 200,
+        "slow_motion_to_single_step_http": 200,
+        "effective_ratio_slow_motion": 0.5
+      }
+    },
+    {
+      "id": "DBG002_CLOCK_GUARD_VALIDATION",
+      "request": "POST /api/v2/debug/clock/mode (invalid ratio usage)",
+      "expect": {
+        "http": 400,
+        "error_code": "DEBUG_CLOCK_INVALID"
+      }
+    },
+    {
+      "id": "DBG003_SINGLE_STEP_DETERMINISM",
+      "request": "POST /api/v2/debug/clock/step",
+      "expect": {
+        "http": 200,
+        "ticks_committed_equals_steps": true,
+        "step_checks_all_pass": true,
+        "capture_checks_all_pass": true
+      }
+    },
+    {
+      "id": "DBG004_DIAGNOSTIC_PAYLOAD_INTEGRITY",
+      "request": "POST /api/v2/debug/clock/step capture=[opcode,bus_error]",
+      "expect": {
+        "http": 200,
+        "opcode_required_fields": [
+          "opcode_word",
+          "instruction_size_bytes",
+          "pc",
+          "tick_counter",
+          "cycle_counter"
+        ],
+        "bus_error_required_fields": [
+          "fault_address",
+          "access_type",
+          "fault_phase",
+          "vector",
+          "tick_counter",
+          "cycle_counter"
+        ]
+      }
+    },
+    {
+      "id": "DBG005_FAILURE_GUARD_AND_CHECK_IDS",
+      "request": "POST /api/v2/debug/clock/step forced violations",
+      "expect": {
+        "register_delta_guard_http": 409,
+        "register_delta_guard_id": "CAP-DIAG-PROFILE",
+        "opcode_schema_failure_http": 500,
+        "opcode_schema_check_id": "CAP-DIAG-02",
+        "bus_error_schema_failure_http": 500,
+        "bus_error_schema_check_id": "CAP-DIAG-03"
+      }
+    }
+  ]
+}

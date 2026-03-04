@@ -1,0 +1,36 @@
+### pre_stop
+POST /api/v2/engine/session/stop
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-STOP","endpoint":"/api/v2/engine/session/stop","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### start_mega_st
+POST /api/v2/engine/session
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"mega_st_pal","profile_manifest_validation":{"path":"/sdcard/config/engine_v2/machines/atari_st/mega_st_pal.json","manifest_version":1,"schema_valid":true,"normalized_profile":"mega_st_pal","validated_at_us":178076348},"profile_wiring_validation":{"wiring_valid":true,"validated_modules":5,"step_order_length":5,"validated_at_us":178076349},"resolved":{"rom_id":"rom.atari.st.01","rom_path":"/sdcard/roms/st/TOS104.ROM","tos_id":"tos.eu.1.04","tos_path":"/sdcard/tos/TOS104.IMG","first_disk_id":"disk.automation.a_093"}}}
+
+### pause
+POST /api/v2/engine/session/pause
+HTTP 200
+{"ok":true}
+
+### resume
+POST /api/v2/engine/session/resume
+HTTP 200
+{"ok":true}
+
+### reset
+POST /api/v2/engine/session/reset
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","reset_mode":"warm","preserve_media":true,"reset_at_us":178176245}}
+
+### session_state
+GET /api/v2/engine/session
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","run_mode":"realtime","machine":"atari_st","profile":"mega_st_pal","snapshot_at_us":178221872,"uptime_ms":45,"cycle_counter":0,"tick_counter":0,"loaded_modules":[],"runtime":{"scheduler_hz":8000000,"timestamp_origin_us":178221872,"timestamp_last_emitted_us":178221872,"timestamp_regressions":0,"last_transition_at_us":178176245,"last_error":null},"stream_health":{"video":{"connected_clients":0,"dropped_packets":0},"audio":{"connected_clients":0,"dropped_packets":0}}}}
+
+### stop
+POST /api/v2/engine/session/stop
+HTTP 200
+{"ok":true}
+
+s8_002=pass

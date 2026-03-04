@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "s9_003_evidence_bundle_schema_2026_03_04",
+  "title": "S9-003 Risk Validation Evidence Bundle",
+  "type": "object",
+  "required": [
+    "bundle_version",
+    "task_id",
+    "run_id",
+    "generated_at",
+    "cadence",
+    "checks",
+    "summary"
+  ],
+  "properties": {
+    "bundle_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "task_id": {
+      "const": "S9-003"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cadence": {
+      "type": "string",
+      "enum": [
+        "daily",
+        "weekly",
+        "per-release"
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "check_id",
+          "risk_id",
+          "status",
+          "threshold_ref",
+          "signal"
+        ],
+        "properties": {
+          "check_id": {
+            "type": "string"
+          },
+          "risk_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "not-run"
+            ]
+          },
+          "threshold_ref": {
+            "type": "string"
+          },
+          "signal": {
+            "type": "string"
+          },
+          "metrics": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "overall_status",
+        "pass_count",
+        "fail_count"
+      ],
+      "properties": {
+        "overall_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "pass_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fail_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "not_run_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

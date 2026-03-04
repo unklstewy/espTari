@@ -1,0 +1,13 @@
+{
+  "matrix_version": 1,
+  "task_id": "S8-004",
+  "sprint": "S8",
+  "description": "Active Mega STe extension compatibility-delta matrix versus active STe baseline",
+  "checks": [
+    {"id": "ME001_START_STE", "expect": {"http": 200, "profile": "ste_pal"}},
+    {"id": "ME002_CAPTURE_STE_SESSION", "expect": {"http": 200, "profile": "ste_pal"}},
+    {"id": "ME003_START_MEGA_STE", "expect": {"http": 200, "profile": "mega_ste_pal"}},
+    {"id": "ME004_CAPTURE_MEGA_STE_SESSION", "expect": {"http": 200, "profile": "mega_ste_pal"}},
+    {"id": "ME005_UNSUPPORTED_EXTENSION_FALLBACK", "expect": {"http": 400, "error_code": "BAD_REQUEST"}}
+  ]
+}

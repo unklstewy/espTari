@@ -1,0 +1,14 @@
+{
+  "bundle_version": 1,
+  "task_id": "S6-002",
+  "generated_at": "20260304_011725",
+  "cycles": 3,
+  "harness_capture": "captures/s6_fault_recovery_002_smoke_postfix_20260304_011725.txt",
+  "fault_matrix": "TRACKING/evidence/s6_stress_fault_recovery_matrix_002.json",
+  "summary": {
+    "rollback_pass": 3,
+    "fallback_pass": 3,
+    "drain_pass": 3,
+    "survivability_pass": 9
+  }
+}

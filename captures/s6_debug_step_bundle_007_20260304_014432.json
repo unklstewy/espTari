@@ -1,0 +1,17 @@
+{
+  "bundle_version": 1,
+  "task_id": "S6-007",
+  "generated_at": "20260304_014432",
+  "harness_capture": "captures/s6_debug_step_007_smoke_postfix_20260304_014432.txt",
+  "debug_step_matrix": "TRACKING/evidence/s6_debug_step_matrix_007.json",
+  "summary": {
+    "clock_mode_after_validation": "single_step",
+    "tick_counter_after_step": 9,
+    "tick_counter_at_state": 11,
+    "opcode_payload_count": 3,
+    "bus_error_payload_count": 3,
+    "register_delta_guard_id": "CAP-DIAG-PROFILE",
+    "opcode_schema_check_id": "CAP-DIAG-02",
+    "bus_error_schema_check_id": "CAP-DIAG-03"
+  }
+}

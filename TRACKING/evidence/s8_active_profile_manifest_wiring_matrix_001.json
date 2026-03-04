@@ -1,0 +1,43 @@
+{
+  "matrix_version": 1,
+  "task_id": "S8-001",
+  "sprint": "S8",
+  "description": "Active runtime manifest/wiring enablement matrix for mega_st_pal, ste_pal, and mega_ste_pal",
+  "checks": [
+    {
+      "id": "AP001_START_MEGA_ST",
+      "request": "POST /api/v2/engine/session machine=atari_st profile=mega_st_pal",
+      "expect": {
+        "http": 200,
+        "state": "running",
+        "profile": "mega_st_pal"
+      }
+    },
+    {
+      "id": "AP002_START_STE",
+      "request": "POST /api/v2/engine/session machine=atari_st profile=ste_pal",
+      "expect": {
+        "http": 200,
+        "state": "running",
+        "profile": "ste_pal"
+      }
+    },
+    {
+      "id": "AP003_START_MEGA_STE",
+      "request": "POST /api/v2/engine/session machine=atari_st profile=mega_ste_pal",
+      "expect": {
+        "http": 200,
+        "state": "running",
+        "profile": "mega_ste_pal"
+      }
+    },
+    {
+      "id": "AP004_MISMATCH_GUARD",
+      "request": "POST /api/v2/engine/session machine=mega_st profile=st_520_pal",
+      "expect": {
+        "http": 400,
+        "error_code": "BAD_REQUEST"
+      }
+    }
+  ]
+}

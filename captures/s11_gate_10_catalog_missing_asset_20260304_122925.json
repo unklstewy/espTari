@@ -1,0 +1,18 @@
+{
+  "gate": "GATE-S11-10",
+  "run_id": "20260304_122925",
+  "status": "conditional",
+  "checks": [
+    {
+      "check": "catalog_list",
+      "http": 200,
+      "ok": true
+    },
+    {
+      "check": "missing_report_route",
+      "http": 404,
+      "catalog": "rom_catalog",
+      "ok": false
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "matrix_version": 1,
+  "task_id": "S8-006",
+  "sprint": "S8",
+  "description": "Active pairwise ABI compatibility and regression guard matrix",
+  "checks": [
+    {"id": "AB001_PAIRWISE_STARTS", "expect": {"all_http": 200}},
+    {"id": "AB002_MISMATCH_GUARD", "expect": {"http": 400, "error_code": "BAD_REQUEST"}},
+    {"id": "AB003_UNSUPPORTED_VERSION_GUARD", "expect": {"http": 400, "error_code": "UNSUPPORTED_VERSION"}},
+    {"id": "AB004_ENGINE_NOT_RUNNING_GUARD", "expect": {"http": 409, "error_code": "ENGINE_NOT_RUNNING"}}
+  ]
+}

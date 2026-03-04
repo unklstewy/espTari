@@ -1,0 +1,13 @@
+s9_003_weekly_runner=start
+base_url=http://esptari.local
+health_check=ok attempts=1 elapsed_ms=44.41
+CHK-RISK-003-01::pass::Canonical ABI guard-code behavior and no unexpected positive regressions
+CHK-RISK-003-02::pass::Envelope latency sample is within threshold and stream payloads are retrievable
+CHK-RISK-003-05::pass::No nominal drop/throttle condition in sampled backpressure telemetry
+CHK-RISK-003-07::pass::Deterministic clock mode/step behavior and stable guard semantics
+CHK-RISK-003-03::not-run::Daily cadence check omitted from weekly bundle
+CHK-RISK-003-04::not-run::Daily cadence check omitted from weekly bundle
+CHK-RISK-003-06::not-run::Per-release check omitted from weekly bundle
+bundle_path=captures/s9_risk_validation_bundle_003_weekly_20260304_113935.json
+artifacts_dir=captures/s9_003_weekly_20260304_113935
+summary={"fail_count": 0, "not_run_count": 3, "overall_status": "pass", "pass_count": 4}

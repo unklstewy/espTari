@@ -1,0 +1,15 @@
+{
+  "set_single_step_http": 200,
+  "step_http": 200,
+  "state_http": 200,
+  "set_realtime_http": 200,
+  "steps_requested": 2,
+  "ticks_committed": 2,
+  "state_mode_before_realtime": "single_step",
+  "elapsed_ms": {
+    "set_single_step": 31.943,
+    "step": 27.458,
+    "state": 19.837,
+    "set_realtime": 18.279
+  }
+}

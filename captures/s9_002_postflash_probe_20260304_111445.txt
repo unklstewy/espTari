@@ -1,0 +1,14 @@
+health_check_loop=start
+health_check=ok attempts=1
+AUTH-01 :: missing bearer -> UNAUTHORIZED :: FAIL :: {'http': 200, 'code': None}
+AUTH-02 :: insufficient scope -> FORBIDDEN :: FAIL :: {'http': 200, 'code': None}
+PATH-01 :: outside SD allowlist rejected :: PASS :: {'http': 400, 'code': 'PATH_NOT_ALLOWED'}
+PATH-02 :: traversal segment rejected :: PASS :: {'http': 400, 'code': 'PATH_NOT_ALLOWED'}
+PATH-02 :: mixed separator rejected :: FAIL :: {'http': 400, 'code': 'PATH_NOT_ALLOWED'}
+UPLOAD-02 :: start staged upload accepted :: FAIL :: {'http': 500, 'code': None, 'uploadId': 'upl_49989'}
+UPLOAD-02 :: oversize chunk rejected :: FAIL :: {'http': 500, 'code': 'CHUNK_TOO_LARGE'}
+UPLOAD-02 :: chunk timeout enforced :: FAIL :: {'http_start': 500, 'start_code': None}
+EBIN-02 :: validation failure path reachable :: PASS :: {'http': 400, 'code': 'BAD_REQUEST'}
+EBIN-02 :: session transition path reachable :: PASS :: {'http': 409, 'code': 'INVALID_SESSION_STATE'}
+postflash_probe_bundle=captures/s9_002_postflash_probe_bundle_20260304_111445.json
+controls={"AUTH-01": "fail", "AUTH-02": "fail", "EBIN-02": "pass", "PATH-01": "pass", "PATH-02": "fail", "UPLOAD-02": "fail"}

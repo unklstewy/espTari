@@ -1,0 +1,119 @@
+{
+  "task_id": "S9-002",
+  "generated_at": "2026-03-04T11:18:43Z",
+  "source_documents": [
+    "TRACKING/TASK_CARDS_S9_ARC_RESIDUALS.md",
+    "docs/EMU_ENGINE_V2_API_SPEC.md",
+    "docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md",
+    "tools/probe_s9_002_postflash.sh",
+    "captures/s9_002_postflash_probe_bundle_20260304_111843.json"
+  ],
+  "controls": [
+    {
+      "id": "AUTH-01",
+      "title": "Authentication mode posture",
+      "status": "pass",
+      "requirement": "Support and enforce token-mode bearer authentication on protected API paths.",
+      "evidence": [
+        "docs/EMU_ENGINE_V2_API_SPEC.md:53-65",
+        "components/esptari_web/esptari_web_auth.c",
+        "components/esptari_web/esptari_web.c",
+        "components/esptari_web/esptari_web_files.c",
+        "components/esptari_web/esptari_web_catalog_sync.c",
+        "captures/s9_002_postflash_probe_bundle_20260304_111843.json"
+      ],
+      "finding": "Token-mode bearer verification is enabled at web-server startup and post-flash runtime probes confirm deterministic 401 responses on protected routes without bearer token."
+    },
+    {
+      "id": "AUTH-02",
+      "title": "Authorization scope enforcement",
+      "status": "pass",
+      "requirement": "Enforce minimum scopes for control-plane endpoints.",
+      "evidence": [
+        "docs/EMU_ENGINE_V2_API_SPEC.md:66-76",
+        "components/esptari_web/esptari_web_auth.c",
+        "components/esptari_web/esptari_web_files.c",
+        "components/esptari_web/esptari_web_catalog_sync.c",
+        "captures/s9_002_postflash_probe_bundle_20260304_111843.json"
+      ],
+      "finding": "Per-route scope checks are enforced (`files:read/write`, `ebin:manage`) before handler execution; post-flash runtime probe confirms deterministic 403 on insufficient-scope token."
+    },
+    {
+      "id": "PATH-01",
+      "title": "SD-card allowlist roots",
+      "status": "pass",
+      "requirement": "File endpoints must enforce SD allowlist roots.",
+      "evidence": [
+        "docs/EMU_ENGINE_V2_API_SPEC.md:80-85",
+        "components/esptari_web/esptari_web_files.c",
+        "captures/s9_002_postflash_probe_bundle_20260304_111843.json"
+      ],
+      "finding": "`/api/v2/files/*` handlers enforce canonical SD allowlist roots including staging and ebin directories; post-flash runtime probe confirms outside-root rejection with `PATH_NOT_ALLOWED`."
+    },
+    {
+      "id": "PATH-02",
+      "title": "Path normalization/traversal prevention",
+      "status": "pass",
+      "requirement": "Normalize and validate file paths to prevent traversal.",
+      "evidence": [
+        "docs/EMU_ENGINE_V2_API_SPEC.md:80-85",
+        "docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md:705",
+        "components/esptari_web/esptari_web_files.c",
+        "captures/s9_002_postflash_probe_bundle_20260304_111843.json"
+      ],
+      "finding": "Canonicalization and traversal rejection are applied to list/upload/move/delete/download/mkdir/stat path inputs; post-flash runtime probe confirms traversal and mixed-separator rejection."
+    },
+    {
+      "id": "UPLOAD-01",
+      "title": "Upload size bound enforcement",
+      "status": "pass",
+      "requirement": "Reject request bodies exceeding configured handler bounds.",
+      "evidence": [
+        "docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md:706",
+        "components/esptari_web/esptari_web_http_utils.c:35-46",
+        "components/esptari_web/esptari_web_files.c:84-97"
+      ],
+      "finding": "Current JSON upload path rejects oversized bodies when `content_len >= out_buf_size` and fails request parsing."
+    },
+    {
+      "id": "UPLOAD-02",
+      "title": "Upload chunk timeout controls",
+      "status": "pass",
+      "requirement": "Enforce chunk timeout controls for remote uploads.",
+      "evidence": [
+        "docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md:706,743",
+        "components/esptari_web/esptari_web_files.c",
+        "components/esptari_web/esptari_web_http_utils.c",
+        "captures/s9_002_postflash_probe_bundle_20260304_111843.json"
+      ],
+      "finding": "Upload endpoint supports staged sessions under `/sdcard/.staging` with max chunk size, per-chunk timeout, and explicit commit gate to canonical target path; post-flash runtime probe confirms 202/413/408 staged behavior."
+    },
+    {
+      "id": "EBIN-01",
+      "title": "EBIN integrity gates before load",
+      "status": "pass",
+      "requirement": "Validate hash/signature/ABI/dependency constraints before successful load.",
+      "evidence": [
+        "docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md:707",
+        "components/esptari_web/esptari_web_catalog_sync.c:1389-1490,1523-1640"
+      ],
+      "finding": "EBIN validate and load flows enforce deterministic integrity gates and reject invalid modules."
+    },
+    {
+      "id": "EBIN-02",
+      "title": "Audit-log event completeness",
+      "status": "pass",
+      "requirement": "Maintain audit log for uploads, loads/unloads, validation failures, and session transitions.",
+      "evidence": [
+        "docs/EMU_ENGINE_V2_IMPLEMENTATION_PLAN.md:708-712",
+        "components/esptari_web/esptari_web_audit.c",
+        "components/esptari_web/esptari_web_files.c",
+        "components/esptari_web/esptari_web_catalog_sync.c",
+        "components/esptari_web/esptari_web_lifecycle_session.c",
+        "components/esptari_web/esptari_web_lifecycle_state.c",
+        "captures/s9_002_postflash_probe_bundle_20260304_111843.json"
+      ],
+      "finding": "Persistent append-only JSONL audit sink on SD (`/sdcard/ebins/esptari_audit.jsonl`) records upload/load/unload/validate-failure/session-transition events with actor/action/target/status/timestamp/reason; post-flash runtime paths are verified reachable."
+    }
+  ]
+}

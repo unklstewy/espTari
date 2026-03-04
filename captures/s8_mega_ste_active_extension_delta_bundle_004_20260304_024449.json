@@ -1,0 +1,12 @@
+{
+  "bundle_version": 1,
+  "task_id": "S8-004",
+  "generated_at": "20260304_024449",
+  "harness_capture": "captures/s8_mega_ste_active_extension_delta_004_smoke_postfix_20260304_024449.txt",
+  "matrix": "TRACKING/evidence/s8_mega_ste_active_extension_delta_matrix_004.json",
+  "summary": {
+    "ste_profile": "ste_pal",
+    "mega_ste_profile": "mega_ste_pal",
+    "fallback_code": "BAD_REQUEST"
+  }
+}

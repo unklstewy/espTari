@@ -1,0 +1,13 @@
+{
+  "bundle_version": 1,
+  "task_id": "S8-006",
+  "generated_at": "20260304_024450",
+  "harness_capture": "captures/s8_active_pairwise_abi_regression_006_smoke_postfix_20260304_024450.txt",
+  "matrix": "TRACKING/evidence/s8_active_pairwise_abi_regression_matrix_006.json",
+  "summary": {
+    "pairwise_profiles": ["st_520_pal", "mega_st_pal", "ste_pal", "mega_ste_pal"],
+    "mismatch_code": "BAD_REQUEST",
+    "unsupported_version_code": "UNSUPPORTED_VERSION",
+    "engine_not_running_code": "ENGINE_NOT_RUNNING"
+  }
+}

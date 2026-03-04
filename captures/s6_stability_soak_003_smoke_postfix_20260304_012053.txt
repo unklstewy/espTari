@@ -1,0 +1,272 @@
+health_check=ok attempts=1
+### engine_session_start
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### sample_1_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_1_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=1 state=unknown health_ok=True status_ok=True
+### sample_2_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_2_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=2 state=unknown health_ok=True status_ok=True
+### sample_3_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_3_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=3 state=unknown health_ok=True status_ok=True
+### sample_4_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_4_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=4 state=unknown health_ok=True status_ok=True
+### sample_5_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_5_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=5 state=unknown health_ok=True status_ok=True
+### sample_6_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_6_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=6 state=unknown health_ok=True status_ok=True
+### sample_7_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_7_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=7 state=unknown health_ok=True status_ok=True
+### sample_8_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_8_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=8 state=unknown health_ok=True status_ok=True
+### sample_9_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_9_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=9 state=unknown health_ok=True status_ok=True
+### sample_10_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_10_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=10 state=unknown health_ok=True status_ok=True
+### sample_11_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_11_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=11 state=unknown health_ok=True status_ok=True
+### sample_12_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_12_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=12 state=unknown health_ok=True status_ok=True
+### sample_13_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_13_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=13 state=unknown health_ok=True status_ok=True
+### sample_14_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_14_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=14 state=unknown health_ok=True status_ok=True
+### sample_15_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_15_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=15 state=unknown health_ok=True status_ok=True
+### sample_16_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_16_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=16 state=unknown health_ok=True status_ok=True
+### sample_17_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_17_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=17 state=unknown health_ok=True status_ok=True
+### sample_18_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_18_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=18 state=unknown health_ok=True status_ok=True
+### sample_19_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_19_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=19 state=unknown health_ok=True status_ok=True
+### sample_20_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_20_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=20 state=unknown health_ok=True status_ok=True
+### sample_21_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_21_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=21 state=unknown health_ok=True status_ok=True
+### sample_22_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_22_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=22 state=unknown health_ok=True status_ok=True
+### sample_23_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_23_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=23 state=unknown health_ok=True status_ok=True
+### sample_24_health
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### sample_24_status
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":2077230863}}
+
+sample=24 state=unknown health_ok=True status_ok=True
+stability_soak=pass samples=24 health_pass=24 status_pass=24 transport_fail=0 parse_fail=0
+bundle_path=captures/s6_stability_soak_bundle_003_20260304_012053.json

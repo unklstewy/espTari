@@ -1,0 +1,17 @@
+{
+  "gate": "GATE-S11-09",
+  "run_id": "20260304_122924",
+  "status": "conditional",
+  "checks": [
+    {
+      "check": "capture_get",
+      "http": 404,
+      "ok": false
+    },
+    {
+      "check": "capture_set",
+      "http": 404,
+      "ok": false
+    }
+  ]
+}

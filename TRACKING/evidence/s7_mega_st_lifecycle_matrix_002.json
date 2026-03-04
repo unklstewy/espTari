@@ -1,0 +1,91 @@
+{
+  "matrix_version": 1,
+  "task_id": "S7-002",
+  "sprint": "S7",
+  "description": "Mega ST bootstrap, lifecycle/API parity, and deterministic guard validation matrix",
+  "checks": [
+    {
+      "id": "MS001_ATARI_ST_BASELINE_START",
+      "request": "POST /api/v2/engine/session",
+      "expect": {
+        "http": 200,
+        "machine": "atari_st",
+        "profile": "st_520_pal",
+        "state": "running"
+      }
+    },
+    {
+      "id": "MS002_BASELINE_LIFECYCLE_PARITY",
+      "request": "POST /api/v2/engine/session/{pause,resume,reset,stop}",
+      "expect": {
+        "pause_http": 200,
+        "resume_http": 200,
+        "reset_http": 200,
+        "stop_http": 200,
+        "guard_safe": true
+      }
+    },
+    {
+      "id": "MS003_BASELINE_STATUS_FIELDS",
+      "request": "GET /api/v2/engine/session",
+      "expect": {
+        "http": 200,
+        "required_fields": [
+          "session_id",
+          "state",
+          "run_mode",
+          "machine",
+          "profile",
+          "tick_counter",
+          "cycle_counter"
+        ]
+      }
+    },
+    {
+      "id": "MS004_MEGA_ST_BOOTSTRAP_GUARD",
+      "request": "POST /api/v2/engine/session machine=mega_st profile=mega_st_pal",
+      "expect": {
+        "http": 404,
+        "error_code": "MACHINE_PROFILE_NOT_FOUND"
+      }
+    },
+    {
+      "id": "MS005_MEGA_ST_MISMATCH_GUARD",
+      "request": "POST /api/v2/engine/session machine=mega_st profile=st_520_pal",
+      "expect": {
+        "http": 400,
+        "error_code": "BAD_REQUEST",
+        "reason": "machine/profile mismatch"
+      }
+    },
+    {
+      "id": "MS006_STOPPED_LIFECYCLE_GUARDS",
+      "request": "POST /api/v2/engine/session/{pause,resume,reset} from stopped",
+      "expect": {
+        "pause_http": 409,
+        "resume_http": 409,
+        "reset_http": 409,
+        "pause_error_code": "INVALID_SESSION_STATE",
+        "resume_error_code": "INVALID_SESSION_STATE",
+        "reset_error_code": "INVALID_SESSION_STATE"
+      }
+    },
+    {
+      "id": "MS007_STATUS_PARITY_AFTER_GUARDS",
+      "request": "GET /api/v2/engine/session",
+      "expect": {
+        "http": 200,
+        "state": "stopped",
+        "required_fields_preserved": true
+      }
+    },
+    {
+      "id": "MS008_POST_HEALTH_SURVIVABILITY",
+      "request": "GET /api/v2/engine/health",
+      "expect": {
+        "http": 200,
+        "ok": true
+      }
+    }
+  ]
+}

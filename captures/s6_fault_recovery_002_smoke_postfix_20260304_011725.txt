@@ -1,0 +1,183 @@
+health_check=ok attempts=1
+cycle_start=1
+### cycle_1_seed_load_cpu
+POST /api/v2/ebins/load
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"loaded","transitions":["resolve","validate","bind","init"],"runtime_state":"running","transition_seq":83,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"init","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":189154464},"loaded_at_us":2288895553}}
+
+### cycle_1_fault_bind_fail
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"bind","reason":"load_bind_failed_runtime_busy_with_other_module","runtime_state":"running","module_id":"","transition_seq":87,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"bind","fault_reason":"load_bind_failed_runtime_busy_with_other_module","recovery_action":"rollback_previous_active_module","recovered_module_id":"st.cpu.m68k","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2288931093}}}}
+
+### cycle_1_post_bind_fail_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### cycle_1_post_bind_fail_session_start_probe
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+cycle_1_post_bind_fail_survivability=pass
+### cycle_1_fault_init_fallback
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"bind","reason":"load_bind_failed_runtime_busy_with_other_module","runtime_state":"running","module_id":"","transition_seq":91,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"bind","fault_reason":"load_bind_failed_runtime_busy_with_other_module","recovery_action":"fallback_module_set_activated","recovered_module_id":"st.cpu.m68k","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2289233489}}}}
+
+### cycle_1_post_init_fallback_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### cycle_1_post_init_fallback_session_start_probe
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+cycle_1_post_init_fallback_survivability=pass
+### cycle_1_fault_unload_drain
+POST /api/v2/ebins/unload
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"drain","reason":"unload_drain_failed_simulated","runtime_state":"recoverable_error","module_id":"","transition_seq":94,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"drain","fault_reason":"unload_drain_failed_simulated","recovery_action":"pending_recovery","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2289374887}}}}
+
+### cycle_1_recover_unload
+POST /api/v2/ebins/unload
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"unloaded","transitions":["pause","drain","deinit","release"],"runtime_state":"idle","transition_seq":99,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"release","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2289374887},"unloaded_at_us":2289449862}}
+
+### cycle_1_post_recover_unload_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### cycle_1_post_recover_unload_session_start_probe
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+cycle_1_post_recover_unload_survivability=pass
+cycle_complete=1
+cycle_start=2
+### cycle_2_seed_load_cpu
+POST /api/v2/ebins/load
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"loaded","transitions":["resolve","validate","bind","init"],"runtime_state":"running","transition_seq":104,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"init","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2289374887},"loaded_at_us":2289574266}}
+
+### cycle_2_fault_bind_fail
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"bind","reason":"load_bind_failed_runtime_busy_with_other_module","runtime_state":"running","module_id":"","transition_seq":108,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"bind","fault_reason":"load_bind_failed_runtime_busy_with_other_module","recovery_action":"rollback_previous_active_module","recovered_module_id":"st.cpu.m68k","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2289597132}}}}
+
+### cycle_2_post_bind_fail_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### cycle_2_post_bind_fail_session_start_probe
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+cycle_2_post_bind_fail_survivability=pass
+### cycle_2_fault_init_fallback
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"bind","reason":"load_bind_failed_runtime_busy_with_other_module","runtime_state":"running","module_id":"","transition_seq":112,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"bind","fault_reason":"load_bind_failed_runtime_busy_with_other_module","recovery_action":"fallback_module_set_activated","recovered_module_id":"st.cpu.m68k","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2289816158}}}}
+
+### cycle_2_post_init_fallback_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### cycle_2_post_init_fallback_session_start_probe
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+cycle_2_post_init_fallback_survivability=pass
+### cycle_2_fault_unload_drain
+POST /api/v2/ebins/unload
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"drain","reason":"unload_drain_failed_simulated","runtime_state":"recoverable_error","module_id":"","transition_seq":115,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"drain","fault_reason":"unload_drain_failed_simulated","recovery_action":"pending_recovery","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2290162852}}}}
+
+### cycle_2_recover_unload
+POST /api/v2/ebins/unload
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"unloaded","transitions":["pause","drain","deinit","release"],"runtime_state":"idle","transition_seq":120,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"release","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2290162852},"unloaded_at_us":2290234848}}
+
+### cycle_2_post_recover_unload_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### cycle_2_post_recover_unload_session_start_probe
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+cycle_2_post_recover_unload_survivability=pass
+cycle_complete=2
+cycle_start=3
+### cycle_3_seed_load_cpu
+POST /api/v2/ebins/load
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"loaded","transitions":["resolve","validate","bind","init"],"runtime_state":"running","transition_seq":125,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"init","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2290162852},"loaded_at_us":2290359888}}
+
+### cycle_3_fault_bind_fail
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"bind","reason":"load_bind_failed_runtime_busy_with_other_module","runtime_state":"running","module_id":"","transition_seq":129,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"bind","fault_reason":"load_bind_failed_runtime_busy_with_other_module","recovery_action":"rollback_previous_active_module","recovered_module_id":"st.cpu.m68k","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2290387282}}}}
+
+### cycle_3_post_bind_fail_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### cycle_3_post_bind_fail_session_start_probe
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+cycle_3_post_bind_fail_survivability=pass
+### cycle_3_fault_init_fallback
+POST /api/v2/ebins/load
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"bind","reason":"load_bind_failed_runtime_busy_with_other_module","runtime_state":"running","module_id":"","transition_seq":133,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"bind","fault_reason":"load_bind_failed_runtime_busy_with_other_module","recovery_action":"fallback_module_set_activated","recovered_module_id":"st.cpu.m68k","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2290530156}}}}
+
+### cycle_3_post_init_fallback_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### cycle_3_post_init_fallback_session_start_probe
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+cycle_3_post_init_fallback_survivability=pass
+### cycle_3_fault_unload_drain
+POST /api/v2/ebins/unload
+HTTP 409
+{"ok":false,"error":{"code":"EBIN_INVALID","category":"ebin","retryable":true,"details":{"stage":"drain","reason":"unload_drain_failed_simulated","runtime_state":"recoverable_error","module_id":"","transition_seq":136,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"drain","fault_reason":"unload_drain_failed_simulated","recovery_action":"pending_recovery","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2290669891}}}}
+
+### cycle_3_recover_unload
+POST /api/v2/ebins/unload
+HTTP 200
+{"ok":true,"data":{"module_id":"st.cpu.m68k","status":"unloaded","transitions":["pause","drain","deinit","release"],"runtime_state":"idle","transition_seq":141,"fault_telemetry":{"fault_code":"EBIN_INVALID","fault_stage":"release","fault_reason":"","recovery_action":"none","recovered_module_id":"","last_known_good_module_id":"st.cpu.m68k","fault_at_us":2290669891},"unloaded_at_us":2290738860}}
+
+### cycle_3_post_recover_unload_health_probe
+GET /api/v2/engine/health
+HTTP 200
+{"ok":true,"data":{"service":"esptari","health":"ok"}}
+
+### cycle_3_post_recover_unload_session_start_probe
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+cycle_3_post_recover_unload_survivability=pass
+cycle_complete=3
+stress_fault_summary=pass cycles=3 rollback=3 fallback=3 drain=3 survivability=9
+bundle_path=captures/s6_fault_recovery_bundle_002_20260304_011725.json

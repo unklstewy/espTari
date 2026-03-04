@@ -1,0 +1,10 @@
+GATE-S11-02::pass
+GATE-S11-05::pass
+GATE-S11-06::pass
+GATE-S11-07::conditional
+GATE-S11-09::conditional
+GATE-S11-10::conditional
+GATE-S11-12::conditional
+GATE-S11-13::conditional
+summary={"conditional_count": 5, "fail_count": 0, "pass_count": 3}
+json_path=captures/s11_open_gates_coverage_20260304_122527.json

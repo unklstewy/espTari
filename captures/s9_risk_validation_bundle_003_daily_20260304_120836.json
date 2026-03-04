@@ -1,0 +1,119 @@
+{
+  "bundle_version": 1,
+  "task_id": "S9-003",
+  "run_id": "20260304_120836",
+  "generated_at": "2026-03-04T17:08:37Z",
+  "cadence": "daily",
+  "checks": [
+    {
+      "check_id": "CHK-RISK-003-03",
+      "risk_id": "RISK-SD-IO-LATENCY",
+      "status": "pass",
+      "threshold_ref": "THR-RISK-003-03",
+      "signal": "P95/P99 operation latency stays below configured ms limits",
+      "metrics": {
+        "samples": 8,
+        "p95_ms": 24.553,
+        "p99_ms": 24.553,
+        "threshold_p95_ms": 120.0,
+        "threshold_p99_ms": 250.0,
+        "status_codes": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ]
+      },
+      "artifacts": [
+        "captures/s9_003_daily_20260304_120836/chk_003_03_sd_io_latency_metrics.json",
+        "captures/s9_risk_validation_003_daily_20260304_120836.txt"
+      ],
+      "notes": ""
+    },
+    {
+      "check_id": "CHK-RISK-003-04",
+      "risk_id": "RISK-DEAD-LINK-RESILIENCE",
+      "status": "pass",
+      "threshold_ref": "THR-RISK-003-04",
+      "signal": "Deterministic dead-link state and blocker semantics",
+      "metrics": {
+        "entry_id": "disk.automation.a_093",
+        "mark_dead_http": 200,
+        "download_without_retry_http": 409,
+        "download_without_retry_code": "CATALOG_LINK_DEAD",
+        "entry_read_http": 200,
+        "availability_state": "dead",
+        "elapsed_ms": {
+          "mark_dead": 14.793,
+          "download_without_retry": 15.111,
+          "entry_read": 38.28
+        }
+      },
+      "artifacts": [
+        "captures/s9_003_daily_20260304_120836/chk_003_04_dead_link_policy_metrics.json",
+        "captures/s9_risk_validation_003_daily_20260304_120836.txt"
+      ],
+      "notes": ""
+    },
+    {
+      "check_id": "CHK-RISK-003-01",
+      "risk_id": "RISK-ABI-CHURN",
+      "status": "not-run",
+      "threshold_ref": "THR-RISK-003-01",
+      "signal": "Weekly/per-release check omitted from daily bundle",
+      "metrics": {},
+      "artifacts": [],
+      "notes": "Scheduled in weekly/per-release run"
+    },
+    {
+      "check_id": "CHK-RISK-003-02",
+      "risk_id": "RISK-STREAM-OVERHEAD",
+      "status": "not-run",
+      "threshold_ref": "THR-RISK-003-02",
+      "signal": "Weekly check omitted from daily bundle",
+      "metrics": {},
+      "artifacts": [],
+      "notes": "Scheduled in weekly run"
+    },
+    {
+      "check_id": "CHK-RISK-003-05",
+      "risk_id": "RISK-TRACE-PRESSURE",
+      "status": "not-run",
+      "threshold_ref": "THR-RISK-003-05",
+      "signal": "Weekly check omitted from daily bundle",
+      "metrics": {},
+      "artifacts": [],
+      "notes": "Scheduled in weekly run"
+    },
+    {
+      "check_id": "CHK-RISK-003-06",
+      "risk_id": "RISK-SAVESTATE-DRIFT",
+      "status": "not-run",
+      "threshold_ref": "THR-RISK-003-06",
+      "signal": "Per-release check omitted from daily bundle",
+      "metrics": {},
+      "artifacts": [],
+      "notes": "Scheduled in per-release run"
+    },
+    {
+      "check_id": "CHK-RISK-003-07",
+      "risk_id": "RISK-DEBUG-MODE-PERTURBATION",
+      "status": "not-run",
+      "threshold_ref": "THR-RISK-003-07",
+      "signal": "Weekly check omitted from daily bundle",
+      "metrics": {},
+      "artifacts": [],
+      "notes": "Scheduled in weekly run"
+    }
+  ],
+  "summary": {
+    "overall_status": "pass",
+    "pass_count": 2,
+    "fail_count": 0,
+    "not_run_count": 5
+  }
+}

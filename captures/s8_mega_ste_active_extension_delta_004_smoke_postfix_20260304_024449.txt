@@ -1,0 +1,31 @@
+### pre_stop
+POST /api/v2/engine/session/stop
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-STOP","endpoint":"/api/v2/engine/session/stop","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### start_ste
+POST /api/v2/engine/session
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"ste_pal","profile_manifest_validation":{"path":"/sdcard/config/engine_v2/machines/atari_st/ste_pal.json","manifest_version":1,"schema_valid":true,"normalized_profile":"ste_pal","validated_at_us":178552258},"profile_wiring_validation":{"wiring_valid":true,"validated_modules":5,"step_order_length":5,"validated_at_us":178552258},"resolved":{"rom_id":"rom.atari.st.01","rom_path":"/sdcard/roms/st/TOS104.ROM","tos_id":"","tos_path":"","first_disk_id":""}}}
+
+### stop_ste
+POST /api/v2/engine/session/stop
+HTTP 200
+{"ok":true}
+
+### start_mega_ste
+POST /api/v2/engine/session
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"running","machine":"atari_st","profile":"mega_ste_pal","profile_manifest_validation":{"path":"/sdcard/config/engine_v2/machines/atari_st/mega_ste_pal.json","manifest_version":1,"schema_valid":true,"normalized_profile":"mega_ste_pal","validated_at_us":178616222},"profile_wiring_validation":{"wiring_valid":true,"validated_modules":5,"step_order_length":5,"validated_at_us":178616223},"resolved":{"rom_id":"rom.atari.st.01","rom_path":"/sdcard/roms/st/TOS104.ROM","tos_id":"","tos_path":"","first_disk_id":""}}}
+
+### unsupported_extension_fallback
+POST /api/v2/stream/control
+HTTP 400
+{"ok":false,"error":{"code":"BAD_REQUEST"}}
+
+### stop
+POST /api/v2/engine/session/stop
+HTTP 200
+{"ok":true}
+
+s8_004=pass

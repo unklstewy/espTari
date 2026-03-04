@@ -11,6 +11,8 @@
 #include "esp_timer.h"
 
 #include "esptari_web_http_utils.h"
+#include "esptari_web_auth.h"
+#include "esptari_web_audit.h"
 
 static const char *TAG = "esptari_web_catalog";
 
@@ -174,6 +176,11 @@ static esp_err_t send_ebin_validation_error(httpd_req_t *req,
                                             const char *field,
                                             const char *reason)
 {
+    esptari_web_audit_log("web_api",
+                          "ebin.validate",
+                          field != NULL ? field : "ebin",
+                          "failed",
+                          reason != NULL ? reason : "validation_failed");
     char payload[512];
     snprintf(payload,
              sizeof(payload),
@@ -557,6 +564,11 @@ static esp_err_t send_ebin_orchestration_error(httpd_req_t *req,
                                                const char *reason,
                                                const char *module_id)
 {
+    esptari_web_audit_log("web_api",
+                          "ebin.orchestration",
+                          module_id != NULL ? module_id : "",
+                          "failed",
+                          reason != NULL ? reason : "orchestration_failed");
     snprintf(s_ebin_runtime.last_fault_code,
              sizeof(s_ebin_runtime.last_fault_code),
              "%s",
@@ -1506,6 +1518,7 @@ static esp_err_t handle_ebins_validate(httpd_req_t *req)
     cJSON_AddNumberToObject(normalized, "export_count", (double)cJSON_GetArraySize(exports));
 
     cJSON_Delete(json);
+    esptari_web_audit_log("web_api", "ebin.validate", module_id->valuestring, "success", "validation_passed");
     esp_err_t out = send_json_object(req, root, 200);
     cJSON_Delete(root);
     return out;
@@ -1753,6 +1766,7 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     cJSON_AddNumberToObject(data, "loaded_at_us", (double)s_ebin_runtime.updated_at_us);
 
     cJSON_Delete(json);
+    esptari_web_audit_log("web_api", "ebin.load", module_id->valuestring, "success", "module_loaded");
     esp_err_t out = send_json_object(req, root, 200);
     cJSON_Delete(root);
     return out;
@@ -2005,29 +2019,151 @@ static esp_err_t handle_ebins_unload(httpd_req_t *req)
     cJSON_AddNumberToObject(fault, "fault_at_us", (double)s_ebin_runtime.last_fault_at_us);
     cJSON_AddNumberToObject(data, "unloaded_at_us", (double)s_ebin_runtime.updated_at_us);
 
+    esptari_web_audit_log("web_api", "ebin.unload", module_id->valuestring, "success", "module_unloaded");
+
     cJSON_Delete(json);
     esp_err_t out = send_json_object(req, root, 200);
     cJSON_Delete(root);
     return out;
 }
 
+static esp_err_t auth_handle_catalog_sync_run(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_catalog_sync_run(req);
+}
+
+static esp_err_t auth_handle_catalog_sync_jobs(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_catalog_sync_jobs(req);
+}
+
+static esp_err_t auth_handle_catalog_sync_job_by_id(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_catalog_sync_job_by_id(req);
+}
+
+static esp_err_t auth_handle_catalog_sync_create_schedule(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_catalog_sync_create_schedule(req);
+}
+
+static esp_err_t auth_handle_catalog_sync_list_schedules(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_catalog_sync_list_schedules(req);
+}
+
+static esp_err_t auth_handle_catalog_sync_get_schedule(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_catalog_sync_get_schedule(req);
+}
+
+static esp_err_t auth_handle_catalog_sync_patch_schedule(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_catalog_sync_patch_schedule(req);
+}
+
+static esp_err_t auth_handle_catalog_sync_delete_schedule(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_catalog_sync_delete_schedule(req);
+}
+
+static esp_err_t auth_handle_catalog_sync_recovery_report(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_catalog_sync_recovery_report(req);
+}
+
+static esp_err_t auth_handle_ebins_catalog(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_ebins_catalog(req);
+}
+
+static esp_err_t auth_handle_ebins_rescan(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_ebins_rescan(req);
+}
+
+static esp_err_t auth_handle_ebins_resolve(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_ebins_resolve(req);
+}
+
+static esp_err_t auth_handle_ebins_validate(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_ebins_validate(req);
+}
+
+static esp_err_t auth_handle_ebins_load(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_ebins_load(req);
+}
+
+static esp_err_t auth_handle_ebins_unload(httpd_req_t *req)
+{
+    if (esptari_web_auth_require_scope(req, "ebin:manage") != ESP_OK) {
+        return ESP_OK;
+    }
+    return handle_ebins_unload(req);
+}
+
 void esptari_web_catalog_sync_register_routes(httpd_handle_t server_handle)
 {
-    httpd_uri_t sync_jobs_run = {.uri = "/api/v2/catalog-sync/jobs/run", .method = HTTP_POST, .handler = handle_catalog_sync_run, .user_ctx = NULL};
-    httpd_uri_t sync_jobs_list = {.uri = "/api/v2/catalog-sync/jobs", .method = HTTP_GET, .handler = handle_catalog_sync_jobs, .user_ctx = NULL};
-    httpd_uri_t sync_job_get = {.uri = "/api/v2/catalog-sync/jobs/*", .method = HTTP_GET, .handler = handle_catalog_sync_job_by_id, .user_ctx = NULL};
-    httpd_uri_t sync_schedule_create = {.uri = "/api/v2/catalog-sync/schedules", .method = HTTP_POST, .handler = handle_catalog_sync_create_schedule, .user_ctx = NULL};
-    httpd_uri_t sync_schedule_list = {.uri = "/api/v2/catalog-sync/schedules", .method = HTTP_GET, .handler = handle_catalog_sync_list_schedules, .user_ctx = NULL};
-    httpd_uri_t sync_schedule_get = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_GET, .handler = handle_catalog_sync_get_schedule, .user_ctx = NULL};
-    httpd_uri_t sync_schedule_patch = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_PATCH, .handler = handle_catalog_sync_patch_schedule, .user_ctx = NULL};
-    httpd_uri_t sync_schedule_delete = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_DELETE, .handler = handle_catalog_sync_delete_schedule, .user_ctx = NULL};
-    httpd_uri_t sync_recovery_report = {.uri = "/api/v2/catalog-sync/recovery", .method = HTTP_GET, .handler = handle_catalog_sync_recovery_report, .user_ctx = NULL};
-    httpd_uri_t ebins_catalog = {.uri = "/api/v2/ebins/catalog", .method = HTTP_GET, .handler = handle_ebins_catalog, .user_ctx = NULL};
-    httpd_uri_t ebins_rescan = {.uri = "/api/v2/ebins/rescan", .method = HTTP_POST, .handler = handle_ebins_rescan, .user_ctx = NULL};
-    httpd_uri_t ebins_resolve = {.uri = "/api/v2/ebins/resolve", .method = HTTP_POST, .handler = handle_ebins_resolve, .user_ctx = NULL};
-    httpd_uri_t ebins_validate = {.uri = "/api/v2/ebins/validate", .method = HTTP_POST, .handler = handle_ebins_validate, .user_ctx = NULL};
-    httpd_uri_t ebins_load = {.uri = "/api/v2/ebins/load", .method = HTTP_POST, .handler = handle_ebins_load, .user_ctx = NULL};
-    httpd_uri_t ebins_unload = {.uri = "/api/v2/ebins/unload", .method = HTTP_POST, .handler = handle_ebins_unload, .user_ctx = NULL};
+    httpd_uri_t sync_jobs_run = {.uri = "/api/v2/catalog-sync/jobs/run", .method = HTTP_POST, .handler = auth_handle_catalog_sync_run, .user_ctx = NULL};
+    httpd_uri_t sync_jobs_list = {.uri = "/api/v2/catalog-sync/jobs", .method = HTTP_GET, .handler = auth_handle_catalog_sync_jobs, .user_ctx = NULL};
+    httpd_uri_t sync_job_get = {.uri = "/api/v2/catalog-sync/jobs/*", .method = HTTP_GET, .handler = auth_handle_catalog_sync_job_by_id, .user_ctx = NULL};
+    httpd_uri_t sync_schedule_create = {.uri = "/api/v2/catalog-sync/schedules", .method = HTTP_POST, .handler = auth_handle_catalog_sync_create_schedule, .user_ctx = NULL};
+    httpd_uri_t sync_schedule_list = {.uri = "/api/v2/catalog-sync/schedules", .method = HTTP_GET, .handler = auth_handle_catalog_sync_list_schedules, .user_ctx = NULL};
+    httpd_uri_t sync_schedule_get = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_GET, .handler = auth_handle_catalog_sync_get_schedule, .user_ctx = NULL};
+    httpd_uri_t sync_schedule_patch = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_PATCH, .handler = auth_handle_catalog_sync_patch_schedule, .user_ctx = NULL};
+    httpd_uri_t sync_schedule_delete = {.uri = "/api/v2/catalog-sync/schedules/*", .method = HTTP_DELETE, .handler = auth_handle_catalog_sync_delete_schedule, .user_ctx = NULL};
+    httpd_uri_t sync_recovery_report = {.uri = "/api/v2/catalog-sync/recovery", .method = HTTP_GET, .handler = auth_handle_catalog_sync_recovery_report, .user_ctx = NULL};
+    httpd_uri_t ebins_catalog = {.uri = "/api/v2/ebins/catalog", .method = HTTP_GET, .handler = auth_handle_ebins_catalog, .user_ctx = NULL};
+    httpd_uri_t ebins_rescan = {.uri = "/api/v2/ebins/rescan", .method = HTTP_POST, .handler = auth_handle_ebins_rescan, .user_ctx = NULL};
+    httpd_uri_t ebins_resolve = {.uri = "/api/v2/ebins/resolve", .method = HTTP_POST, .handler = auth_handle_ebins_resolve, .user_ctx = NULL};
+    httpd_uri_t ebins_validate = {.uri = "/api/v2/ebins/validate", .method = HTTP_POST, .handler = auth_handle_ebins_validate, .user_ctx = NULL};
+    httpd_uri_t ebins_load = {.uri = "/api/v2/ebins/load", .method = HTTP_POST, .handler = auth_handle_ebins_load, .user_ctx = NULL};
+    httpd_uri_t ebins_unload = {.uri = "/api/v2/ebins/unload", .method = HTTP_POST, .handler = auth_handle_ebins_unload, .user_ctx = NULL};
 
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_jobs_run));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_handle, &sync_jobs_list));

@@ -1,0 +1,17 @@
+{
+  "gate": "GATE-S11-07",
+  "run_id": "20260304_122924",
+  "status": "conditional",
+  "checks": [
+    {
+      "check": "mappings_list",
+      "http": 200,
+      "ok": true
+    },
+    {
+      "check": "event_translate",
+      "http": 404,
+      "ok": false
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "matrix_version": 1,
+  "task_id": "S6-005",
+  "sprint": "S6",
+  "description": "Scheduler CRUD, deterministic due-order, and recovery/quarantine report validation",
+  "checks": [
+    {
+      "id": "R001_SCHEDULE_CREATE_AND_CONFLICT",
+      "request": "POST /api/v2/catalog-sync/schedules",
+      "expect": {
+        "create_http": 201,
+        "conflict_http": 409,
+        "conflict_error_code": "CONFLICT"
+      }
+    },
+    {
+      "id": "R002_SCHEDULE_PATCH_AND_GET_SEMANTICS",
+      "request": "PATCH+GET /api/v2/catalog-sync/schedules/{schedule_id}",
+      "expect": {
+        "patch_http": 200,
+        "invalid_patch_http": 400,
+        "invalid_patch_error_code": "SCRAPER_SCHEDULE_INVALID",
+        "metadata_monotonic": true
+      }
+    },
+    {
+      "id": "R003_LIST_ORDER_DETERMINISM",
+      "request": "GET /api/v2/catalog-sync/schedules",
+      "expect": {
+        "http": 200,
+        "ordered_by": [
+          "next_run_at_us",
+          "schedule_id"
+        ]
+      }
+    },
+    {
+      "id": "R004_RECOVERY_REPORT_SCHEMA",
+      "request": "GET /api/v2/catalog-sync/recovery",
+      "expect": {
+        "http": 200,
+        "required_fields": [
+          "recovery_run_id",
+          "scheduler_now_us",
+          "loaded",
+          "validated",
+          "recomputed_next_run",
+          "quarantined",
+          "quarantine"
+        ],
+        "quarantine_error_code": "SCRAPER_SCHEDULE_INVALID"
+      }
+    },
+    {
+      "id": "R005_DELETE_AND_POST_HEALTH",
+      "request": "DELETE /api/v2/catalog-sync/schedules/{schedule_id} + GET /api/v2/engine/health",
+      "expect": {
+        "delete_http": 200,
+        "delete_status": "deleted",
+        "health_http": 200
+      }
+    }
+  ]
+}

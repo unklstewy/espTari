@@ -1,0 +1,25 @@
+{
+  "bundle_version": 1,
+  "task_id": "S9-003",
+  "run_id": "YYYYMMDD_HHMMSS",
+  "generated_at": "2026-03-04T00:00:00Z",
+  "cadence": "weekly",
+  "checks": [
+    {
+      "check_id": "CHK-RISK-003-01",
+      "risk_id": "RISK-ABI-CHURN",
+      "status": "not-run",
+      "threshold_ref": "THR-RISK-003-01",
+      "signal": "Canonical ABI guard-code behavior and no unexpected positive regressions",
+      "metrics": {},
+      "artifacts": [],
+      "notes": ""
+    }
+  ],
+  "summary": {
+    "overall_status": "pass",
+    "pass_count": 0,
+    "fail_count": 0,
+    "not_run_count": 1
+  }
+}

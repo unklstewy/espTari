@@ -1,0 +1,3 @@
+status=conditional
+hard_eval_possible=False
+json_path=captures/s11_gate_13_sustained_slo_20260304_122926.json

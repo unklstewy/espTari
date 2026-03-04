@@ -1,0 +1,110 @@
+{
+  "matrix_version": 1,
+  "task_id": "S7-004",
+  "sprint": "S7",
+  "description": "STe extension control validation matrix for audio/video deltas, deterministic guards, and backward-compatible envelopes",
+  "checks": [
+    {
+      "id": "SE001_BASELINE_START_AND_CONTEXT",
+      "request": "POST+GET /api/v2/engine/session",
+      "expect": {
+        "start_http": 200,
+        "machine": "atari_st",
+        "profile": "st_520_pal",
+        "state": "running"
+      }
+    },
+    {
+      "id": "SE002_VIDEO_CONTROL_PAYLOAD",
+      "request": "POST /api/v2/stream/control stream=video type=set_rate_limit pacing_mode=fixed_fps",
+      "expect": {
+        "http": 200,
+        "stream": "video",
+        "type": "set_rate_limit",
+        "pacing_mode": "fixed_fps",
+        "target_fps": 50,
+        "max_burst_frames": 2
+      }
+    },
+    {
+      "id": "SE003_AUDIO_CONTROL_PAYLOAD",
+      "request": "POST /api/v2/stream/control stream=audio type=set_rate_limit pacing_mode=fixed_hz",
+      "expect": {
+        "http": 200,
+        "stream": "audio",
+        "type": "set_rate_limit",
+        "pacing_mode": "fixed_hz",
+        "target_hz": 240,
+        "max_burst_chunks": 2
+      }
+    },
+    {
+      "id": "SE004_VIDEO_BACKWARD_ENVELOPE",
+      "request": "GET /api/v2/stream/video",
+      "expect": {
+        "http": 200,
+        "required_fields": [
+          "stream",
+          "event_seq",
+          "event_timestamp_us",
+          "delivery",
+          "backpressure",
+          "video_metadata_contract",
+          "video_frame_meta_sample"
+        ],
+        "extension_field_absent": "ste_extensions"
+      }
+    },
+    {
+      "id": "SE005_AUDIO_BACKWARD_ENVELOPE",
+      "request": "GET /api/v2/stream/audio",
+      "expect": {
+        "http": 200,
+        "required_fields": [
+          "stream",
+          "event_seq",
+          "event_timestamp_us",
+          "delivery",
+          "backpressure",
+          "audio_metadata_contract",
+          "audio_chunk_meta_sample"
+        ],
+        "extension_field_absent": "ste_extensions"
+      }
+    },
+    {
+      "id": "SE006_INVALID_EXTENSION_USAGE_GUARDS",
+      "request": "POST /api/v2/stream/control invalid pacing_mode + GET /api/v2/stream/video invalid metadata_schema_version",
+      "expect": {
+        "stream_control_http": 400,
+        "stream_control_error_code": "BAD_REQUEST",
+        "video_schema_http": 400,
+        "video_schema_error_code": "UNSUPPORTED_VERSION"
+      }
+    },
+    {
+      "id": "SE007_PROFILE_AWARE_STE_GUARD",
+      "request": "POST /api/v2/engine/session machine=atari_st profile=ste_pal",
+      "expect": {
+        "http": 404,
+        "error_code": "MACHINE_PROFILE_NOT_FOUND"
+      }
+    },
+    {
+      "id": "SE008_STOPPED_CONTROL_GUARD",
+      "request": "POST /api/v2/stream/control from stopped",
+      "expect": {
+        "http": 409,
+        "error_code": "ENGINE_NOT_RUNNING"
+      }
+    },
+    {
+      "id": "SE009_POST_HEALTH_SURVIVABILITY",
+      "request": "GET /api/v2/engine/health",
+      "expect": {
+        "http": 200,
+        "ok": true
+      }
+    }
+  ]
+}

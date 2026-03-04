@@ -1,0 +1,6 @@
+start run_id=20260304_123640 gate=GATE-S11-10
+check=catalog_list http=200 ok=True
+check=missing_report_probe catalog=floppy_catalog http=404 ok=False
+check=missing_report_probe catalog=rom_catalog http=404 ok=False
+status=conditional
+json_path=captures/s11_gate_10_catalog_missing_asset_20260304_123640.json
