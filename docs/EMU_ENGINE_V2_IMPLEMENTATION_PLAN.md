@@ -304,6 +304,7 @@ Canonical REST contract:
 - Restore-resume transition guards + error semantics contract (`restore_resume_request_v1`, `restore_resume_response_v1`, checks `REST-RES-01..04`, and deterministic restore/snapshot guard failures) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `6.8` and is the canonical source.
 - Restore compatibility rule matrix contract (`restore_compatibility_matrix_v1`, rules `RCOMP-01..04`, deterministic evaluation order, and compatibility failure mapping to `SNAPSHOT_NOT_FOUND`/`SNAPSHOT_INCOMPATIBLE`) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `11.7` and is the canonical source.
 - Restore compatibility validator + error-mapping contract (`restore_compatibility_validate_request_v1`, `restore_compatibility_validate_result_v1`, checks `RCOMP-VAL-01..04`, and deterministic error mapping across request/engine/snapshot domains) is defined in `docs/EMU_ENGINE_V2_API_SPEC.md` section `11.7` and is the canonical source.
+- `POST /api/v2/engine/state/restore` now validates persisted snapshot metadata integrity before restore commit (schema/profile/saved_at/hash checks `RINT-01..04`) and safely rejects corrupted payloads with `SNAPSHOT_INCOMPATIBLE` while preserving active session state.
 
 Routing verification gate (atomic-change process):
 

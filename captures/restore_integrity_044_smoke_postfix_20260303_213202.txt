@@ -1,0 +1,41 @@
+health_check=ok attempts=8
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Cannot reset from current lifecycle state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 200
+{"ok":true}
+
+### status_before
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":20265400}}
+
+### save_snapshot
+POST /api/v2/engine/state/save
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","snapshot_id":"state_000002","name":"restore_integrity_044","saved_at_us":20347909}}
+
+### restore_success
+POST /api/v2/engine/state/restore
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","snapshot_id":"state_000002","restored_at_us":20414054,"result":"restored","integrity":{"schema_version":1,"profile":"st_520_pal","hash":"fnv1a:52a61e6d","checks":["RINT-01","RINT-02","RINT-03","RINT-04"]}}}
+
+### restore_forced_integrity_fail
+POST /api/v2/engine/state/restore?force_integrity_fail=1
+HTTP 409
+{"ok":false,"error":{"code":"SNAPSHOT_INCOMPATIBLE","details":{"rule_id":"RINT-04","state_before":"running","state_after":"running","state_unchanged":true}}}
+
+### status_after_fail
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":1,"last_transition_us":20265400}}
+
+### restore_missing
+POST /api/v2/engine/state/restore
+HTTP 404
+{"ok":false,"error":{"code":"SNAPSHOT_NOT_FOUND"}}
+
