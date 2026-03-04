@@ -194,6 +194,9 @@ esp_err_t esptari_web_lifecycle_suspend_save_handler(httpd_req_t *req)
 
 esp_err_t esptari_web_lifecycle_restore_resume_handler(httpd_req_t *req)
 {
+    esptari_session_status_t before_status;
+    esptari_core_get_status(&before_status);
+
     char body[512];
     if (esptari_web_read_request_body(req, body, sizeof(body)) != ESP_OK) {
         return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESTORE-01", "/api/v2/engine/session/restore-resume", "Invalid restore-resume request body");
@@ -204,17 +207,32 @@ esp_err_t esptari_web_lifecycle_restore_resume_handler(httpd_req_t *req)
         return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESTORE-01", "/api/v2/engine/session/restore-resume", "Malformed restore-resume JSON");
     }
 
+    const char *session_id = NULL;
     const char *snapshot_id = NULL;
     const char *resume_mode = NULL;
+    const char *reason = NULL;
+    char session_id_copy[32];
     char snapshot_id_copy[128];
     char resume_mode_copy[16];
-    if (!esptari_web_json_get_string(root, "snapshot_id", &snapshot_id) ||
+    if (!esptari_web_json_get_string(root, "session_id", &session_id) ||
+        !esptari_web_json_get_string(root, "snapshot_id", &snapshot_id) ||
         !esptari_web_json_get_string(root, "resume_mode", &resume_mode)) {
         cJSON_Delete(root);
-        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESTORE-01", "/api/v2/engine/session/restore-resume", "snapshot_id and resume_mode are required");
+        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "REST-RES-01", "/api/v2/engine/session/restore-resume", "session_id, snapshot_id and resume_mode are required");
     }
+    strlcpy(session_id_copy, session_id, sizeof(session_id_copy));
     strlcpy(snapshot_id_copy, snapshot_id, sizeof(snapshot_id_copy));
     strlcpy(resume_mode_copy, resume_mode, sizeof(resume_mode_copy));
+
+    cJSON *reason_item = cJSON_GetObjectItemCaseSensitive(root, "reason");
+    if (reason_item != NULL) {
+        if (!cJSON_IsString(reason_item) || reason_item->valuestring == NULL) {
+            cJSON_Delete(root);
+            return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "REST-RES-01", "/api/v2/engine/session/restore-resume", "reason must be a string");
+        }
+        reason = reason_item->valuestring;
+        (void)reason;
+    }
 
     bool resume_running = false;
     if (strcmp(resume_mode_copy, "running") == 0) {
@@ -223,38 +241,54 @@ esp_err_t esptari_web_lifecycle_restore_resume_handler(httpd_req_t *req)
         resume_running = false;
     } else {
         cJSON_Delete(root);
-        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESUME-02", "/api/v2/engine/session/restore-resume", "Invalid resume_mode value");
+        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "REST-RES-01", "/api/v2/engine/session/restore-resume", "Invalid resume_mode value");
     }
     cJSON_Delete(root);
 
+    if (strcmp(session_id_copy, "ses_local") != 0) {
+        return send_guard_error(req, 409, "ENGINE_NOT_RUNNING", "engine", true, "REST-RES-01", "/api/v2/engine/session/restore-resume", "Unknown or inactive session_id");
+    }
+
+    if (before_status.state != ESPTARI_SESSION_SUSPENDED) {
+        return send_guard_error(req, 409, "ENGINE_NOT_SUSPENDED", "engine", false, "REST-RES-01", "/api/v2/engine/session/restore-resume", "Restore-resume requires suspended state");
+    }
+
     esp_err_t err = esptari_core_restore_resume(snapshot_id_copy, resume_running);
     if (err == ESP_ERR_INVALID_STATE) {
-        return send_guard_error(req, 409, "ENGINE_NOT_SUSPENDED", "engine", false, "G-RESTORE-01", "/api/v2/engine/session/restore-resume", "Restore-resume requires suspended state");
+        return send_guard_error(req, 409, "ENGINE_NOT_SUSPENDED", "engine", false, "REST-RES-01", "/api/v2/engine/session/restore-resume", "Restore-resume requires suspended state");
     }
     if (err == ESP_ERR_NOT_FOUND) {
-        return send_guard_error(req, 404, "SNAPSHOT_NOT_FOUND", "snapshot", false, "G-RESTORE-01", "/api/v2/engine/session/restore-resume", "Requested snapshot was not found");
+        return send_guard_error(req, 404, "SNAPSHOT_NOT_FOUND", "snapshot", false, "REST-RES-03", "/api/v2/engine/session/restore-resume", "Requested snapshot was not found");
     }
     if (err == ESP_ERR_INVALID_RESPONSE) {
         const char *rule_id = esptari_core_get_last_failed_compat_rule();
-        char incompatible_resp[512];
+        char incompatible_resp[640];
         snprintf(incompatible_resp,
                  sizeof(incompatible_resp),
-                 "{\"ok\":false,\"error\":{\"code\":\"SNAPSHOT_INCOMPATIBLE\",\"category\":\"snapshot\",\"message\":\"Snapshot compatibility validation failed\",\"retryable\":false,\"details\":{\"rule_id\":\"%s\",\"guard_id\":\"G-RESTORE-01\",\"endpoint\":\"/api/v2/engine/session/restore-resume\"}}}",
+                 "{\"ok\":false,\"error\":{\"code\":\"SNAPSHOT_INCOMPATIBLE\",\"category\":\"snapshot\",\"message\":\"Snapshot compatibility validation failed\",\"retryable\":false,\"details\":{\"session_id\":\"%s\",\"snapshot_id\":\"%s\",\"rule_id\":\"%s\",\"guard_id\":\"REST-RES-03\",\"endpoint\":\"/api/v2/engine/session/restore-resume\"}}}",
+                 session_id_copy,
+                 snapshot_id_copy,
                  (rule_id != NULL && rule_id[0] != '\0') ? rule_id : "RCOMP-UNKNOWN");
         return esptari_web_send_json(req, incompatible_resp, 409);
     }
     if (err == ESP_ERR_INVALID_ARG) {
-        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "G-RESTORE-01", "/api/v2/engine/session/restore-resume", "Invalid restore-resume arguments");
+        return send_guard_error(req, 400, "BAD_REQUEST", "request", false, "REST-RES-01", "/api/v2/engine/session/restore-resume", "Invalid restore-resume arguments");
     }
     if (err != ESP_OK) {
-        return send_guard_error(req, 500, "INTERNAL_ERROR", "internal", false, "G-RESTORE-01", "/api/v2/engine/session/restore-resume", "Unhandled restore-resume failure");
+        return send_guard_error(req, 500, "SNAPSHOT_RESTORE_FAILED", "snapshot", false, "REST-RES-03", "/api/v2/engine/session/restore-resume", "Unhandled restore-resume failure");
     }
 
-    char resp[320];
+    esptari_session_status_t after_status;
+    esptari_core_get_status(&after_status);
+
+    char resp[512];
     snprintf(resp, sizeof(resp),
-             "{\"ok\":true,\"data\":{\"snapshot_id\":\"%s\",\"session_state\":\"%s\"}}",
+             "{\"ok\":true,\"data\":{\"session_id\":\"%s\",\"snapshot_id\":\"%s\",\"state\":\"%s\",\"restored_at_us\":%llu,\"lifecycle_transition\":\"%s\"}}",
+             session_id_copy,
              snapshot_id_copy,
-             resume_running ? "running" : "paused");
+             resume_running ? "running" : "paused",
+             (unsigned long long)after_status.last_transition_us,
+             resume_running ? "suspended->running" : "suspended->paused");
     return esptari_web_send_json(req, resp, 200);
 }
 
