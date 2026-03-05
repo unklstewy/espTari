@@ -11,6 +11,20 @@ FORCE=0
 MODULE_ID="st.profile.520"
 DEFAULT_VERSIONS=("1.0.0" "1.1.0")
 
+atomic_write_text() {
+  local target="$1"
+  local content="$2"
+  local dir base tmp
+
+  dir="$(dirname "$target")"
+  base="$(basename "$target")"
+  mkdir -p "$dir"
+  tmp="$(mktemp "$dir/.${base}.tmp.XXXXXX")"
+
+  printf '%s' "$content" > "$tmp"
+  mv -f "$tmp" "$target"
+}
+
 usage() {
   cat <<'EOF'
 Usage: seed_sdcard_machine_profile_semver_fixtures.sh [TARGET_ROOT] [--dry-run] [--force] [--versions v1,v2,...]
@@ -109,6 +123,8 @@ pick_winner() {
 created=0
 updated=0
 skipped=0
+meta_created=0
+meta_updated=0
 
 DIR="$TARGET_ROOT/ebins/atari_st/machine_profile"
 
@@ -147,17 +163,92 @@ for version in "${VERSIONS[@]}"; do
   else
     created=$((created + 1))
   fi
-  : > "$file"
+  atomic_write_text "$file" ""
   echo "[ OK ] wrote    $rel"
 done
 
 winner="$(pick_winner "${VERSIONS[@]}")"
+
+INDEX_FILE="$DIR/index.json"
+MANIFEST_FILE="$DIR/manifest.json"
+index_rel="ebins/atari_st/machine_profile/index.json"
+manifest_rel="ebins/atari_st/machine_profile/manifest.json"
+
+versions_json=""
+files_json=""
+for version in "${VERSIONS[@]}"; do
+  if [[ -n "$versions_json" ]]; then
+    versions_json+=" , "
+    files_json+=" , "
+  fi
+  versions_json+="\"${version}\""
+  files_json+="\"${MODULE_ID}-${version}.ebin\""
+done
+
+index_json="$(cat <<EOF
+{
+  "schema": "machine_profile_index_v1",
+  "module_id": "${MODULE_ID}",
+  "versions": [ ${versions_json} ],
+  "winner": "${winner}",
+  "files": [ ${files_json} ]
+}
+EOF
+)"
+
+manifest_json="$(cat <<EOF
+{
+  "schema": "machine_profile_manifest_v1",
+  "machine": "atari_st",
+  "component": "machine_profile",
+  "module_id": "${MODULE_ID}",
+  "winner": "${MODULE_ID}@${winner}",
+  "resolved_profile": "st_520_pal",
+  "index": "index.json"
+}
+EOF
+)"
+
+if [[ $DRY_RUN -eq 1 ]]; then
+  if [[ -f "$INDEX_FILE" ]]; then
+    echo "[DRY] overwrite $index_rel"
+    meta_updated=$((meta_updated + 1))
+  else
+    echo "[DRY] create    $index_rel"
+    meta_created=$((meta_created + 1))
+  fi
+
+  if [[ -f "$MANIFEST_FILE" ]]; then
+    echo "[DRY] overwrite $manifest_rel"
+    meta_updated=$((meta_updated + 1))
+  else
+    echo "[DRY] create    $manifest_rel"
+    meta_created=$((meta_created + 1))
+  fi
+else
+  if [[ -f "$INDEX_FILE" ]]; then
+    meta_updated=$((meta_updated + 1))
+  else
+    meta_created=$((meta_created + 1))
+  fi
+  if [[ -f "$MANIFEST_FILE" ]]; then
+    meta_updated=$((meta_updated + 1))
+  else
+    meta_created=$((meta_created + 1))
+  fi
+
+  atomic_write_text "$INDEX_FILE" "$index_json"
+  echo "[ OK ] wrote    $index_rel"
+  atomic_write_text "$MANIFEST_FILE" "$manifest_json"
+  echo "[ OK ] wrote    $manifest_rel"
+fi
+
 echo
 echo "[INFO] Expected loader winner: ${MODULE_ID}@${winner}"
 echo "[INFO] Expected resolved profile: st_520_pal"
 
 if [[ $DRY_RUN -eq 1 ]]; then
-  echo "[INFO] Dry-run complete. create=$created update=$updated skip=$skipped"
+  echo "[INFO] Dry-run complete. create=$created update=$updated skip=$skipped meta_create=$meta_created meta_update=$meta_updated"
 else
-  echo "[INFO] Seed complete. create=$created update=$updated skip=$skipped"
+  echo "[INFO] Seed complete. create=$created update=$updated skip=$skipped meta_create=$meta_created meta_update=$meta_updated"
 fi

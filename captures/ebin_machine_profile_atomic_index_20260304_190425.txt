@@ -1,0 +1,21 @@
+target=/tmp/tmp.ISOHs1Ea3E/sdcard
+versions=1.0.0,1.2.0,1.1.5
+[INFO] Target root: /tmp/tmp.ISOHs1Ea3E/sdcard
+[INFO] Fixture dir : /tmp/tmp.ISOHs1Ea3E/sdcard/ebins/atari_st/machine_profile
+[ OK ] wrote    ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin
+[ OK ] wrote    ebins/atari_st/machine_profile/st.profile.520-1.2.0.ebin
+[ OK ] wrote    ebins/atari_st/machine_profile/st.profile.520-1.1.5.ebin
+[ OK ] wrote    ebins/atari_st/machine_profile/index.json
+[ OK ] wrote    ebins/atari_st/machine_profile/manifest.json
+
+[INFO] Expected loader winner: st.profile.520@1.2.0
+[INFO] Expected resolved profile: st_520_pal
+[INFO] Seed complete. create=3 update=0 skip=0 meta_create=2 meta_update=0
+required_file=present path=/tmp/tmp.ISOHs1Ea3E/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin
+required_file=present path=/tmp/tmp.ISOHs1Ea3E/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.2.0.ebin
+required_file=present path=/tmp/tmp.ISOHs1Ea3E/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.1.5.ebin
+required_file=present path=/tmp/tmp.ISOHs1Ea3E/sdcard/ebins/atari_st/machine_profile/index.json
+required_file=present path=/tmp/tmp.ISOHs1Ea3E/sdcard/ebins/atari_st/machine_profile/manifest.json
+tmp_cleanup=pass
+json_contract=pass winner=1.2.0 files=3
+Smoke PASS
