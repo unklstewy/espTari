@@ -1,0 +1,45 @@
+[meta]
+test_id = "test_restore_integrity_T044"
+task_id = "T-044"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read"
+continue_on_failure = true
+
+[[step]]
+name = "session_reset"
+method = "POST"
+path = "/api/v2/engine/session/reset"
+body_json = '{}'
+expect_status = [200, 409]
+
+[[step]]
+name = "session_start"
+method = "POST"
+path = "/api/v2/engine/session/start"
+body_json = '{}'
+expect_status = [200, 409]
+
+[[step]]
+name = "save_snapshot"
+method = "POST"
+path = "/api/v2/engine/state/save"
+body_json = '{"session_id":"ses_local","name":"restore_integrity_044"}'
+expect_status = [200]
+save_json = { snapshot_id = "data.snapshot_id" }
+
+[[step]]
+name = "restore_success"
+method = "POST"
+path = "/api/v2/engine/state/restore"
+body_json = '{"session_id":"ses_local","snapshot_id":"{{snapshot_id}}"}'
+expect_status = [200]
+
+[[step]]
+name = "restore_missing"
+method = "POST"
+path = "/api/v2/engine/state/restore"
+body_json = '{"session_id":"ses_local","snapshot_id":"missing_044"}'
+expect_status = [404]
+expect_error_code = "SNAPSHOT_NOT_FOUND"

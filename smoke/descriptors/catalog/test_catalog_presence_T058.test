@@ -1,0 +1,27 @@
+[meta]
+test_id = "test_catalog_presence_T058"
+task_id = "T-058"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+
+[[step]]
+name = "rescan_floppies"
+method = "POST"
+path = "/api/v2/catalogs/floppies/rescan-local"
+body_json = '{"hash_mode":"metadata_only","scan_roots":["/sdcard/disks"]}'
+expect_status = [200, 403]
+
+[[step]]
+name = "rescan_roms"
+method = "POST"
+path = "/api/v2/catalogs/roms/rescan-local"
+body_json = '{"hash_mode":"metadata_only","scan_roots":["/sdcard/roms"]}'
+expect_status = [200, 403]
+
+[[step]]
+name = "missing_report"
+method = "GET"
+path = "/api/v2/catalogs/floppies/missing-report"
+expect_status = [200, 403]

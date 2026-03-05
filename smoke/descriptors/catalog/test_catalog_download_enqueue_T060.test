@@ -1,0 +1,28 @@
+[meta]
+test_id = "test_catalog_download_enqueue_T060"
+task_id = "T-060"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read"
+
+[[step]]
+name = "invalid_overwrite_type"
+method = "POST"
+path = "/api/v2/catalogs/floppies/download-entry"
+body_json = '{"entry_id":"disk.automation.a_093","overwrite":"no"}'
+expect_status = [400]
+
+[[step]]
+name = "dead_no_retry"
+method = "POST"
+path = "/api/v2/catalogs/floppies/download-entry"
+body_json = '{"entry_id":"disk.demos.dead_entry"}'
+expect_status = [404, 409]
+
+[[step]]
+name = "dead_with_retry"
+method = "POST"
+path = "/api/v2/catalogs/floppies/download-entry"
+body_json = '{"entry_id":"disk.demos.dead_entry","allow_dead_retry":true,"priority":"high"}'
+expect_status = [200, 202, 409]

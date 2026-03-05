@@ -1,0 +1,34 @@
+[meta]
+test_id = "test_conformance_bundle_T151"
+task_id = "T-151"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+continue_on_failure = true
+
+[[step]]
+name = "engine_health"
+method = "GET"
+path = "/api/v2/engine/health"
+expect_status = [200]
+
+[[step]]
+name = "engine_status"
+method = "GET"
+path = "/api/v2/engine/status"
+expect_status = [200]
+
+[[step]]
+name = "engine_start"
+method = "POST"
+path = "/api/v2/engine/session/start"
+body_json = '{}'
+expect_status = [200, 409]
+
+[[step]]
+name = "manifest_load"
+method = "POST"
+path = "/api/v2/conformance/manifests/load"
+body_json = '{"manifest_id":"mf_smoke_001","manifest":{"manifest_version":1,"target_machine":"atari_st","profile":"st_520_pal","suite":"smoke","cases":[{"case_id":"c_api_health","kind":"api","target":"/api/v2/engine/health","assertions":["status_200"]}]}}'
+expect_status = [200]

@@ -111,8 +111,8 @@ For V2 contract work:
 1. Update or confirm contract language in docs/EMU_ENGINE_V2_API_SPEC.md
 2. Implement/adjust handlers under components/esptari_web
 3. Build and flash firmware
-4. Run task smoke validation scripts under tools
-5. Store evidence in captures and record acceptance in TRACKING/tracking.db
+4. Run descriptor-driven smoke validation via tools/smoke_suite/smoke_runner.py
+5. Store smoke evidence in TRACKING/smoke_results.db and record acceptance in TRACKING/tracking.db
 
 ## Tracking and Evidence
 

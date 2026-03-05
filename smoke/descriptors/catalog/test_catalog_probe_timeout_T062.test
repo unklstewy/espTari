@@ -1,0 +1,28 @@
+[meta]
+test_id = "test_catalog_probe_timeout_T062"
+task_id = "T-062"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read"
+
+[[step]]
+name = "probe_links"
+method = "POST"
+path = "/api/v2/catalogs/floppies/probe-links"
+body_json = '{"limit":2,"timeout_ms":1,"mark_dead_after_failures":1}'
+expect_status = [200]
+
+[[step]]
+name = "probe_links_again"
+method = "POST"
+path = "/api/v2/catalogs/floppies/probe-links"
+body_json = '{"limit":2,"timeout_ms":1,"mark_dead_after_failures":1}'
+expect_status = [200]
+
+[[step]]
+name = "invalid_timeout"
+method = "POST"
+path = "/api/v2/catalogs/floppies/probe-links"
+body_json = '{"timeout_ms":0,"mark_dead_after_failures":1}'
+expect_status = [400]

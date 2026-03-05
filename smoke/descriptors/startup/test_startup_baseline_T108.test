@@ -1,0 +1,32 @@
+[meta]
+test_id = "test_startup_baseline_T108"
+task_id = "T-108"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+
+[[step]]
+name = "session_start"
+method = "POST"
+path = "/api/v2/engine/session/start"
+body_json = '{}'
+expect_status = [200, 409]
+
+[[step]]
+name = "startup_defaults"
+method = "GET"
+path = "/api/v2/inspect/chipset/startup/defaults?session_id=ses_local"
+expect_status = [200, 409]
+
+[[step]]
+name = "startup_baseline"
+method = "GET"
+path = "/api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=mfp"
+expect_status = [200, 409]
+
+[[step]]
+name = "bad_group"
+method = "GET"
+path = "/api/v2/inspect/chipset/startup/baseline?session_id=ses_local&group=foo"
+expect_status = [400, 409]

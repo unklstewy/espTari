@@ -1,0 +1,35 @@
+[meta]
+test_id = "test_input_mapping_T070"
+task_id = "T-070"
+description = "Input mapping load and update smoke"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "input:write engine:control inspect:read"
+timeout_s = 20
+
+[[step]]
+name = "mappings_load"
+method = "POST"
+path = "/api/v2/input/mappings/load"
+body_json = '{"session_id":"ses_local","mapping_profile_id":"atari_st_custom_gamepad_v1","replace":true}'
+expect_status = [200]
+expect_ok = true
+
+[[step]]
+name = "mappings_update_applied"
+method = "POST"
+path = "/api/v2/input/mappings/update"
+body_json = '{"session_id":"ses_local","entries":[{"entry_id":"pad.south","host":{"device_type":"game_controller","code":"BTN_SOUTH"},"virtual":{"target":"joystick.port0.button","value":1}}]}'
+expect_status = [200]
+expect_ok = true
+expect_json = { "data.result" = "applied" }
+
+[[step]]
+name = "mappings_update_noop"
+method = "POST"
+path = "/api/v2/input/mappings/update"
+body_json = '{"session_id":"ses_local","entries":[]}'
+expect_status = [200]
+expect_ok = true
+expect_json = { "data.result" = "no_op" }

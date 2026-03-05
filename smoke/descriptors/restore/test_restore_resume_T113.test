@@ -1,0 +1,45 @@
+[meta]
+test_id = "test_restore_resume_T113"
+task_id = "T-113"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+continue_on_failure = true
+
+[[step]]
+name = "session_start"
+method = "POST"
+path = "/api/v2/engine/session/start"
+body_json = '{}'
+expect_status = [200, 409]
+
+[[step]]
+name = "suspend_save"
+method = "POST"
+path = "/api/v2/engine/session/suspend-save"
+body_json = '{"session_id":"ses_local","name":"restore113_a"}'
+expect_status = [200]
+save_json = { snapshot_a = "data.snapshot_id" }
+
+[[step]]
+name = "restore_missing_session"
+method = "POST"
+path = "/api/v2/engine/session/restore-resume"
+body_json = '{"snapshot_id":"{{snapshot_a}}","resume_mode":"running"}'
+expect_status = [400]
+
+[[step]]
+name = "restore_unknown_session"
+method = "POST"
+path = "/api/v2/engine/session/restore-resume"
+body_json = '{"session_id":"ses_unknown","snapshot_id":"{{snapshot_a}}","resume_mode":"running"}'
+expect_status = [409]
+expect_error_code = "ENGINE_NOT_RUNNING"
+
+[[step]]
+name = "restore_success_running"
+method = "POST"
+path = "/api/v2/engine/session/restore-resume"
+body_json = '{"session_id":"ses_local","snapshot_id":"{{snapshot_a}}","resume_mode":"running"}'
+expect_status = [200]

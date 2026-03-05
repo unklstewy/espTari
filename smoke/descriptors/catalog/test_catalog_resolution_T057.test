@@ -1,0 +1,30 @@
+[meta]
+test_id = "test_catalog_resolution_T057"
+task_id = "T-057"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+
+[[step]]
+name = "attach_rom"
+method = "POST"
+path = "/api/v2/media/rom/attach"
+body_json = '{"session_id":"ses_local","rom_id":"rom.atari.st.01"}'
+expect_status = [200, 409]
+
+[[step]]
+name = "attach_disk_missing"
+method = "POST"
+path = "/api/v2/media/disk/attach"
+body_json = '{"session_id":"ses_local","disk_id":"disk.missing.057"}'
+expect_status = [404]
+expect_error_code = "CATALOG_ENTRY_NOT_FOUND"
+
+[[step]]
+name = "attach_cartridge_missing_catalog"
+method = "POST"
+path = "/api/v2/media/cartridge/attach"
+body_json = '{"session_id":"ses_local","cartridge_id":"cart.demo.057"}'
+expect_status = [404]
+expect_error_code = "CATALOG_NOT_FOUND"

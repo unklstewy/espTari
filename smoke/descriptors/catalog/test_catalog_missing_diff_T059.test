@@ -1,0 +1,27 @@
+[meta]
+test_id = "test_catalog_missing_diff_T059"
+task_id = "T-059"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+
+[[step]]
+name = "rescan_base"
+method = "POST"
+path = "/api/v2/catalogs/floppies/rescan-local"
+body_json = '{"hash_mode":"metadata_only","scan_roots":["/sdcard/disks"]}'
+expect_status = [200]
+save_json = { base_scan_id = "data.scan_id" }
+
+[[step]]
+name = "missing_report_since"
+method = "GET"
+path = "/api/v2/catalogs/floppies/missing-report?since_scan_id={{base_scan_id}}"
+expect_status = [200]
+
+[[step]]
+name = "missing_report_invalid_since"
+method = "GET"
+path = "/api/v2/catalogs/floppies/missing-report?since_scan_id=scan_999999"
+expect_status = [404, 409]

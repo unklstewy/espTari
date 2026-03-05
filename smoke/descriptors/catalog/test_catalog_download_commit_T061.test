@@ -1,0 +1,28 @@
+[meta]
+test_id = "test_catalog_download_commit_T061"
+task_id = "T-061"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read"
+
+[[step]]
+name = "staged_commit_success"
+method = "POST"
+path = "/api/v2/catalogs/floppies/download-entry"
+body_json = '{"entry_id":"disk.automation.a_093","overwrite":true,"verify_sha256":true}'
+expect_status = [200, 202]
+
+[[step]]
+name = "simulate_truncated"
+method = "POST"
+path = "/api/v2/catalogs/floppies/download-entry"
+body_json = '{"entry_id":"disk.automation.a_093","overwrite":true,"simulate_truncated":true}'
+expect_status = [400, 409]
+
+[[step]]
+name = "simulate_hash_mismatch"
+method = "POST"
+path = "/api/v2/catalogs/floppies/download-entry"
+body_json = '{"entry_id":"disk.automation.a_093","overwrite":true,"verify_sha256":true,"simulate_hash_mismatch":true}'
+expect_status = [400, 409]

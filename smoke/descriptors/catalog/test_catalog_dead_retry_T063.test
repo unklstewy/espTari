@@ -1,0 +1,28 @@
+[meta]
+test_id = "test_catalog_dead_retry_T063"
+task_id = "T-063"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read"
+
+[[step]]
+name = "mark_dead"
+method = "POST"
+path = "/api/v2/catalogs/floppies/mark-dead"
+body_json = '{"entry_id":"disk.demos.dead_entry","reason":"HTTP 404 repeated 3 times"}'
+expect_status = [200]
+
+[[step]]
+name = "dead_no_retry"
+method = "POST"
+path = "/api/v2/catalogs/floppies/download-entry"
+body_json = '{"entry_id":"disk.demos.dead_entry","overwrite":true,"verify_sha256":false}'
+expect_status = [404, 409]
+
+[[step]]
+name = "dead_retry_success"
+method = "POST"
+path = "/api/v2/catalogs/floppies/download-entry"
+body_json = '{"entry_id":"disk.demos.dead_entry","overwrite":true,"allow_dead_retry":true}'
+expect_status = [200, 202, 409]

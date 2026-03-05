@@ -1,0 +1,26 @@
+[meta]
+test_id = "test_ntp_startup_T122"
+task_id = "T-122"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+
+[[step]]
+name = "trigger_reset"
+method = "POST"
+path = "/api/system"
+body_json = '{"action":"reset"}'
+expect_status = [200]
+
+[[step]]
+name = "engine_health"
+method = "GET"
+path = "/api/v2/engine/health"
+expect_status = [200]
+
+[[step]]
+name = "entries_available"
+method = "GET"
+path = "/api/v2/catalogs/floppies/entries"
+expect_status = [200]

@@ -1,0 +1,39 @@
+[meta]
+test_id = "test_restore_compatibility_T114"
+task_id = "T-114"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+
+[config.vars]
+snapshot_id = "snap_restore_compat_114"
+
+[[step]]
+name = "session_start"
+method = "POST"
+path = "/api/v2/engine/session/start"
+body_json = '{}'
+expect_status = [200, 409]
+
+[[step]]
+name = "suspend_save_baseline"
+method = "POST"
+path = "/api/v2/engine/session/suspend-save"
+body_json = '{"snapshot_id":"{{snapshot_id}}"}'
+expect_status = [200]
+
+[[step]]
+name = "validate_compatible"
+method = "POST"
+path = "/api/v2/engine/state/restore/validate"
+body_json = '{"snapshot_id":"{{snapshot_id}}","strict":true}'
+expect_status = [200]
+
+[[step]]
+name = "validate_missing"
+method = "POST"
+path = "/api/v2/engine/state/restore/validate"
+body_json = '{"snapshot_id":"snap_missing_114","strict":true}'
+expect_status = [404]
+expect_error_code = "SNAPSHOT_NOT_FOUND"

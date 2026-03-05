@@ -1,0 +1,35 @@
+[meta]
+test_id = "test_catalog_sync_scheduler_T064"
+task_id = "T-064"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read"
+
+[[step]]
+name = "create_schedule"
+method = "POST"
+path = "/api/v2/catalog-sync/schedules"
+body_json = '{"job_type":"rom_catalog_sync","mode":"catalog_and_probe_links","cron":"0 */6 * * *","enabled":true,"catch_up":false}'
+expect_status = [200]
+save_json = { schedule_id = "data.schedule_id" }
+
+[[step]]
+name = "get_schedule"
+method = "GET"
+path = "/api/v2/catalog-sync/schedules/{{schedule_id}}"
+expect_status = [200]
+
+[[step]]
+name = "run_job"
+method = "POST"
+path = "/api/v2/catalog-sync/jobs/run"
+body_json = '{"job_type":"floppy_catalog_sync","mode":"catalog_and_probe_links","limit":25}'
+expect_status = [200]
+save_json = { job_id = "data.job_id" }
+
+[[step]]
+name = "get_job"
+method = "GET"
+path = "/api/v2/catalog-sync/jobs/{{job_id}}"
+expect_status = [200]

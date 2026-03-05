@@ -1,0 +1,51 @@
+[meta]
+test_id = "test_ebin_validate_S5-002"
+task_id = "S5-002"
+description = "EBIN validation API smoke"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "ebin:manage engine:control inspect:read"
+timeout_s = 20
+continue_on_failure = true
+
+[[step]]
+name = "ebin_validate_success"
+method = "POST"
+path = "/api/v2/ebins/validate"
+body_json = '{"module_id":"st.cpu.m68k","module_type":"cpu","machine_targets":["atari_st"],"abi_version":"1.0.0","api_contract_version":"1.0.0","exports":["init","step","deinit"],"dependencies":[{"module_id":"st.video.shifter","abi_range":"1.0.x","required":true}],"build_fingerprint":"build_20260304_a","payload_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","signature":{"algorithm":"ed25519","key_id":"dev_key_01","value":"sig_stub_01"}}'
+expect_status = [200]
+expect_ok = true
+expect_json = { "data.valid" = true }
+
+[[step]]
+name = "ebin_validate_missing_required"
+method = "POST"
+path = "/api/v2/ebins/validate"
+body_json = '{"module_type":"cpu"}'
+expect_status = [400]
+expect_error_code = "BAD_REQUEST"
+
+[[step]]
+name = "ebin_validate_bad_module_type"
+method = "POST"
+path = "/api/v2/ebins/validate"
+body_json = '{"module_id":"st.cpu.m68k","module_type":"quantum","machine_targets":["atari_st"],"abi_version":"1.0.0","api_contract_version":"1.0.0","exports":["init"],"dependencies":[],"build_fingerprint":"build","payload_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}'
+expect_status = [400]
+expect_error_code = "EBIN_INVALID"
+
+[[step]]
+name = "ebin_validate_bad_sha"
+method = "POST"
+path = "/api/v2/ebins/validate"
+body_json = '{"module_id":"st.cpu.m68k","module_type":"cpu","machine_targets":["atari_st"],"abi_version":"1.0.0","api_contract_version":"1.0.0","exports":["init"],"dependencies":[],"build_fingerprint":"build","payload_sha256":"xyz"}'
+expect_status = [400]
+expect_error_code = "EBIN_INVALID"
+
+[[step]]
+name = "ebin_validate_abi_mismatch"
+method = "POST"
+path = "/api/v2/ebins/validate"
+body_json = '{"module_id":"st.cpu.m68k","module_type":"cpu","machine_targets":["atari_st"],"abi_version":"2.0.0","api_contract_version":"1.0.0","exports":["init"],"dependencies":[],"build_fingerprint":"build","payload_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}'
+expect_status = [409]
+expect_error_code = "EBIN_ABI_MISMATCH"

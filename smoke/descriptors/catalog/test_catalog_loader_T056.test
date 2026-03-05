@@ -1,0 +1,29 @@
+[meta]
+test_id = "test_catalog_loader_T056"
+task_id = "T-056"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+timeout_s = 20
+
+[[step]]
+name = "session_stop_pre"
+method = "POST"
+path = "/api/v2/engine/session/stop"
+body_json = '{"session_id":"ses_local"}'
+expect_status = [200, 409]
+
+[[step]]
+name = "session_start_valid"
+method = "POST"
+path = "/api/v2/engine/session"
+body_json = '{"machine":"atari_st","profile":"st_520_pal","rom_id":"rom.atari.st.01","tos_id":"tos.eu.1.04","disk_ids":["disk.automation.a_093"]}'
+expect_status = [200]
+
+[[step]]
+name = "session_start_missing_rom"
+method = "POST"
+path = "/api/v2/engine/session"
+body_json = '{"machine":"atari_st","profile":"st_520_pal","rom_id":"rom.missing"}'
+expect_status = [404, 409]

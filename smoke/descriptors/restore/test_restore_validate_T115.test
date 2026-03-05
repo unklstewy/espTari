@@ -1,0 +1,46 @@
+[meta]
+test_id = "test_restore_validate_T115"
+task_id = "T-115"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+continue_on_failure = true
+
+[[step]]
+name = "session_start"
+method = "POST"
+path = "/api/v2/engine/session/start"
+body_json = '{}'
+expect_status = [200, 409]
+
+[[step]]
+name = "suspend_save"
+method = "POST"
+path = "/api/v2/engine/session/suspend-save"
+body_json = '{"session_id":"ses_local","name":"rval115"}'
+expect_status = [200]
+save_json = { snapshot_id = "data.snapshot_id" }
+
+[[step]]
+name = "validate_missing_session"
+method = "POST"
+path = "/api/v2/engine/state/restore/validate"
+body_json = '{"snapshot_id":"{{snapshot_id}}","strict":true}'
+expect_status = [400]
+expect_error_code = "BAD_REQUEST"
+
+[[step]]
+name = "validate_snapshot_missing"
+method = "POST"
+path = "/api/v2/engine/state/restore/validate"
+body_json = '{"session_id":"ses_local","snapshot_id":"snap_missing_115","strict":true}'
+expect_status = [404]
+expect_error_code = "SNAPSHOT_NOT_FOUND"
+
+[[step]]
+name = "validate_success"
+method = "POST"
+path = "/api/v2/engine/state/restore/validate"
+body_json = '{"session_id":"ses_local","snapshot_id":"{{snapshot_id}}","strict":true}'
+expect_status = [200]

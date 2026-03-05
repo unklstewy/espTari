@@ -1,0 +1,37 @@
+[meta]
+test_id = "test_conformance_subsystem_T111"
+task_id = "T-111"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+continue_on_failure = true
+
+[[step]]
+name = "engine_start"
+method = "POST"
+path = "/api/v2/engine/session/start"
+body_json = '{}'
+expect_status = [200, 409]
+
+[[step]]
+name = "manifest_load"
+method = "POST"
+path = "/api/v2/conformance/manifests/load"
+body_json = '{"manifest_id":"mf_smoke_111","manifest":{"manifest_version":1,"target_machine":"atari_st","profile":"st_520_pal","suite":"smoke_111","cases":[{"case_id":"mfp_irq_contract","kind":"api","target":"/api/v2/conformance/subsystems/suites/report","assertions":["status_200"]}]}}'
+expect_status = [200]
+
+[[step]]
+name = "harness_session"
+method = "POST"
+path = "/api/v2/conformance/harness/session"
+body_json = '{"session_id":"ses_local","manifest_id":"mf_smoke_111","run_mode":"execute","evidence_level":"summary"}'
+expect_status = [200]
+save_json = { harness_id = "data.harness_session_id" }
+
+[[step]]
+name = "subsystem_scaffold"
+method = "POST"
+path = "/api/v2/conformance/subsystems/scaffold"
+body_json = '{"harness_session_id":"{{harness_id}}","subsystem":"mfp","fixture_profile":"mfp_timer_irq_smoke","seed_mode":"baseline"}'
+expect_status = [200]

@@ -1,0 +1,57 @@
+[meta]
+test_id = "test_lifecycle_guard_T055"
+task_id = "T-055"
+description = "Lifecycle guard validation smoke"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+timeout_s = 20
+continue_on_failure = true
+
+[[step]]
+name = "stop_pre"
+method = "POST"
+path = "/api/v2/engine/session/stop"
+body_json = '{"session_id":"ses_local"}'
+expect_status = [200, 409]
+
+[[step]]
+name = "pause_from_stopped"
+method = "POST"
+path = "/api/v2/engine/session/pause"
+body_json = '{"session_id":"ses_local"}'
+expect_status = [409]
+expect_error_code = "INVALID_SESSION_STATE"
+
+[[step]]
+name = "suspend_missing_session"
+method = "POST"
+path = "/api/v2/engine/session/suspend-save"
+body_json = '{"snapshot_id":"snap.test.055"}'
+expect_status = [400]
+expect_error_code = "BAD_REQUEST"
+
+[[step]]
+name = "resume_invalid_mode"
+method = "POST"
+path = "/api/v2/engine/session/resume"
+body_json = '{"resume_mode":"fast_forward"}'
+expect_status = [400]
+expect_error_code = "BAD_REQUEST"
+
+[[step]]
+name = "reset_invalid_mode"
+method = "POST"
+path = "/api/v2/engine/session/reset"
+body_json = '{"mode":"hard"}'
+expect_status = [400]
+expect_error_code = "BAD_REQUEST"
+
+[[step]]
+name = "restore_resume_invalid_payload"
+method = "POST"
+path = "/api/v2/engine/session/restore-resume"
+body_json = '{"snapshot_id":"snap.any","resume_mode":"fast_forward"}'
+expect_status = [400]
+expect_error_code = "BAD_REQUEST"

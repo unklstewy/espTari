@@ -1,0 +1,13 @@
+[meta]
+test_id = "test_startup_resolution_EBIN-214"
+task_id = "EBIN-214"
+
+[config]
+timeout_s = 90
+
+[[step]]
+name = "compose_and_verify_1040"
+kind = "command"
+command = "python3 - <<'PY'\nimport json,tempfile,subprocess\nfrom pathlib import Path\nroot=Path('.').resolve()\nout=Path(tempfile.mkdtemp())/'sdcard'\nsubprocess.check_call(['bash', str(root/'tools/ebin_builder/compose_st_1040_package.sh'), str(out)])\nidx=out/'ebins/atari_st/packages/st.profile.1040/index.json'\nassert idx.exists()\nwith idx.open() as f: d=json.load(f)\nassert d['profile_module']=='st.profile.1040'\nprint('ok')\nPY"
+expect_exit = [0]
+expect_output_contains = ["ok"]

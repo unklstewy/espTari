@@ -1,0 +1,32 @@
+[meta]
+test_id = "test_startup_sequence_T109"
+task_id = "T-109"
+
+[config]
+base_url = "http://esptari.local"
+auth_scope = "engine:control inspect:read input:write ebin:manage catalog:read catalog:write conformance:run conformance:write"
+
+[[step]]
+name = "session_start"
+method = "POST"
+path = "/api/v2/engine/session/start"
+body_json = '{}'
+expect_status = [200, 409]
+
+[[step]]
+name = "startup_sequence"
+method = "GET"
+path = "/api/v2/inspect/chipset/startup/sequence?session_id=ses_local"
+expect_status = [200, 409]
+
+[[step]]
+name = "startup_verification"
+method = "GET"
+path = "/api/v2/inspect/chipset/startup/verification?session_id=ses_local&limit=4"
+expect_status = [200, 409]
+
+[[step]]
+name = "verification_bad_limit"
+method = "GET"
+path = "/api/v2/inspect/chipset/startup/verification?session_id=ses_local&limit=0"
+expect_status = [400]
