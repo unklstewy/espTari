@@ -131,6 +131,10 @@ static const char *module_id_to_profile_name(const char *module_id)
         return "st_520_pal";
     }
 
+    if (strcmp(module_id, "st.profile.1040") == 0) {
+        return "st_default";
+    }
+
     return FALLBACK_PROFILE_NAME;
 }
 

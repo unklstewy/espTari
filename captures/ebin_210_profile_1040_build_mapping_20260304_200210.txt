@@ -1,0 +1,21 @@
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmp386qd5_v/st_profile_1040_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_profile_1040_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmp386qd5_v/component.ld -o /tmp/tmp386qd5_v/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmp386qd5_v/st_profile_1040_component.o
+Code size: 105 bytes
+Data size: 32 bytes
+BSS size: 8 bytes
+Entry offset: 0
+Relocations: 7
+Built /tmp/tmp.V8draRtNuq/sdcard/ebins/atari_st/machine_profile/st.profile.1040-1.0.0.ebin: 256 bytes
+  Code: 105 bytes, Data: 32 bytes, BSS: 8 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 7
+metadata_written index=/tmp/tmp.V8draRtNuq/sdcard/ebins/atari_st/machine_profile/index.json manifest=/tmp/tmp.V8draRtNuq/sdcard/ebins/atari_st/machine_profile/manifest.json
+Built artifact: /tmp/tmp.V8draRtNuq/sdcard/ebins/atari_st/machine_profile/st.profile.1040-1.0.0.ebin
+required_file=present path=/tmp/tmp.V8draRtNuq/sdcard/ebins/atari_st/machine_profile/st.profile.1040-1.0.0.ebin
+required_file=present path=/tmp/tmp.V8draRtNuq/sdcard/ebins/atari_st/machine_profile/index.json
+required_file=present path=/tmp/tmp.V8draRtNuq/sdcard/ebins/atari_st/machine_profile/manifest.json
+profile_1040_ebin_header=pass
+profile_1040_metadata_contract=pass
+runtime_mapping_proof=pass module=st.profile.1040 profile=st_default
+Smoke PASS
