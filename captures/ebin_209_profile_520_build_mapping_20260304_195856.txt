@@ -1,0 +1,21 @@
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmpa9pcomgy/st_profile_520_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_profile_520_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmpa9pcomgy/component.ld -o /tmp/tmpa9pcomgy/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmpa9pcomgy/st_profile_520_component.o
+Code size: 104 bytes
+Data size: 32 bytes
+BSS size: 8 bytes
+Entry offset: 0
+Relocations: 7
+Built /tmp/tmp.uA2QHp1jGq/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin: 252 bytes
+  Code: 104 bytes, Data: 32 bytes, BSS: 8 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 7
+metadata_written index=/tmp/tmp.uA2QHp1jGq/sdcard/ebins/atari_st/machine_profile/index.json manifest=/tmp/tmp.uA2QHp1jGq/sdcard/ebins/atari_st/machine_profile/manifest.json
+Built artifact: /tmp/tmp.uA2QHp1jGq/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin
+required_file=present path=/tmp/tmp.uA2QHp1jGq/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin
+required_file=present path=/tmp/tmp.uA2QHp1jGq/sdcard/ebins/atari_st/machine_profile/index.json
+required_file=present path=/tmp/tmp.uA2QHp1jGq/sdcard/ebins/atari_st/machine_profile/manifest.json
+profile_520_ebin_header=pass
+profile_520_metadata_contract=pass
+runtime_mapping_proof=pass module=st.profile.520 profile=st_520_pal
+Smoke PASS
