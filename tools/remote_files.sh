@@ -58,6 +58,9 @@ Commands:
     Optional idempotency controls:
       --idempotency-key KEY      Replay-protect a transaction key.
       --idempotency-store PATH   Local ledger file (default: .cache/remote_files_txn_idempotency.tsv)
+      Optional concurrency controls:
+        --lock-dir PATH            Lock directory path (default: .cache/remote_files_txn.lockdir)
+        --no-lock                  Disable lock guard for this invocation.
 
       Ops file format (pipe-delimited, one operation per line; # comments allowed):
         mkdir|/sdcard/path
@@ -490,6 +493,8 @@ cmd_txn_apply() {
   local report_file=""
   local idempotency_key=""
   local idempotency_store="$PROJECT_ROOT/.cache/remote_files_txn_idempotency.tsv"
+  local lock_dir="$PROJECT_ROOT/.cache/remote_files_txn.lockdir"
+  local use_lock=1
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -498,6 +503,8 @@ cmd_txn_apply() {
       --report-file) report_file="$2"; shift 2 ;;
       --idempotency-key) idempotency_key="$2"; shift 2 ;;
       --idempotency-store) idempotency_store="$2"; shift 2 ;;
+      --lock-dir) lock_dir="$2"; shift 2 ;;
+      --no-lock) use_lock=0; shift ;;
       *) echo "[ERR ] Unknown txn-apply option: $1" >&2; exit 1 ;;
     esac
   done
@@ -531,6 +538,26 @@ cmd_txn_apply() {
   fi
 
   require_token
+
+  local lock_acquired=0
+  if [[ "$use_lock" -eq 1 ]]; then
+    mkdir -p "$(dirname "$lock_dir")"
+    if mkdir "$lock_dir" 2>/dev/null; then
+      lock_acquired=1
+    else
+      echo "[ERR ] txn lock busy lock_dir=$lock_dir" >&2
+      echo "[TXN ] summary status=lock_conflict ops_signature=${ops_signature} steps_total=${steps_total} steps_applied=0 rollback_attempted=0 rollback_warnings=0 finalize_count=0" >&2
+      write_txn_report "$report_file" "lock_conflict" "$ops_signature" "$steps_total" "0" "0" "0" "0"
+      return 1
+    fi
+  fi
+
+  release_txn_lock() {
+    if [[ "$lock_acquired" -eq 1 ]]; then
+      rmdir "$lock_dir" 2>/dev/null || true
+      lock_acquired=0
+    fi
+  }
 
   local txn_id
   txn_id="$(date +%s)_$$"
@@ -660,6 +687,7 @@ cmd_txn_apply() {
     if [[ -n "$idempotency_key" ]]; then
       idempotency_record "$idempotency_store" "$idempotency_key" "$ops_signature" "rolled_back" "1" "$steps_total" "$applied_steps" "${#rollback_ops[@]}" "$rollback_warnings" "${#finalize_ops[@]}"
     fi
+    release_txn_lock
     return 1
   fi
 
@@ -672,6 +700,7 @@ cmd_txn_apply() {
       if [[ -n "$idempotency_key" ]]; then
         idempotency_record "$idempotency_store" "$idempotency_key" "$ops_signature" "finalize_failed" "1" "$steps_total" "$applied_steps" "0" "0" "${#finalize_ops[@]}"
       fi
+      release_txn_lock
       return 1
     fi
   done
@@ -681,6 +710,7 @@ cmd_txn_apply() {
   if [[ -n "$idempotency_key" ]]; then
     idempotency_record "$idempotency_store" "$idempotency_key" "$ops_signature" "committed" "0" "$steps_total" "$applied_steps" "0" "0" "${#finalize_ops[@]}"
   fi
+  release_txn_lock
   return 0
 }
 

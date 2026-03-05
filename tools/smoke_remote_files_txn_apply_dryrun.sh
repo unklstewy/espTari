@@ -12,9 +12,11 @@ mkdir -p "$ROOT_DIR/captures"
 OPS_FILE="$(mktemp)"
 REPORT_FILE="$(mktemp)"
 REPORT_FILE_REPLAY="$(mktemp)"
+REPORT_FILE_LOCK="$(mktemp)"
 IDEMPOTENCY_STORE="$(mktemp)"
 IDEMPOTENCY_KEY="txn.dryrun.demo.1"
-trap 'rm -f "$OPS_FILE" "$REPORT_FILE" "$REPORT_FILE_REPLAY" "$IDEMPOTENCY_STORE"' EXIT
+LOCK_DIR="$(mktemp -d)"
+trap 'rm -f "$OPS_FILE" "$REPORT_FILE" "$REPORT_FILE_REPLAY" "$REPORT_FILE_LOCK" "$IDEMPOTENCY_STORE"; rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 cat > "$OPS_FILE" <<'EOF'
 # tx apply dry-run
@@ -83,6 +85,34 @@ assert report.get('status') == 'replayed'
 assert report.get('ops_signature') == sig
 
 print('txn_replay_report=pass')
+PY
+
+set +e
+"$REMOTE_FILES_SH" --dry-run --token dryrun-token txn-apply --ops-file "$OPS_FILE" --report-file "$REPORT_FILE_LOCK" --lock-dir "$LOCK_DIR" >> "$OUT" 2>&1
+LOCK_RC=$?
+set -e
+
+if [[ "$LOCK_RC" -eq 0 ]]; then
+  echo "expected_lock_conflict=missing" | tee -a "$OUT"
+  exit 1
+fi
+
+grep -q "txn lock busy" "$OUT" || { echo "missing_lock_busy" | tee -a "$OUT"; exit 1; }
+grep -q "summary status=lock_conflict" "$OUT" || { echo "missing_lock_summary" | tee -a "$OUT"; exit 1; }
+
+python3 - <<'PY' "$REPORT_FILE_LOCK" >> "$OUT"
+import json
+import sys
+
+report_path = sys.argv[1]
+with open(report_path, 'r', encoding='utf-8') as f:
+    report = json.load(f)
+
+assert report.get('schema') == 'remote_files_txn_report_v1'
+assert report.get('status') == 'lock_conflict'
+assert report.get('steps_applied') == 0
+
+print('txn_lock_report=pass')
 PY
 
 echo "Smoke PASS" | tee -a "$OUT"
