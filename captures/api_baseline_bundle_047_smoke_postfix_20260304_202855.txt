@@ -1,0 +1,5 @@
+required_file=present path=/home/sannis/electronics/esp32p4/projects/espTari/docs/emu_engine_v2/api_schema_baseline_bundle_v1.json
+baseline_bundle_metadata=pass
+baseline_bundle_examples=pass
+baseline_bundle_cross_links=pass
+Smoke PASS
