@@ -41,7 +41,7 @@ Scopes covered during verification:
 
 Primary matrix runner:
 
-- `tools/smoke_auth_route_matrix.sh`
+- `smoke/smoke_auth_route_matrix.sh`
 
 Method summary:
 

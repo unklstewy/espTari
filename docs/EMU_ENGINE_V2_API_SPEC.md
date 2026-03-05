@@ -147,7 +147,7 @@ Evidence artifacts:
 
 Reusable verifier:
 
-- `tools/smoke_auth_route_matrix.sh`
+- `smoke/smoke_auth_route_matrix.sh`
 
 ## 3.5 Path hardening
 

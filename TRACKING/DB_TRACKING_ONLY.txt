@@ -1,0 +1,16 @@
+espTari tracking is now DB-only.
+
+Canonical source of truth:
+- TRACKING/tracking.db
+
+Legacy markdown tracking archive:
+- TRACKING/_archive/tracking_markdown_migration_2026-03-04.tar.gz
+
+Common commands:
+- python tools/tracking_db/update_tracking_db.py recent-events --limit 20
+- python tools/tracking_db/update_tracking_db.py set-task-status --task EBIN-203 --status "In Progress" --note "Starting EBIN-203 implementation"
+- python tools/tracking_db/update_tracking_db.py add-acceptance --task-ref EBIN-203 --decision Accepted --notes "<notes>" --evidence "<path>"
+
+Notes:
+- Do not recreate markdown tracking files as active artifacts.
+- Use the tracking DB update tools for status, acceptance, and event history.

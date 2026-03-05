@@ -46,4 +46,4 @@ fi
 echo "base_url=${BASE_URL}"
 echo "auth=provided"
 
-BASE_URL="$BASE_URL" AUTH_HEADER="$AUTH_HEADER" bash ./tools/smoke_ebin_s10_phase_a.sh
+BASE_URL="$BASE_URL" AUTH_HEADER="$AUTH_HEADER" bash ./smoke/smoke_ebin_s10_phase_a.sh

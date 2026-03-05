@@ -30,9 +30,9 @@ run_case() {
 }
 
 for loop in $(seq 1 "$SOAK_LOOPS"); do
-  run_case "$loop" "startup" "./tools/smoke_ebin_s10_011_startup_integration.sh"
-  run_case "$loop" "suspend_restore" "./tools/smoke_ebin_s10_012_suspend_restore_integration.sh"
-  run_case "$loop" "conformance" "./tools/smoke_ebin_s10_013_conformance_integration.sh"
+  run_case "$loop" "startup" "./smoke/smoke_ebin_s10_011_startup_integration.sh"
+  run_case "$loop" "suspend_restore" "./smoke/smoke_ebin_s10_012_suspend_restore_integration.sh"
+  run_case "$loop" "conformance" "./smoke/smoke_ebin_s10_013_conformance_integration.sh"
 done
 
 echo "summary_pass=${pass_count}" | tee -a "$OUT"

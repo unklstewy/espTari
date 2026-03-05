@@ -7,10 +7,10 @@ mkdir -p captures
 : > "$OUT"
 
 echo "run=smoke_acia_framing_100" | tee -a "$OUT"
-bash ./tools/smoke_acia_framing_100.sh | tee -a "$OUT"
+bash ./smoke/smoke_acia_framing_100.sh | tee -a "$OUT"
 
 echo "run=smoke_ikbd_timing_101" | tee -a "$OUT"
-bash ./tools/smoke_ikbd_timing_101.sh | tee -a "$OUT"
+bash ./smoke/smoke_ikbd_timing_101.sh | tee -a "$OUT"
 
 echo "Smoke PASS"
 echo "Evidence: $OUT"

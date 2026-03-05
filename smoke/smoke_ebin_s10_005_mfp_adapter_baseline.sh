@@ -7,10 +7,10 @@ mkdir -p captures
 : > "$OUT"
 
 echo "run=smoke_mfp_windows_098" | tee -a "$OUT"
-bash ./tools/smoke_mfp_windows_098.sh | tee -a "$OUT"
+bash ./smoke/smoke_mfp_windows_098.sh | tee -a "$OUT"
 
 echo "run=smoke_mfp_irq_099" | tee -a "$OUT"
-bash ./tools/smoke_mfp_irq_099.sh | tee -a "$OUT"
+bash ./smoke/smoke_mfp_irq_099.sh | tee -a "$OUT"
 
 echo "Smoke PASS"
 echo "Evidence: $OUT"

@@ -58,7 +58,7 @@ Protected-route enforcement contract:
 Route-matrix verifier:
 
 ```bash
-BASE_URL=http://192.168.1.196 ./tools/smoke_auth_route_matrix.sh
+BASE_URL=http://192.168.1.196 ./smoke/smoke_auth_route_matrix.sh
 ```
 
 Latest evidence files:

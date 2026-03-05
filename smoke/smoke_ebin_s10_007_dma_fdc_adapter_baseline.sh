@@ -7,10 +7,10 @@ mkdir -p captures
 : > "$OUT"
 
 echo "run=smoke_dma_arbitration_102" | tee -a "$OUT"
-bash ./tools/smoke_dma_arbitration_102.sh | tee -a "$OUT"
+bash ./smoke/smoke_dma_arbitration_102.sh | tee -a "$OUT"
 
 echo "run=smoke_fdc_fsm_terminal_103" | tee -a "$OUT"
-bash ./tools/smoke_fdc_fsm_terminal_103.sh | tee -a "$OUT"
+bash ./smoke/smoke_fdc_fsm_terminal_103.sh | tee -a "$OUT"
 
 echo "Smoke PASS"
 echo "Evidence: $OUT"

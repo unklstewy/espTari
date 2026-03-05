@@ -229,11 +229,11 @@ rerun_phase_a_if_requested() {
   fi
 
   log "rerun=begin scope=A-04..A-08"
-  AUTH_HEADER="$AUTH_HEADER" BASE_URL="$BASE_URL" bash ./tools/smoke_ebin_s10_004_glue_mmu_shifter_adapter_baseline.sh | tee -a "$OUT"
-  AUTH_HEADER="$AUTH_HEADER" BASE_URL="$BASE_URL" bash ./tools/smoke_ebin_s10_005_mfp_adapter_baseline.sh | tee -a "$OUT"
-  AUTH_HEADER="$AUTH_HEADER" BASE_URL="$BASE_URL" bash ./tools/smoke_ebin_s10_006_acia_ikbd_adapter_baseline.sh | tee -a "$OUT"
-  AUTH_HEADER="$AUTH_HEADER" BASE_URL="$BASE_URL" bash ./tools/smoke_ebin_s10_007_dma_fdc_adapter_baseline.sh | tee -a "$OUT"
-  AUTH_HEADER="$AUTH_HEADER" BASE_URL="$BASE_URL" bash ./tools/smoke_ebin_s10_008_psg_adapter_baseline.sh | tee -a "$OUT"
+  AUTH_HEADER="$AUTH_HEADER" BASE_URL="$BASE_URL" bash ./smoke/smoke_ebin_s10_004_glue_mmu_shifter_adapter_baseline.sh | tee -a "$OUT"
+  AUTH_HEADER="$AUTH_HEADER" BASE_URL="$BASE_URL" bash ./smoke/smoke_ebin_s10_005_mfp_adapter_baseline.sh | tee -a "$OUT"
+  AUTH_HEADER="$AUTH_HEADER" BASE_URL="$BASE_URL" bash ./smoke/smoke_ebin_s10_006_acia_ikbd_adapter_baseline.sh | tee -a "$OUT"
+  AUTH_HEADER="$AUTH_HEADER" BASE_URL="$BASE_URL" bash ./smoke/smoke_ebin_s10_007_dma_fdc_adapter_baseline.sh | tee -a "$OUT"
+  AUTH_HEADER="$AUTH_HEADER" BASE_URL="$BASE_URL" bash ./smoke/smoke_ebin_s10_008_psg_adapter_baseline.sh | tee -a "$OUT"
   log "rerun=end"
 }
 

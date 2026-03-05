@@ -150,7 +150,7 @@ Token mode credentials/scope defaults are configured by:
 
 Verification utility:
 
-- `tools/smoke_auth_route_matrix.sh` validates `401`/`403`/allowed behavior across all protected routes.
+- `smoke/smoke_auth_route_matrix.sh` validates `401`/`403`/allowed behavior across all protected routes.
 
 This decomposition is the baseline structure for future atomic refactors in the web API component.
 

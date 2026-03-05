@@ -1,15 +1,23 @@
-# Tracking DB MVP
+# Tracking DB
 
-SQLite-backed tracking system for development progress with optional Markdown import/export workflows.
+SQLite-backed tracking system for development progress with DB-first workflow.
 
 ## What this provides
 
 - `schema.sql`: normalized tracking schema + FTS index
-- `build_tracking_db.py`: parses tracking markdown and rebuilds `TRACKING/tracking.db`
+- `build_tracking_db.py`: legacy bootstrap utility (used before DB-only migration)
 - `serve_tracking_db.py`: read-only API for web UI
 - `update_tracking_db.py`: DB-first status and acceptance updates with event history
 
-## Build database
+## Legacy bootstrap (optional)
+
+Markdown tracking was archived during DB-only migration. In normal operation, do not rebuild from markdown.
+
+Archive location:
+
+- `TRACKING/_archive/tracking_markdown_migration_2026-03-04.tar.gz`
+
+If you intentionally restore markdown and need to rebuild:
 
 ```bash
 python tools/tracking_db/build_tracking_db.py
@@ -45,7 +53,7 @@ python tools/tracking_db/serve_tracking_db.py --port 8765
 
 All endpoints are read-only and CORS-enabled for local frontend integration.
 
-## DB-first progress workflow (recommended)
+## DB-first progress workflow
 
 Use the DB as the active progress source while developing:
 
@@ -57,6 +65,5 @@ python tools/tracking_db/update_tracking_db.py recent-events --limit 20
 
 Notes:
 
-- Markdown files are optional publication artifacts in this mode.
-- If needed, bootstrap/refresh DB from current Markdown with `build_tracking_db.py`.
-- Avoid re-running `build_tracking_db.py` after DB-first updates unless you intentionally want to reset from Markdown.
+- Tracking is DB-only; use `update_tracking_db.py` for task status and acceptance updates.
+- Avoid re-running `build_tracking_db.py` unless you explicitly restore markdown from archive for a one-time migration task.

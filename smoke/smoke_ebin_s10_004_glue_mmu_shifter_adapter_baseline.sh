@@ -7,10 +7,10 @@ mkdir -p captures
 : > "$OUT"
 
 echo "run=smoke_chipset_windows_096" | tee -a "$OUT"
-bash ./tools/smoke_chipset_windows_096.sh | tee -a "$OUT"
+bash ./smoke/smoke_chipset_windows_096.sh | tee -a "$OUT"
 
 echo "run=smoke_chipset_timing_097" | tee -a "$OUT"
-bash ./tools/smoke_chipset_timing_097.sh | tee -a "$OUT"
+bash ./smoke/smoke_chipset_timing_097.sh | tee -a "$OUT"
 
 echo "Smoke PASS"
 echo "Evidence: $OUT"

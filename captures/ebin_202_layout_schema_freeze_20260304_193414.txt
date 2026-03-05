@@ -1,0 +1,15 @@
+validation=pass contract=EBIN-202
+[INFO] Target root: /tmp/tmp.AKsyONfZ6r/sdcard
+[INFO] Fixture dir : /tmp/tmp.AKsyONfZ6r/sdcard/ebins/atari_st/machine_profile
+[ OK ] wrote    ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin
+[ OK ] wrote    ebins/atari_st/machine_profile/st.profile.520-1.2.0.ebin
+[ OK ] wrote    ebins/atari_st/machine_profile/st.profile.520-1.1.5.ebin
+[ OK ] wrote    ebins/atari_st/machine_profile/index.json
+[ OK ] wrote    ebins/atari_st/machine_profile/manifest.json
+
+[INFO] Expected loader winner: st.profile.520@1.2.0
+[INFO] Expected resolved profile: st_520_pal
+[INFO] Seed complete. create=3 update=0 skip=0 meta_create=2 meta_update=0
+metadata_upgrade=pass schema=st_component_*_v1
+validation=pass contract=EBIN-202
+Smoke PASS
