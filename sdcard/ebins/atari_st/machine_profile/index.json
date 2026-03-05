@@ -1,0 +1,14 @@
+{
+  "schema": "st_component_index_v1",
+  "machine": "atari_st",
+  "component": "machine_profile",
+  "module_id": "st.profile.1040",
+  "winner": "1.0.0",
+  "versions": [
+    "1.0.0"
+  ],
+  "files": [
+    "st.profile.1040-1.0.0.ebin"
+  ],
+  "layout_version": "st520_st1040_layout_v1"
+}

@@ -36,7 +36,7 @@ static void profile_shutdown(void)
 
 static const char *profile_id(void)
 {
-    return "st_default";
+    return "st_1040_pal";
 }
 
 static uint32_t profile_ram_kb(void)
@@ -46,12 +46,12 @@ static uint32_t profile_ram_kb(void)
 
 static uint32_t profile_tick_hz(void)
 {
-    return 2000000;
+    return 8000000;
 }
 
 static const machine_profile_interface_t s_interface = {
     .interface_version = 0x00010000,
-    .name = "st.profile.1040.stub",
+    .name = "st.profile.1040",
     .init = profile_init,
     .reset = profile_reset,
     .shutdown = profile_shutdown,

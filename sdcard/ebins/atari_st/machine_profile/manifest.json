@@ -1,0 +1,10 @@
+{
+  "schema": "st_component_manifest_v1",
+  "machine": "atari_st",
+  "component": "machine_profile",
+  "module_id": "st.profile.1040",
+  "winner": "st.profile.1040@1.0.0",
+  "resolved_profile": "st_1040_pal",
+  "index": "index.json",
+  "layout_version": "st520_st1040_layout_v1"
+}

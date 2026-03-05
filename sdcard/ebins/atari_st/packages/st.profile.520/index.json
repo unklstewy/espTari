@@ -1,0 +1,18 @@
+{
+  "schema": "st_machine_package_index_v1",
+  "machine": "atari_st",
+  "profile_module": "st.profile.520",
+  "components": {
+    "cpu": "st.cpu.m68k@1.0.0",
+    "chipset": [
+      "st.chipset.glue_mmu_shifter@1.0.0",
+      "st.chipset.mfp@1.0.0"
+    ],
+    "io": "st.io.acia_ikbd@1.0.0",
+    "storage": "st.storage.dma_fdc@1.0.0",
+    "audio_gpio": "st.audio_gpio.psg@1.0.0",
+    "machine_profile": "st.profile.520@1.0.0"
+  },
+  "winner": "st.profile.520@1.0.0",
+  "layout_version": "st520_st1040_layout_v1"
+}

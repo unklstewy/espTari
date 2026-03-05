@@ -1,0 +1,9 @@
+{
+  "schema": "st_component_manifest_v1",
+  "machine": "atari_st",
+  "component": "cpu",
+  "module_id": "st.cpu.m68k",
+  "winner": "st.cpu.m68k@1.0.0",
+  "index": "index.json",
+  "layout_version": "st520_st1040_layout_v1"
+}

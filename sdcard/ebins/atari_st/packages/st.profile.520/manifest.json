@@ -1,0 +1,20 @@
+{
+  "schema": "st_machine_package_manifest_v1",
+  "machine": "atari_st",
+  "profile_module": "st.profile.520",
+  "package_index": "index.json",
+  "winner": "st.profile.520@1.0.0",
+  "layout_version": "st520_st1040_layout_v1",
+  "placement": {
+    "root_rel": "ebins/atari_st",
+    "package_rel": "packages/st.profile.520",
+    "component_dirs": {
+      "cpu": "cpu",
+      "chipset": "chipset",
+      "io": "io",
+      "storage": "storage",
+      "audio_gpio": "audio_gpio",
+      "machine_profile": "machine_profile"
+    }
+  }
+}

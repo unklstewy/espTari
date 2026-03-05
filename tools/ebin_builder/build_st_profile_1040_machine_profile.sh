@@ -62,7 +62,7 @@ manifest_obj = {
     "component": "machine_profile",
     "module_id": module_id,
     "winner": f"{module_id}@{version}",
-    "resolved_profile": "st_default",
+    "resolved_profile": "st_1040_pal",
     "index": "index.json",
     "layout_version": layout_version,
 }

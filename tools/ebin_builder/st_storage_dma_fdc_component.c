@@ -30,10 +30,45 @@ static struct {
     uint8_t dma_mode;
     uint8_t fdc_command;
     uint8_t fdc_status;
+    uint16_t transfer_remaining;
+    uint16_t command_latency;
+    bool drq;
+    bool busy;
     uint32_t ticks;
     bool initialized;
     bool irq;
 } s_dma;
+
+enum {
+    FDC_STATUS_BUSY = 0x01,
+    FDC_STATUS_DRQ = 0x02,
+    FDC_STATUS_INTRQ = 0x80,
+};
+
+static void recompute_fdc_status(void)
+{
+    s_dma.fdc_status = 0;
+    if (s_dma.busy) {
+        s_dma.fdc_status |= FDC_STATUS_BUSY;
+    }
+    if (s_dma.drq) {
+        s_dma.fdc_status |= FDC_STATUS_DRQ;
+    }
+    if (s_dma.irq) {
+        s_dma.fdc_status |= FDC_STATUS_INTRQ;
+    }
+}
+
+static void start_command(uint8_t cmd)
+{
+    s_dma.fdc_command = cmd;
+    s_dma.busy = true;
+    s_dma.drq = false;
+    s_dma.irq = false;
+    s_dma.command_latency = (uint16_t)(64u + ((uint16_t)(cmd & 0x0Fu) * 16u));
+    s_dma.transfer_remaining = (uint16_t)(256u + ((uint16_t)(s_dma.dma_mode & 0x07u) * 128u));
+    recompute_fdc_status();
+}
 
 static int dma_init(io_config_t *config)
 {
@@ -42,9 +77,14 @@ static int dma_init(io_config_t *config)
     s_dma.dma_mode = 0;
     s_dma.fdc_command = 0;
     s_dma.fdc_status = 0;
+    s_dma.transfer_remaining = 0;
+    s_dma.command_latency = 0;
+    s_dma.drq = false;
+    s_dma.busy = false;
     s_dma.ticks = 0;
     s_dma.irq = false;
     s_dma.initialized = true;
+    recompute_fdc_status();
     return 0;
 }
 
@@ -54,8 +94,13 @@ static void dma_reset(void)
     s_dma.dma_mode = 0;
     s_dma.fdc_command = 0;
     s_dma.fdc_status = 0;
+    s_dma.transfer_remaining = 0;
+    s_dma.command_latency = 0;
+    s_dma.drq = false;
+    s_dma.busy = false;
     s_dma.ticks = 0;
     s_dma.irq = false;
+    recompute_fdc_status();
 }
 
 static void dma_shutdown(void)
@@ -99,7 +144,7 @@ static void dma_write_byte(uint32_t addr, uint8_t val)
             break;
         case 4:
             s_dma.fdc_command = val;
-            s_dma.fdc_status = 0x01u;
+            start_command(val);
             break;
         default:
             s_dma.fdc_status = val;
@@ -108,6 +153,7 @@ static void dma_write_byte(uint32_t addr, uint8_t val)
     if ((val & 0x80u) != 0u) {
         s_dma.irq = true;
     }
+    recompute_fdc_status();
 }
 
 static void dma_write_word(uint32_t addr, uint16_t val)
@@ -119,11 +165,35 @@ static void dma_write_word(uint32_t addr, uint16_t val)
 static void dma_clock(int cycles)
 {
     if (cycles > 0) {
-        s_dma.ticks += (uint32_t)cycles;
-        if ((s_dma.ticks % 1024u) == 0u) {
-            s_dma.fdc_status |= 0x80u;
-            s_dma.irq = true;
+        uint32_t budget = (uint32_t)cycles;
+        while (budget-- > 0u) {
+            s_dma.ticks++;
+
+            if (!s_dma.busy) {
+                continue;
+            }
+
+            if (s_dma.command_latency > 0u) {
+                s_dma.command_latency--;
+                if (s_dma.command_latency == 0u) {
+                    s_dma.drq = true;
+                }
+                continue;
+            }
+
+            if (s_dma.transfer_remaining > 0u && (s_dma.ticks & 0x07u) == 0u) {
+                s_dma.transfer_remaining--;
+                s_dma.dma_addr++;
+            }
+
+            if (s_dma.transfer_remaining == 0u) {
+                s_dma.busy = false;
+                s_dma.drq = false;
+                s_dma.irq = true;
+            }
         }
+
+        recompute_fdc_status();
     }
 }
 
@@ -140,7 +210,7 @@ static uint8_t dma_get_vector(void)
 static void dma_irq_ack(void)
 {
     s_dma.irq = false;
-    s_dma.fdc_status &= (uint8_t)~0x80u;
+    recompute_fdc_status();
 }
 
 static void dma_set_bus(bus_interface_t *bus)
@@ -150,12 +220,12 @@ static void dma_set_bus(bus_interface_t *bus)
 
 static bool dma_bus_held(void)
 {
-    return false;
+    return s_dma.busy;
 }
 
 static const io_interface_t s_interface = {
     .interface_version = 0x00010000,
-    .name = "st.storage.dma_fdc.stub",
+    .name = "st.storage.dma_fdc",
     .init = dma_init,
     .reset = dma_reset,
     .shutdown = dma_shutdown,

@@ -1,0 +1,9 @@
+{
+  "schema": "st_component_manifest_v1",
+  "machine": "atari_st",
+  "component": "chipset",
+  "module_id": "st.chipset.mfp",
+  "winner": "st.chipset.mfp@1.0.0",
+  "index": "index.json",
+  "layout_version": "st520_st1040_layout_v1"
+}

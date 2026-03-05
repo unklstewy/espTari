@@ -1,0 +1,46 @@
+{
+  "schema": "st_release_provenance_manifest_v1",
+  "manifest_version": 1,
+  "generated_at": "2026-03-05T03:32:52.101540+00:00",
+  "machine": "atari_st",
+  "bundle_set": "st520_st1040",
+  "source_control": {
+    "branch": "feature/EBIN_ATARI_ST",
+    "commit": "48714cb3be2520f5528054b31ae17ae0f1f3855d"
+  },
+  "bundles": [
+    {
+      "profile_module": "st.profile.520",
+      "package_index": "/sdcard/ebins/atari_st/packages/st.profile.520/index.json",
+      "package_manifest": "/sdcard/ebins/atari_st/packages/st.profile.520/manifest.json",
+      "machine_profile_ebin": "/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin",
+      "machine_profile_signature": "/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin.sig"
+    },
+    {
+      "profile_module": "st.profile.1040",
+      "package_index": "/sdcard/ebins/atari_st/packages/st.profile.1040/index.json",
+      "package_manifest": "/sdcard/ebins/atari_st/packages/st.profile.1040/manifest.json",
+      "machine_profile_ebin": "/sdcard/ebins/atari_st/machine_profile/st.profile.1040-1.0.0.ebin",
+      "machine_profile_signature": "/sdcard/ebins/atari_st/machine_profile/st.profile.1040-1.0.0.ebin.sig"
+    }
+  ],
+  "release_packet": {
+    "path": "/home/sannis/electronics/esp32p4/projects/espTari/captures/ebin_216_release_packet_st520_st1040_20260304_223252.json",
+    "sha256": "a43683e3ee05305c279f0649c7d4363afe7f153823f5f50ccf5712cdba2302d4"
+  },
+  "task_acceptance_refs": [
+    "EBIN-203",
+    "EBIN-204",
+    "EBIN-205",
+    "EBIN-206",
+    "EBIN-207",
+    "EBIN-208",
+    "EBIN-209",
+    "EBIN-210",
+    "EBIN-211",
+    "EBIN-212",
+    "EBIN-213",
+    "EBIN-214",
+    "EBIN-215"
+  ]
+}
