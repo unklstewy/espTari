@@ -1,0 +1,46 @@
+
+[RUN] test_release_provenance_manifest_EBIN-220 (EBIN-220)
+      descriptor=smoke/descriptors/conformance/test_release_provenance_manifest_EBIN-220.test
+      started_at=2026-03-05T02:54:27.994622+00:00
+  [PASS] 01 catalog_verification_metadata_exposed CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_catalog_sync.c').read_text(encoding='utf-8')
+required = [
+  'RELEASE_PROVENANCE_MANIFEST_PATH',
+  'RELEASE_PROVENANCE_SIGNATURE_PATH',
+  'signature_scheme',
+  'provenance_manifest_present',
+  'signature_present',
+  'signature_valid',
+  'signature_value'
+]
+for token in required:
+    assert token in src, f'missing token: {token}'
+print('catalog_verification_metadata=pass')
+PY -> 0 (18ms)
+  [PASS] 02 signed_release_provenance_generated CMD python3 - <<'PY'
+import json
+import subprocess
+import tempfile
+from pathlib import Path
+
+root = Path('.').resolve()
+out = Path(tempfile.mkdtemp())
+script = root / 'tools/ebin_builder/assemble_st_520_1040_release_packet.sh'
+db = root / 'TRACKING/tracking.db'
+proc = subprocess.run(['bash', str(script), str(out), str(db)], capture_output=True, text=True, check=True)
+stdout = proc.stdout
+prov_paths = sorted(out.glob('ebin_220_release_provenance_st520_st1040_*.json'))
+assert prov_paths, stdout
+prov_path = prov_paths[-1]
+sig_path = Path(str(prov_path) + '.sig')
+assert sig_path.exists(), f'missing signature: {sig_path}'
+obj = json.loads(prov_path.read_text(encoding='utf-8'))
+assert obj['schema'] == 'st_release_provenance_manifest_v1'
+assert obj['manifest_version'] == 1
+assert len(obj['bundles']) == 2
+sig_text = sig_path.read_text(encoding='utf-8').strip()
+assert sig_text.startswith('ESPTARI-DEV-SIG:release_provenance@1.0.0 sha256='), sig_text
+print('release_provenance_generation=pass')
+PY -> 0 (62ms)
+      ended_at=2026-03-05T02:54:28.099420+00:00 status=passed passed_steps=2 failed_steps=0

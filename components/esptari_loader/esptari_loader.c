@@ -3,6 +3,7 @@
 
 #include <dirent.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -11,14 +12,192 @@
 static const char *TAG = "esptari_loader";
 
 #define MACHINE_PROFILE_DIR "/sdcard/ebins/atari_st/machine_profile"
+#define STARTUP_JOURNAL_PATH "/sdcard/ebins/atari_st/machine_profile/startup_recovery_journal_v1.log"
 #define FALLBACK_MODULE_ID "st.profile.520"
 #define FALLBACK_MODULE_VERSION "1.0.0"
 #define FALLBACK_PROFILE_NAME "st_default"
+
+typedef struct {
+    uint32_t boot_count;
+    bool previous_entry_valid;
+    bool previous_loaded_from_runtime;
+    char previous_module_id[64];
+    char previous_module_version[24];
+    char previous_profile_name[64];
+    char previous_fallback_reason[64];
+    bool replayed_recovery;
+    char replay_from_module_id[64];
+    char replay_from_module_version[24];
+    char fallback_reason[64];
+    uint32_t rejected_unsigned_candidates;
+} startup_recovery_journal_t;
 
 static char s_resolved_profile_name[64] = FALLBACK_PROFILE_NAME;
 static char s_resolved_module_id[64] = FALLBACK_MODULE_ID;
 static char s_resolved_module_version[24] = FALLBACK_MODULE_VERSION;
 static bool s_loaded_from_runtime_ebin;
+static startup_recovery_journal_t s_startup_journal;
+
+static void startup_journal_apply_kv(const char *key, const char *value)
+{
+    if (key == NULL || value == NULL) {
+        return;
+    }
+
+    if (strcmp(key, "boot_count") == 0) {
+        s_startup_journal.boot_count = (uint32_t)strtoul(value, NULL, 10);
+        return;
+    }
+
+    if (strcmp(key, "source") == 0) {
+        s_startup_journal.previous_loaded_from_runtime = (strcmp(value, "runtime_ebin") == 0);
+        s_startup_journal.previous_entry_valid = true;
+        return;
+    }
+
+    if (strcmp(key, "module_id") == 0) {
+        strlcpy(s_startup_journal.previous_module_id,
+                value,
+                sizeof(s_startup_journal.previous_module_id));
+        s_startup_journal.previous_entry_valid = true;
+        return;
+    }
+
+    if (strcmp(key, "module_version") == 0) {
+        strlcpy(s_startup_journal.previous_module_version,
+                value,
+                sizeof(s_startup_journal.previous_module_version));
+        s_startup_journal.previous_entry_valid = true;
+        return;
+    }
+
+    if (strcmp(key, "profile_name") == 0) {
+        strlcpy(s_startup_journal.previous_profile_name,
+                value,
+                sizeof(s_startup_journal.previous_profile_name));
+        s_startup_journal.previous_entry_valid = true;
+        return;
+    }
+
+    if (strcmp(key, "fallback_reason") == 0) {
+        strlcpy(s_startup_journal.previous_fallback_reason,
+                value,
+                sizeof(s_startup_journal.previous_fallback_reason));
+    }
+}
+
+static void startup_journal_load_from_sd(void)
+{
+    memset(&s_startup_journal, 0, sizeof(s_startup_journal));
+
+    FILE *handle = fopen(STARTUP_JOURNAL_PATH, "r");
+    if (handle == NULL) {
+        return;
+    }
+
+    char line[196] = {0};
+    while (fgets(line, sizeof(line), handle) != NULL) {
+        line[strcspn(line, "\r\n")] = '\0';
+        if (line[0] == '\0' || line[0] == '#') {
+            continue;
+        }
+
+        char *equals = strchr(line, '=');
+        if (equals == NULL || equals == line || equals[1] == '\0') {
+            continue;
+        }
+
+        *equals = '\0';
+        startup_journal_apply_kv(line, equals + 1);
+    }
+
+    fclose(handle);
+}
+
+static void startup_journal_prepare_replay_metadata(void)
+{
+    s_startup_journal.replayed_recovery = false;
+    s_startup_journal.replay_from_module_id[0] = '\0';
+    s_startup_journal.replay_from_module_version[0] = '\0';
+
+    if (s_loaded_from_runtime_ebin) {
+        return;
+    }
+
+    if (s_startup_journal.previous_entry_valid &&
+        s_startup_journal.previous_loaded_from_runtime &&
+        s_startup_journal.previous_module_id[0] != '\0') {
+        s_startup_journal.replayed_recovery = true;
+        strlcpy(s_startup_journal.replay_from_module_id,
+                s_startup_journal.previous_module_id,
+                sizeof(s_startup_journal.replay_from_module_id));
+        strlcpy(s_startup_journal.replay_from_module_version,
+                s_startup_journal.previous_module_version,
+                sizeof(s_startup_journal.replay_from_module_version));
+
+        if (s_startup_journal.fallback_reason[0] == '\0') {
+            strlcpy(s_startup_journal.fallback_reason,
+                    "runtime_candidate_missing_or_rejected",
+                    sizeof(s_startup_journal.fallback_reason));
+        }
+    }
+}
+
+static void startup_journal_persist_to_sd(void)
+{
+    FILE *handle = fopen(STARTUP_JOURNAL_PATH, "w");
+    if (handle == NULL) {
+        ESP_LOGW(TAG, "Failed to persist startup recovery journal at %s", STARTUP_JOURNAL_PATH);
+        return;
+    }
+
+    fprintf(handle, "schema=ebin_startup_recovery_journal_v1\n");
+    fprintf(handle, "boot_count=%lu\n", (unsigned long)s_startup_journal.boot_count);
+    fprintf(handle, "source=%s\n", s_loaded_from_runtime_ebin ? "runtime_ebin" : "fallback");
+    fprintf(handle, "module_id=%s\n", s_resolved_module_id);
+    fprintf(handle, "module_version=%s\n", s_resolved_module_version);
+    fprintf(handle, "profile_name=%s\n", s_resolved_profile_name);
+    fprintf(handle, "fallback_reason=%s\n", s_startup_journal.fallback_reason[0] != '\0' ? s_startup_journal.fallback_reason : "none");
+    fprintf(handle, "replayed_recovery=%s\n", s_startup_journal.replayed_recovery ? "true" : "false");
+    fprintf(handle, "replay_from_module_id=%s\n", s_startup_journal.replay_from_module_id[0] != '\0' ? s_startup_journal.replay_from_module_id : "none");
+    fprintf(handle, "replay_from_module_version=%s\n", s_startup_journal.replay_from_module_version[0] != '\0' ? s_startup_journal.replay_from_module_version : "none");
+        fprintf(handle,
+            "rejected_unsigned_candidates=%lu\n",
+            (unsigned long)s_startup_journal.rejected_unsigned_candidates);
+    fclose(handle);
+}
+
+static bool signature_sidecar_is_valid(const char *filename)
+{
+    if (filename == NULL || filename[0] == '\0') {
+        return false;
+    }
+
+    char signature_path[256] = {0};
+    int written = snprintf(signature_path,
+                           sizeof(signature_path),
+                           "%s/%s.sig",
+                           MACHINE_PROFILE_DIR,
+                           filename);
+    if (written <= 0 || written >= (int)sizeof(signature_path)) {
+        return false;
+    }
+
+    FILE *handle = fopen(signature_path, "r");
+    if (handle == NULL) {
+        return false;
+    }
+
+    char line[160] = {0};
+    char *result = fgets(line, sizeof(line), handle);
+    fclose(handle);
+
+    if (result == NULL) {
+        return false;
+    }
+
+    return strncmp(line, "ESPTARI-DEV-SIG:", strlen("ESPTARI-DEV-SIG:")) == 0;
+}
 
 static bool parse_semver(const char *version, uint32_t *major, uint32_t *minor, uint32_t *patch)
 {
@@ -144,10 +323,15 @@ static void discover_machine_profile_from_sd(void)
     strlcpy(s_resolved_module_id, FALLBACK_MODULE_ID, sizeof(s_resolved_module_id));
     strlcpy(s_resolved_module_version, FALLBACK_MODULE_VERSION, sizeof(s_resolved_module_version));
     s_loaded_from_runtime_ebin = false;
+    s_startup_journal.fallback_reason[0] = '\0';
+    s_startup_journal.rejected_unsigned_candidates = 0;
 
     DIR *dir = opendir(MACHINE_PROFILE_DIR);
     if (dir == NULL) {
         ESP_LOGW(TAG, "No runtime machine_profile EBIN directory at %s; using fallback", MACHINE_PROFILE_DIR);
+        strlcpy(s_startup_journal.fallback_reason,
+                "runtime_dir_missing",
+                sizeof(s_startup_journal.fallback_reason));
         return;
     }
 
@@ -156,6 +340,14 @@ static void discover_machine_profile_from_sd(void)
         char module_id[64] = {0};
         char version[24] = {0};
         if (!parse_ebin_filename(entry->d_name, module_id, sizeof(module_id), version, sizeof(version))) {
+            continue;
+        }
+
+        if (!signature_sidecar_is_valid(entry->d_name)) {
+            ESP_LOGW(TAG,
+                     "Rejected unsigned runtime machine_profile EBIN candidate: %s",
+                     entry->d_name);
+            s_startup_journal.rejected_unsigned_candidates++;
             continue;
         }
 
@@ -171,11 +363,27 @@ static void discover_machine_profile_from_sd(void)
     }
 
     closedir(dir);
+
+    if (!s_loaded_from_runtime_ebin && s_startup_journal.fallback_reason[0] == '\0') {
+        if (s_startup_journal.rejected_unsigned_candidates > 0) {
+            strlcpy(s_startup_journal.fallback_reason,
+                    "unsigned_candidates_rejected",
+                    sizeof(s_startup_journal.fallback_reason));
+        } else {
+            strlcpy(s_startup_journal.fallback_reason,
+                    "no_runtime_candidates",
+                    sizeof(s_startup_journal.fallback_reason));
+        }
+    }
 }
 
 esp_err_t loader_init(void)
 {
+    startup_journal_load_from_sd();
+    s_startup_journal.boot_count += 1;
+
     discover_machine_profile_from_sd();
+    startup_journal_prepare_replay_metadata();
 
     if (s_loaded_from_runtime_ebin) {
         ESP_LOGI(TAG,
@@ -195,6 +403,17 @@ esp_err_t loader_init(void)
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "machine_load(%s) failed: %s", s_resolved_profile_name, esp_err_to_name(err));
         return err;
+    }
+
+    startup_journal_persist_to_sd();
+
+    if (s_startup_journal.replayed_recovery) {
+        ESP_LOGW(TAG,
+                 "Deterministic startup recovery replayed: runtime %s@%s -> fallback %s@%s",
+                 s_startup_journal.replay_from_module_id,
+                 s_startup_journal.replay_from_module_version,
+                 s_resolved_module_id,
+                 s_resolved_module_version);
     }
 
     return ESP_OK;

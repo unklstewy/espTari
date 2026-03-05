@@ -8,18 +8,21 @@ DB_PATH="${2:-$PROJECT_ROOT/TRACKING/tracking.db}"
 
 TS="$(date +%Y%m%d_%H%M%S)"
 OUT_JSON="$OUTPUT_DIR/ebin_216_release_packet_st520_st1040_${TS}.json"
+OUT_PROVENANCE_JSON="$OUTPUT_DIR/ebin_220_release_provenance_st520_st1040_${TS}.json"
+OUT_PROVENANCE_SIG="$OUT_PROVENANCE_JSON.sig"
 
 mkdir -p "$OUTPUT_DIR"
 
-python3 - <<'PY' "$DB_PATH" "$OUT_JSON"
+python3 - <<'PY' "$DB_PATH" "$OUT_JSON" "$OUT_PROVENANCE_JSON" "$OUT_PROVENANCE_SIG"
 import json
 import sqlite3
 import subprocess
 import sys
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-db_path, out_json = sys.argv[1:3]
+db_path, out_json, out_provenance_json, out_provenance_sig = sys.argv[1:5]
 
 conn = sqlite3.connect(db_path)
 conn.row_factory = sqlite3.Row
@@ -107,7 +110,53 @@ packet = {
 }
 
 Path(out_json).write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+provenance = {
+    "schema": "st_release_provenance_manifest_v1",
+    "manifest_version": 1,
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "machine": "atari_st",
+    "bundle_set": "st520_st1040",
+    "source_control": {
+        "branch": git_branch,
+        "commit": git_commit,
+    },
+    "bundles": [
+        {
+            "profile_module": "st.profile.520",
+            "package_index": "/sdcard/ebins/atari_st/packages/st.profile.520/index.json",
+            "package_manifest": "/sdcard/ebins/atari_st/packages/st.profile.520/manifest.json",
+            "machine_profile_ebin": "/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin",
+            "machine_profile_signature": "/sdcard/ebins/atari_st/machine_profile/st.profile.520-1.0.0.ebin.sig",
+        },
+        {
+            "profile_module": "st.profile.1040",
+            "package_index": "/sdcard/ebins/atari_st/packages/st.profile.1040/index.json",
+            "package_manifest": "/sdcard/ebins/atari_st/packages/st.profile.1040/manifest.json",
+            "machine_profile_ebin": "/sdcard/ebins/atari_st/machine_profile/st.profile.1040-1.0.0.ebin",
+            "machine_profile_signature": "/sdcard/ebins/atari_st/machine_profile/st.profile.1040-1.0.0.ebin.sig",
+        },
+    ],
+    "release_packet": {
+        "path": out_json,
+        "sha256": hashlib.sha256(Path(out_json).read_bytes()).hexdigest(),
+    },
+    "task_acceptance_refs": task_ids,
+}
+
+provenance_text = json.dumps(provenance, indent=2) + "\n"
+Path(out_provenance_json).write_text(provenance_text, encoding="utf-8")
+provenance_digest = hashlib.sha256(provenance_text.encode("utf-8")).hexdigest()
+Path(out_provenance_sig).write_text(
+    f"ESPTARI-DEV-SIG:release_provenance@1.0.0 sha256={provenance_digest}\n",
+    encoding="utf-8",
+)
+
 print(out_json)
+print(out_provenance_json)
+print(out_provenance_sig)
 PY
 
 echo "Release packet: $OUT_JSON"
+echo "Release provenance: $OUT_PROVENANCE_JSON"
+echo "Release provenance signature: $OUT_PROVENANCE_SIG"

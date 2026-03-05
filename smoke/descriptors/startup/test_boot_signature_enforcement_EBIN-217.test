@@ -1,0 +1,21 @@
+[meta]
+test_id = "test_boot_signature_enforcement_EBIN-217"
+task_id = "EBIN-217"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "compose_520_and_verify_signature_sidecar"
+kind = "command"
+command = "python3 - <<'PY'\nimport tempfile, subprocess\nfrom pathlib import Path\nroot=Path('.').resolve()\nout=Path(tempfile.mkdtemp())/'sdcard'\nsubprocess.check_call(['bash', str(root/'tools/ebin_builder/compose_st_520_package.sh'), str(out)])\nprofile_dir=out/'ebins/atari_st/machine_profile'\nartifact=profile_dir/'st.profile.520-1.0.0.ebin'\nsig=profile_dir/'st.profile.520-1.0.0.ebin.sig'\nassert artifact.exists(), f'missing artifact: {artifact}'\nassert sig.exists(), f'missing signature sidecar: {sig}'\ntext=sig.read_text(encoding='utf-8').strip()\nassert text.startswith('ESPTARI-DEV-SIG:st.profile.520@1.0.0'), text\nprint('boot_signature_enforcement=pass')\nPY"
+expect_exit = [0]
+expect_output_contains = ["boot_signature_enforcement=pass"]
+
+[[step]]
+name = "compose_1040_and_verify_signature_sidecar"
+kind = "command"
+command = "python3 - <<'PY'\nimport tempfile, subprocess\nfrom pathlib import Path\nroot=Path('.').resolve()\nout=Path(tempfile.mkdtemp())/'sdcard'\nsubprocess.check_call(['bash', str(root/'tools/ebin_builder/compose_st_1040_package.sh'), str(out)])\nprofile_dir=out/'ebins/atari_st/machine_profile'\nartifact=profile_dir/'st.profile.1040-1.0.0.ebin'\nsig=profile_dir/'st.profile.1040-1.0.0.ebin.sig'\nassert artifact.exists(), f'missing artifact: {artifact}'\nassert sig.exists(), f'missing signature sidecar: {sig}'\ntext=sig.read_text(encoding='utf-8').strip()\nassert text.startswith('ESPTARI-DEV-SIG:st.profile.1040@1.0.0'), text\nprint('boot_signature_enforcement_1040=pass')\nPY"
+expect_exit = [0]
+expect_output_contains = ["boot_signature_enforcement_1040=pass"]

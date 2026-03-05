@@ -13,6 +13,7 @@ LAYOUT_VERSION="st520_st1040_layout_v1"
 COMPONENT_DIR="$TARGET_ROOT/ebins/atari_st/$COMPONENT"
 ARTIFACT_NAME="${MODULE_ID}-${VERSION}.ebin"
 ARTIFACT_PATH="$COMPONENT_DIR/$ARTIFACT_NAME"
+SIGNATURE_PATH="$ARTIFACT_PATH.sig"
 INDEX_PATH="$COMPONENT_DIR/index.json"
 MANIFEST_PATH="$COMPONENT_DIR/manifest.json"
 
@@ -33,6 +34,8 @@ python3 "$SCRIPT_DIR/ebin_builder.py" \
   --interface-version 0x00010000 \
   --min-ram 32768 \
   -v
+
+printf 'ESPTARI-DEV-SIG:%s@%s\n' "$MODULE_ID" "$VERSION" > "$SIGNATURE_PATH"
 
 python3 - <<'PY' "$INDEX_PATH" "$MANIFEST_PATH" "$MODULE_ID" "$VERSION" "$ARTIFACT_NAME" "$LAYOUT_VERSION"
 import json
@@ -87,3 +90,4 @@ print(f"metadata_written index={index_path} manifest={manifest_path}")
 PY
 
 echo "Built artifact: $ARTIFACT_PATH"
+echo "Built signature: $SIGNATURE_PATH"

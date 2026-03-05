@@ -1,0 +1,50 @@
+[meta]
+test_id = "test_hot_swap_safety_gates_EBIN-219"
+task_id = "EBIN-219"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "hot_swap_policy_and_window_guards_present"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+import re
+src = Path('components/esptari_web/esptari_web_catalog_sync.c').read_text(encoding='utf-8')
+required = [
+	'hot_swap_policy_valid',
+	'HOT_SWAP_WINDOW_MIN_MS',
+	'HOT_SWAP_WINDOW_MAX_MS',
+	'hot_swap.window',
+	'load_policy_failed_hot_swap_window_required',
+	'load_policy_failed_hot_swap_policy_not_enforce',
+	'EBIN_POLICY_BLOCKED'
+]
+for token in required:
+		assert token in src, f'missing token: {token}'
+assert re.search(r'cJSON_AddBoolToObject\(hot_swap_result, "requested", hot_swap_requested\)', src)
+assert re.search(r'cJSON_AddBoolToObject\(hot_swap_result, "applied", hot_swap_applied\)', src)
+assert re.search(r'cJSON_AddStringToObject\(hot_swap_result, "policy", hot_swap_policy\)', src)
+print('hot_swap_policy_guards=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["hot_swap_policy_guards=pass"]
+
+[[step]]
+name = "quiesce_drain_transitions_wired"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_catalog_sync.c').read_text(encoding='utf-8')
+assert 'runtime_mark_stage("loading", "quiesce")' in src
+assert 'runtime_mark_stage("loading", "drain")' in src
+assert 'load_quiesce_failed_simulated' in src
+assert 'load_drain_failed_simulated' in src
+assert 'cJSON_AddItemToArray(transitions, cJSON_CreateString("quiesce"));' in src
+assert 'cJSON_AddItemToArray(transitions, cJSON_CreateString("drain"));' in src
+print('quiesce_drain_wiring=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["quiesce_drain_wiring=pass"]

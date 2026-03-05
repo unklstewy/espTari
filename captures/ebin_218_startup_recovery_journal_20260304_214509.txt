@@ -1,0 +1,41 @@
+
+[RUN] test_startup_recovery_journal_EBIN-218 (EBIN-218)
+      descriptor=smoke/descriptors/startup/test_startup_recovery_journal_EBIN-218.test
+      started_at=2026-03-05T02:45:09.502802+00:00
+  [PASS] 01 startup_loader_journal_contract_present CMD python3 - <<'PY'
+from pathlib import Path
+import re
+src = Path('components/esptari_loader/esptari_loader.c').read_text(encoding='utf-8')
+required_literals = [
+  'STARTUP_JOURNAL_PATH',
+  'schema=ebin_startup_recovery_journal_v1',
+  'runtime_dir_missing',
+  'unsigned_candidates_rejected',
+  'no_runtime_candidates',
+  'Deterministic startup recovery replayed'
+]
+for lit in required_literals:
+    assert lit in src, f'missing literal: {lit}'
+required_functions = [
+  'startup_journal_load_from_sd',
+  'startup_journal_prepare_replay_metadata',
+  'startup_journal_persist_to_sd'
+]
+for fn in required_functions:
+    assert re.search(rf'static\s+void\s+{fn}\s*\(', src), f'missing function: {fn}'
+assert 'previous_loaded_from_runtime' in src
+assert 'replayed_recovery' in src
+print('startup_journal_contract=pass')
+PY -> 0 (18ms)
+  [PASS] 02 startup_replay_condition_wired CMD python3 - <<'PY'
+from pathlib import Path
+import re
+src = Path('components/esptari_loader/esptari_loader.c').read_text(encoding='utf-8')
+pattern = r'previous_entry_valid\s*&&\s*s_startup_journal\.previous_loaded_from_runtime\s*&&\s*s_startup_journal\.previous_module_id\[0\]\s*!=\s*\'\\0\''
+assert re.search(pattern, src), 'replay condition not found'
+assert 'runtime_candidate_missing_or_rejected' in src
+assert 'startup_journal_prepare_replay_metadata();' in src
+assert 'startup_journal_persist_to_sd();' in src
+print('startup_replay_wiring=pass')
+PY -> 0 (18ms)
+      ended_at=2026-03-05T02:45:09.566615+00:00 status=passed passed_steps=2 failed_steps=0

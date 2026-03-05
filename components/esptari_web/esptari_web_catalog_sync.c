@@ -20,6 +20,10 @@ static const char *TAG = "esptari_web_catalog";
 #define MAX_SYNC_JOBS 64
 #define MAX_RECOVERY_QUARANTINE 16
 #define MAX_EBIN_CATALOG_ENTRIES 64
+#define HOT_SWAP_WINDOW_MIN_MS 1
+#define HOT_SWAP_WINDOW_MAX_MS 30000
+#define RELEASE_PROVENANCE_MANIFEST_PATH "/sdcard/ebins/atari_st/releases/st520_st1040_release_v1/provenance_manifest.json"
+#define RELEASE_PROVENANCE_SIGNATURE_PATH "/sdcard/ebins/atari_st/releases/st520_st1040_release_v1/provenance_manifest.json.sig"
 
 typedef struct {
     char job_id[32];
@@ -130,6 +134,10 @@ static const ebin_catalog_entry_t s_ebin_catalog_baked[] = {
 
 static ebin_catalog_entry_t s_ebin_catalog_runtime[MAX_EBIN_CATALOG_ENTRIES];
 static size_t s_ebin_catalog_runtime_count;
+
+static bool file_exists(const char *path);
+static void signature_sidecar_path(const char *ebin_path, char *out, size_t out_len);
+static bool signature_line_is_valid(const char *signature_path, char *line_out, size_t line_out_len);
 
 static uint64_t scheduler_now_us(void)
 {
@@ -416,6 +424,60 @@ static bool is_valid_sha256_hex(const char *value)
     return true;
 }
 
+static bool file_exists(const char *path)
+{
+    if (path == NULL || path[0] == '\0') {
+        return false;
+    }
+    FILE *fp = fopen(path, "r");
+    if (fp == NULL) {
+        return false;
+    }
+    fclose(fp);
+    return true;
+}
+
+static void signature_sidecar_path(const char *ebin_path, char *out, size_t out_len)
+{
+    if (out == NULL || out_len == 0) {
+        return;
+    }
+    out[0] = '\0';
+    if (ebin_path == NULL || ebin_path[0] == '\0') {
+        return;
+    }
+    snprintf(out, out_len, "%s.sig", ebin_path);
+}
+
+static bool signature_line_is_valid(const char *signature_path, char *line_out, size_t line_out_len)
+{
+    if (line_out != NULL && line_out_len > 0) {
+        line_out[0] = '\0';
+    }
+
+    if (signature_path == NULL || signature_path[0] == '\0') {
+        return false;
+    }
+
+    FILE *fp = fopen(signature_path, "r");
+    if (fp == NULL) {
+        return false;
+    }
+
+    char line[192] = {0};
+    char *result = fgets(line, sizeof(line), fp);
+    fclose(fp);
+    if (result == NULL) {
+        return false;
+    }
+
+    line[strcspn(line, "\r\n")] = '\0';
+    if (line_out != NULL && line_out_len > 0) {
+        strlcpy(line_out, line, line_out_len);
+    }
+    return strncmp(line, "ESPTARI-DEV-SIG:", strlen("ESPTARI-DEV-SIG:")) == 0;
+}
+
 static bool dependencies_schema_valid(const cJSON *dependencies)
 {
     if (!cJSON_IsArray(dependencies)) {
@@ -513,6 +575,11 @@ static int compare_semver(const char *left, const char *right)
 static bool resolver_policy_valid(const char *policy)
 {
     return policy != NULL && (strcmp(policy, "latest_compatible") == 0 || strcmp(policy, "pinned") == 0);
+}
+
+static bool hot_swap_policy_valid(const char *policy)
+{
+    return policy != NULL && (strcmp(policy, "enforce") == 0 || strcmp(policy, "best_effort") == 0);
 }
 
 static esp_err_t append_resolved_entry(cJSON *resolved,
@@ -1496,13 +1563,59 @@ static esp_err_t handle_catalog_sync_recovery_report(httpd_req_t *req)
 static esp_err_t handle_ebins_catalog(httpd_req_t *req)
 {
     cJSON *root = cJSON_CreateObject();
-    cJSON *items = cJSON_AddArrayToObject(root, "items");
+    cJSON_AddBoolToObject(root, "ok", true);
 
-    cJSON *item = cJSON_CreateObject();
-    cJSON_AddStringToObject(item, "name", "cpu_core.ebin");
-    cJSON_AddStringToObject(item, "version", "1.0.0");
-    cJSON_AddBoolToObject(item, "loaded", true);
-    cJSON_AddItemToArray(items, item);
+    cJSON *data = cJSON_AddObjectToObject(root, "data");
+    cJSON_AddNumberToObject(data, "generated_at_us", (double)scheduler_now_us());
+
+    cJSON *verification = cJSON_AddObjectToObject(data, "verification");
+    cJSON_AddStringToObject(verification, "signature_scheme", "ESPTARI-DEV-SIG");
+    cJSON_AddStringToObject(verification, "provenance_manifest_path", RELEASE_PROVENANCE_MANIFEST_PATH);
+    cJSON_AddStringToObject(verification, "provenance_signature_path", RELEASE_PROVENANCE_SIGNATURE_PATH);
+    cJSON_AddBoolToObject(verification,
+                          "provenance_manifest_present",
+                          file_exists(RELEASE_PROVENANCE_MANIFEST_PATH));
+    cJSON_AddBoolToObject(verification,
+                          "provenance_signature_present",
+                          file_exists(RELEASE_PROVENANCE_SIGNATURE_PATH));
+
+    cJSON *items = cJSON_AddArrayToObject(data, "items");
+    const ebin_catalog_entry_t *entries = NULL;
+    size_t count = 0;
+    get_active_catalog(&entries, &count);
+
+    for (size_t i = 0; i < count; i++) {
+        const ebin_catalog_entry_t *entry = &entries[i];
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "machine", entry->machine);
+        cJSON_AddStringToObject(item, "component", entry->component);
+        cJSON_AddStringToObject(item, "module_id", entry->module_id);
+        cJSON_AddStringToObject(item, "version", entry->version);
+        cJSON_AddStringToObject(item, "path", entry->path);
+        cJSON_AddBoolToObject(item,
+                              "loaded",
+                              s_ebin_runtime.has_active_module && strcmp(s_ebin_runtime.active_module_id, entry->module_id) == 0);
+
+        char signature_path[320] = {0};
+        char signature_line[192] = {0};
+        signature_sidecar_path(entry->path, signature_path, sizeof(signature_path));
+
+        bool signature_present = file_exists(signature_path);
+        bool signature_valid = signature_line_is_valid(signature_path, signature_line, sizeof(signature_line));
+
+        cJSON *item_verification = cJSON_AddObjectToObject(item, "verification");
+        cJSON_AddStringToObject(item_verification, "signature_path", signature_path);
+        cJSON_AddBoolToObject(item_verification, "signature_present", signature_present);
+        cJSON_AddBoolToObject(item_verification, "signature_valid", signature_valid);
+        cJSON_AddStringToObject(item_verification,
+                                "signature_value",
+                                signature_valid ? signature_line : "");
+        cJSON_AddBoolToObject(item_verification,
+                              "provenance_manifest_present",
+                              file_exists(RELEASE_PROVENANCE_MANIFEST_PATH));
+
+        cJSON_AddItemToArray(items, item);
+    }
 
     esp_err_t out = send_json_object(req, root, 200);
     cJSON_Delete(root);
@@ -1670,9 +1783,16 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     cJSON *payload_sha256 = cJSON_GetObjectItemCaseSensitive(json, "payload_sha256");
     cJSON *signature = cJSON_GetObjectItemCaseSensitive(json, "signature");
     cJSON *dependencies = cJSON_GetObjectItemCaseSensitive(json, "dependencies");
+    cJSON *hot_swap = cJSON_GetObjectItemCaseSensitive(json, "hot_swap");
     cJSON *simulate_fail_stage = cJSON_GetObjectItemCaseSensitive(json, "simulate_fail_stage");
     cJSON *force_fallback = cJSON_GetObjectItemCaseSensitive(json, "force_fallback");
     bool prefer_fallback_recovery = cJSON_IsBool(force_fallback) && cJSON_IsTrue(force_fallback);
+    bool hot_swap_requested = false;
+    bool hot_swap_applied = false;
+    bool hot_swap_cross_module = false;
+    uint32_t quiesce_window_ms = 0;
+    uint32_t drain_window_ms = 0;
+    const char *hot_swap_policy = "none";
 
     bool prev_has_active_module = s_ebin_runtime.has_active_module;
     char prev_active_module_id[64];
@@ -1695,6 +1815,64 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     if (!cJSON_IsArray(dependencies)) {
         cJSON_Delete(json);
         return send_ebin_validation_error(req, "BAD_REQUEST", 400, "dependencies", "required dependency array");
+    }
+
+    if (hot_swap != NULL && !cJSON_IsNull(hot_swap)) {
+        if (!cJSON_IsObject(hot_swap)) {
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req, "BAD_REQUEST", 400, "hot_swap", "must be object when provided");
+        }
+
+        cJSON *enabled = cJSON_GetObjectItemCaseSensitive(hot_swap, "enabled");
+        cJSON *policy = cJSON_GetObjectItemCaseSensitive(hot_swap, "policy");
+        cJSON *quiesce_ms = cJSON_GetObjectItemCaseSensitive(hot_swap, "quiesce_window_ms");
+        cJSON *drain_ms = cJSON_GetObjectItemCaseSensitive(hot_swap, "drain_window_ms");
+
+        if (!cJSON_IsBool(enabled)) {
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req, "BAD_REQUEST", 400, "hot_swap.enabled", "must be boolean");
+        }
+        if (!cJSON_IsString(policy) || policy->valuestring == NULL || !hot_swap_policy_valid(policy->valuestring)) {
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req,
+                                              "BAD_REQUEST",
+                                              400,
+                                              "hot_swap.policy",
+                                              "must be enforce or best_effort");
+        }
+        if (!cJSON_IsNumber(quiesce_ms) || !cJSON_IsNumber(drain_ms)) {
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req,
+                                              "BAD_REQUEST",
+                                              400,
+                                              "hot_swap.window",
+                                              "quiesce_window_ms and drain_window_ms must be numbers");
+        }
+
+        int quiesce_ms_int = (int)quiesce_ms->valuedouble;
+        int drain_ms_int = (int)drain_ms->valuedouble;
+        if (quiesce_ms_int < HOT_SWAP_WINDOW_MIN_MS || quiesce_ms_int > HOT_SWAP_WINDOW_MAX_MS ||
+            drain_ms_int < HOT_SWAP_WINDOW_MIN_MS || drain_ms_int > HOT_SWAP_WINDOW_MAX_MS) {
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req,
+                                              "BAD_REQUEST",
+                                              400,
+                                              "hot_swap.window",
+                                              "window values must be between 1 and 30000 ms");
+        }
+        if (drain_ms_int < quiesce_ms_int) {
+            cJSON_Delete(json);
+            return send_ebin_validation_error(req,
+                                              "BAD_REQUEST",
+                                              400,
+                                              "hot_swap.window",
+                                              "drain_window_ms must be >= quiesce_window_ms");
+        }
+
+        hot_swap_requested = cJSON_IsTrue(enabled);
+        hot_swap_policy = policy->valuestring;
+        quiesce_window_ms = (uint32_t)quiesce_ms_int;
+        drain_window_ms = (uint32_t)drain_ms_int;
     }
 
     uint32_t abi_major = 0;
@@ -1823,16 +2001,67 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
 
     runtime_mark_stage("loading", "bind");
     if (s_ebin_runtime.has_active_module && strcmp(s_ebin_runtime.active_module_id, module_id->valuestring) != 0) {
-        runtime_mark_failure("bind", "load_bind_failed_runtime_busy_with_other_module");
-        runtime_apply_activation_recovery(
-            prev_has_active_module, prev_active_module_id, prev_active_abi_version, prefer_fallback_recovery);
-        cJSON_Delete(json);
-        return send_ebin_orchestration_error(req,
-                                             "EBIN_INVALID",
-                                             409,
-                                             "bind",
-                                             "load_bind_failed_runtime_busy_with_other_module",
-                                             module_id->valuestring);
+        hot_swap_cross_module = true;
+
+        if (!hot_swap_requested) {
+            runtime_mark_failure("policy", "load_policy_failed_hot_swap_window_required");
+            runtime_apply_activation_recovery(
+                prev_has_active_module, prev_active_module_id, prev_active_abi_version, prefer_fallback_recovery);
+            cJSON_Delete(json);
+            return send_ebin_orchestration_error(req,
+                                                 "EBIN_POLICY_BLOCKED",
+                                                 409,
+                                                 "policy",
+                                                 "load_policy_failed_hot_swap_window_required",
+                                                 module_id->valuestring);
+        }
+
+        if (strcmp(hot_swap_policy, "enforce") != 0) {
+            runtime_mark_failure("policy", "load_policy_failed_hot_swap_policy_not_enforce");
+            runtime_apply_activation_recovery(
+                prev_has_active_module, prev_active_module_id, prev_active_abi_version, prefer_fallback_recovery);
+            cJSON_Delete(json);
+            return send_ebin_orchestration_error(req,
+                                                 "EBIN_POLICY_BLOCKED",
+                                                 409,
+                                                 "policy",
+                                                 "load_policy_failed_hot_swap_policy_not_enforce",
+                                                 module_id->valuestring);
+        }
+
+        runtime_mark_stage("loading", "quiesce");
+        if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
+            strcmp(simulate_fail_stage->valuestring, "quiesce") == 0) {
+            runtime_mark_failure("quiesce", "load_quiesce_failed_simulated");
+            runtime_apply_activation_recovery(
+                prev_has_active_module, prev_active_module_id, prev_active_abi_version, prefer_fallback_recovery);
+            cJSON_Delete(json);
+            return send_ebin_orchestration_error(req,
+                                                 "EBIN_INVALID",
+                                                 409,
+                                                 "quiesce",
+                                                 "load_quiesce_failed_simulated",
+                                                 module_id->valuestring);
+        }
+
+        runtime_mark_stage("loading", "drain");
+        if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
+            strcmp(simulate_fail_stage->valuestring, "drain") == 0) {
+            runtime_mark_failure("drain", "load_drain_failed_simulated");
+            runtime_apply_activation_recovery(
+                prev_has_active_module, prev_active_module_id, prev_active_abi_version, prefer_fallback_recovery);
+            cJSON_Delete(json);
+            return send_ebin_orchestration_error(req,
+                                                 "EBIN_INVALID",
+                                                 409,
+                                                 "drain",
+                                                 "load_drain_failed_simulated",
+                                                 module_id->valuestring);
+        }
+
+        hot_swap_applied = true;
+
+        runtime_mark_stage("loading", "bind");
     }
     if (cJSON_IsString(simulate_fail_stage) && simulate_fail_stage->valuestring != NULL &&
         strcmp(simulate_fail_stage->valuestring, "bind") == 0) {
@@ -1877,8 +2106,20 @@ static esp_err_t handle_ebins_load(httpd_req_t *req)
     cJSON_AddItemToObject(data, "transitions", transitions);
     cJSON_AddItemToArray(transitions, cJSON_CreateString("resolve"));
     cJSON_AddItemToArray(transitions, cJSON_CreateString("validate"));
+    if (hot_swap_applied) {
+        cJSON_AddItemToArray(transitions, cJSON_CreateString("quiesce"));
+        cJSON_AddItemToArray(transitions, cJSON_CreateString("drain"));
+    }
     cJSON_AddItemToArray(transitions, cJSON_CreateString("bind"));
     cJSON_AddItemToArray(transitions, cJSON_CreateString("init"));
+    cJSON *hot_swap_result = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "hot_swap", hot_swap_result);
+    cJSON_AddBoolToObject(hot_swap_result, "requested", hot_swap_requested);
+    cJSON_AddBoolToObject(hot_swap_result, "applied", hot_swap_applied);
+    cJSON_AddBoolToObject(hot_swap_result, "cross_module", hot_swap_cross_module);
+    cJSON_AddStringToObject(hot_swap_result, "policy", hot_swap_policy);
+    cJSON_AddNumberToObject(hot_swap_result, "quiesce_window_ms", (double)quiesce_window_ms);
+    cJSON_AddNumberToObject(hot_swap_result, "drain_window_ms", (double)drain_window_ms);
     cJSON_AddStringToObject(data, "runtime_state", s_ebin_runtime.state);
     cJSON_AddNumberToObject(data, "transition_seq", (double)s_ebin_runtime.transition_seq);
     cJSON *fault = cJSON_CreateObject();

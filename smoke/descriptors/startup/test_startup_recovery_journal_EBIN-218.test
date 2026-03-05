@@ -1,0 +1,21 @@
+[meta]
+test_id = "test_startup_recovery_journal_EBIN-218"
+task_id = "EBIN-218"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "startup_loader_journal_contract_present"
+kind = "command"
+command = "python3 - <<'PY'\nfrom pathlib import Path\nimport re\nsrc = Path('components/esptari_loader/esptari_loader.c').read_text(encoding='utf-8')\nrequired_literals = [\n  'STARTUP_JOURNAL_PATH',\n  'schema=ebin_startup_recovery_journal_v1',\n  'runtime_dir_missing',\n  'unsigned_candidates_rejected',\n  'no_runtime_candidates',\n  'Deterministic startup recovery replayed'\n]\nfor lit in required_literals:\n    assert lit in src, f'missing literal: {lit}'\nrequired_functions = [\n  'startup_journal_load_from_sd',\n  'startup_journal_prepare_replay_metadata',\n  'startup_journal_persist_to_sd'\n]\nfor fn in required_functions:\n    assert re.search(rf'static\\s+void\\s+{fn}\\s*\\(', src), f'missing function: {fn}'\nassert 'previous_loaded_from_runtime' in src\nassert 'replayed_recovery' in src\nprint('startup_journal_contract=pass')\nPY"
+expect_exit = [0]
+expect_output_contains = ["startup_journal_contract=pass"]
+
+[[step]]
+name = "startup_replay_condition_wired"
+kind = "command"
+command = "python3 - <<'PY'\nfrom pathlib import Path\nimport re\nsrc = Path('components/esptari_loader/esptari_loader.c').read_text(encoding='utf-8')\npattern = r'previous_entry_valid\\s*&&\\s*s_startup_journal\\.previous_loaded_from_runtime\\s*&&\\s*s_startup_journal\\.previous_module_id\\[0\\]\\s*!=\\s*\\'\\\\0\\''\nassert re.search(pattern, src), 'replay condition not found'\nassert 'runtime_candidate_missing_or_rejected' in src\nassert 'startup_journal_prepare_replay_metadata();' in src\nassert 'startup_journal_persist_to_sd();' in src\nprint('startup_replay_wiring=pass')\nPY"
+expect_exit = [0]
+expect_output_contains = ["startup_replay_wiring=pass"]
