@@ -1,0 +1,20 @@
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmpyngvlpxw/st_audio_gpio_psg_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_audio_gpio_psg_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmpyngvlpxw/component.ld -o /tmp/tmpyngvlpxw/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmpyngvlpxw/st_audio_gpio_psg_component.o
+Code size: 743 bytes
+Data size: 60 bytes
+BSS size: 28 bytes
+Entry offset: 0
+Relocations: 14
+Built /tmp/tmp.Oxwh6uA4nc/sdcard/ebins/atari_st/audio_gpio/st.audio_gpio.psg-1.0.0.ebin: 976 bytes
+  Code: 743 bytes, Data: 60 bytes, BSS: 28 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 14
+metadata_written index=/tmp/tmp.Oxwh6uA4nc/sdcard/ebins/atari_st/audio_gpio/index.json manifest=/tmp/tmp.Oxwh6uA4nc/sdcard/ebins/atari_st/audio_gpio/manifest.json
+Built artifact: /tmp/tmp.Oxwh6uA4nc/sdcard/ebins/atari_st/audio_gpio/st.audio_gpio.psg-1.0.0.ebin
+required_file=present path=/tmp/tmp.Oxwh6uA4nc/sdcard/ebins/atari_st/audio_gpio/st.audio_gpio.psg-1.0.0.ebin
+required_file=present path=/tmp/tmp.Oxwh6uA4nc/sdcard/ebins/atari_st/audio_gpio/index.json
+required_file=present path=/tmp/tmp.Oxwh6uA4nc/sdcard/ebins/atari_st/audio_gpio/manifest.json
+audio_gpio_psg_ebin_header=pass
+audio_gpio_psg_metadata_contract=pass
+Smoke PASS
