@@ -1,0 +1,98 @@
+{
+  "freeze_id": "EBIN-202",
+  "freeze_version": 1,
+  "machine": "atari_st",
+  "layout_version": "st520_st1040_layout_v1",
+  "output_layout": {
+    "root_rel": "ebins/atari_st",
+    "component_dirs": {
+      "cpu": "cpu",
+      "chipset": "chipset",
+      "io": "io",
+      "storage": "storage",
+      "audio_gpio": "audio_gpio",
+      "machine_profile": "machine_profile",
+      "packages": "packages"
+    },
+    "file_patterns": {
+      "ebin": "<module_id>-<semver>.ebin",
+      "index": "index.json",
+      "manifest": "manifest.json",
+      "package_index": "index.json",
+      "package_manifest": "manifest.json"
+    }
+  },
+  "module_naming": {
+    "shared_modules": [
+      "st.cpu.m68k",
+      "st.chipset.glue_mmu_shifter",
+      "st.chipset.mfp",
+      "st.io.acia_ikbd",
+      "st.storage.dma_fdc",
+      "st.audio_gpio.psg"
+    ],
+    "machine_profile_modules": [
+      "st.profile.520",
+      "st.profile.1040"
+    ],
+    "component_by_module": {
+      "st.cpu.m68k": "cpu",
+      "st.chipset.glue_mmu_shifter": "chipset",
+      "st.chipset.mfp": "chipset",
+      "st.io.acia_ikbd": "io",
+      "st.storage.dma_fdc": "storage",
+      "st.audio_gpio.psg": "audio_gpio",
+      "st.profile.520": "machine_profile",
+      "st.profile.1040": "machine_profile"
+    }
+  },
+  "metadata_schema": {
+    "component_index": {
+      "schema": "st_component_index_v1",
+      "required_fields": [
+        "schema",
+        "machine",
+        "component",
+        "module_id",
+        "winner",
+        "versions",
+        "files",
+        "layout_version"
+      ]
+    },
+    "component_manifest": {
+      "schema": "st_component_manifest_v1",
+      "required_fields": [
+        "schema",
+        "machine",
+        "component",
+        "module_id",
+        "winner",
+        "index",
+        "layout_version"
+      ]
+    },
+    "package_index": {
+      "schema": "st_machine_package_index_v1",
+      "required_fields": [
+        "schema",
+        "machine",
+        "profile_module",
+        "components",
+        "winner",
+        "layout_version"
+      ]
+    },
+    "package_manifest": {
+      "schema": "st_machine_package_manifest_v1",
+      "required_fields": [
+        "schema",
+        "machine",
+        "profile_module",
+        "package_index",
+        "winner",
+        "layout_version"
+      ]
+    }
+  }
+}

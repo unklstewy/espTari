@@ -186,7 +186,7 @@ S5 closure note:
 | ID | Epic | Task | Priority | Size | Sprint Target | Status | Dependencies |
 |---|---|---|---|---|---|---|---|
 | EBIN-201 | EPIC-06 | Build initial Atari ST 520/1040 EBIN bring-up pack (umbrella, non-pullable) | P0 | M | S6 | Backlog | EBIN-202, EBIN-203, EBIN-204, EBIN-205, EBIN-206, EBIN-207, EBIN-208, EBIN-209, EBIN-210, EBIN-211, EBIN-212, EBIN-213, EBIN-214, EBIN-215, EBIN-216 |
-| EBIN-202 | EPIC-06 | Freeze EBIN output layout, module naming, and manifest/index schema for ST 520/1040 | P0 | XS | S6 | Backlog | S5-007 |
+| EBIN-202 | EPIC-06 | Freeze EBIN output layout, module naming, and manifest/index schema for ST 520/1040 | P0 | XS | S6 | Done | S5-007 |
 | EBIN-203 | EPIC-06 | Build and validate shared CPU EBIN (`st.cpu.m68k`) for initial ST 520/1040 set | P0 | S | S6 | Backlog | EBIN-202 |
 | EBIN-204 | EPIC-06 | Build and validate shared chipset EBIN (`st.chipset.glue_mmu_shifter`) | P0 | S | S6 | Backlog | EBIN-202 |
 | EBIN-205 | EPIC-06 | Build and validate shared MFP EBIN (`st.chipset.mfp`) | P0 | S | S6 | Backlog | EBIN-202 |
@@ -204,6 +204,7 @@ S5 closure note:
 
 ST 520/1040 EBIN decomposition note:
 - Detailed execution packet: `TRACKING/EBIN_ST520_ST1040_INITIAL_BUILD_DECOMPOSITION_2026-03-04.md`.
+- EBIN-202 freeze artifact: `TRACKING/EBIN_202_LAYOUT_SCHEMA_FREEZE_2026-03-05.md`.
 
 ## Decomposition queue (required before pull)
 
