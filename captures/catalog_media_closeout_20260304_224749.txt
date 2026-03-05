@@ -1,0 +1,10 @@
+timestamp=20260304_224749
+session_id=ses_local
+
+== POST /api/v2/engine/session/stop ==
+{"ok":true}
+HTTP:200
+
+== GET /api/v2/engine/status ==
+{"ok":true,"data":{"session_state":"stopped","transition_count":4,"last_transition_us":1660113283}}
+HTTP:200

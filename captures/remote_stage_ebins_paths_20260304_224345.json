@@ -1,0 +1,10 @@
+{
+  "schema": "remote_files_txn_report_v1",
+  "status": "committed",
+  "ops_signature": "46f98df01d87c913a840bea9d84a2b3bf673e641759528e1bfc7a144f3f51b0f",
+  "steps_total": 34,
+  "steps_applied": 34,
+  "rollback_attempted": 0,
+  "rollback_warnings": 0,
+  "finalize_count": 26
+}

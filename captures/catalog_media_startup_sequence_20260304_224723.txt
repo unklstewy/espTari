@@ -1,0 +1,10 @@
+timestamp=20260304_224723
+session_id=ses_local
+
+== GET /api/v2/inspect/chipset/startup/sequence?session_id=ses_local ==
+{"ok":true,"data":{"session_id":"ses_local","sequence_id":"boot_seq_0007","phase":"interrupt_enable","step_seq":8,"tick_counter":20,"timestamp_us":1710000035731,"verification_status":"pending","conformance":{"RST-SEQ-01":"pass","RST-SEQ-04":"pass"}}}
+HTTP:200
+
+== GET /api/v2/inspect/chipset/startup/verification?session_id=ses_local&limit=4 ==
+{"ok":true,"data":{"session_id":"ses_local","conformance":{"RST-SEQ-02":"pass","RST-SEQ-03":"pass","RST-SEQ-04":"pass"},"events":[{"event_seq":5,"step_seq":9,"check_id":"BOOT-GLUE-RESET","component":"glue","result":"pass","expected":"GLUE=0x00","observed":"GLUE=0x00","tick_counter":20,"timestamp_us":1710000035725},{"event_seq":6,"step_seq":10,"check_id":"BOOT-MFP-RESET","component":"mfp","result":"pass","expected":"IERA=0x00","observed":"IERA=0x00","tick_counter":21,"timestamp_us":1710000035728},{"event_seq":7,"step_seq":11,"check_id":"BOOT-ACIA-RESET","component":"acia","result":"pass","expected":"ACIA_CTRL=0x15","observed":"ACIA_CTRL=0x15","tick_counter":22,"timestamp_us":1710000035731},{"event_seq":8,"step_seq":12,"check_id":"BOOT-INT-MAP","component":"psg","result":"pass","expected":"irq_order=7..1","observed":"irq_order=7..1","tick_counter":23,"timestamp_us":1710000035734}]}}
+HTTP:200

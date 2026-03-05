@@ -1,0 +1,57 @@
+Use the SQLite database at: /home/sannis/electronics/esp32p4/projects/espTari/codeCommentAndSwaggerTracker.db
+
+Goal:
+Maintain CodeComments and SwaggerCompletionChecklist tracking for:
+- all .c files compiled by idf.py, and
+- all EBIN builder source files in tools/ebin_builder (*.c, *.py, *.sh).
+
+Rules:
+1) Source of truth for compiled C files is build/compile_commands.json.
+2) Also include tools/ebin_builder/**/*.{c,py,sh}.
+3) Upsert rows by filePath (do not duplicate).
+4) Preserve existing manually entered fields when possible (shortDesc, primaryFunction, longDesc, owner, statuses, timestamps).
+5) Update fileSize, compileOutput, compileDirectory, updatedAt on each refresh.
+6) Use sourceCategory='ebin_builder_tool' for EBIN builder files.
+
+Required base fields in both tables:
+- fileName
+- filePath
+- fileSize
+- shortDesc
+- primaryFunction
+- longDesc
+- commentsCompleted
+- completedTimeStamp
+
+Additional tracking fields present:
+- sourceCategory
+- componentName
+- compileOutput
+- compileDirectory
+- owner
+- reviewStatus
+- createdAt
+- updatedAt
+
+Extra checklist fields in SwaggerCompletionChecklist:
+- swaggerStatus
+- endpointCount
+- coveredEndpointCount
+
+Suggested status values:
+- reviewStatus: not_started | in_progress | completed | blocked
+- swaggerStatus: not_started | in_progress | completed | n/a
+
+Example queries:
+- Remaining code comments:
+  SELECT filePath FROM CodeComments WHERE commentsCompleted = 0 ORDER BY sourceCategory, componentName, fileName;
+- Remaining swagger work:
+  SELECT filePath FROM SwaggerCompletionChecklist WHERE swaggerStatus != 'completed' ORDER BY sourceCategory, componentName, fileName;
+- Progress summary:
+  SELECT sourceCategory, SUM(CASE WHEN commentsCompleted=1 THEN 1 ELSE 0 END) AS done, COUNT(*) AS total
+  FROM CodeComments GROUP BY sourceCategory;
+
+Refresh workflow:
+- Run: /home/sannis/electronics/esp32p4/projects/espTari/.venv/bin/python /home/sannis/electronics/esp32p4/projects/espTari/tools/refresh_tracker_db.py
+- This refreshes idf.py compiled C files + EBIN builder source files.
+- Upsert changed/new files and remove rows for files no longer in source sets.
