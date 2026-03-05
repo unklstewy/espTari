@@ -1,0 +1,20 @@
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmp_3abbewh/st_io_acia_ikbd_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_io_acia_ikbd_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmp_3abbewh/component.ld -o /tmp/tmp_3abbewh/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmp_3abbewh/st_io_acia_ikbd_component.o
+Code size: 665 bytes
+Data size: 60 bytes
+BSS size: 32 bytes
+Entry offset: 0
+Relocations: 14
+Built /tmp/tmp.8znwwuMDU5/sdcard/ebins/atari_st/io/st.io.acia_ikbd-1.0.0.ebin: 900 bytes
+  Code: 665 bytes, Data: 60 bytes, BSS: 32 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 14
+metadata_written index=/tmp/tmp.8znwwuMDU5/sdcard/ebins/atari_st/io/index.json manifest=/tmp/tmp.8znwwuMDU5/sdcard/ebins/atari_st/io/manifest.json
+Built artifact: /tmp/tmp.8znwwuMDU5/sdcard/ebins/atari_st/io/st.io.acia_ikbd-1.0.0.ebin
+required_file=present path=/tmp/tmp.8znwwuMDU5/sdcard/ebins/atari_st/io/st.io.acia_ikbd-1.0.0.ebin
+required_file=present path=/tmp/tmp.8znwwuMDU5/sdcard/ebins/atari_st/io/index.json
+required_file=present path=/tmp/tmp.8znwwuMDU5/sdcard/ebins/atari_st/io/manifest.json
+acia_ikbd_ebin_header=pass
+acia_ikbd_metadata_contract=pass
+Smoke PASS
