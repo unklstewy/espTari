@@ -1,0 +1,244 @@
+{
+  "schema": "st_release_packet_v1",
+  "packet_id": "st520_st1040_initial_20260305_011343",
+  "generated_at": "2026-03-05T01:13:43.300579+00:00",
+  "machine": "atari_st",
+  "layout_version": "st520_st1040_layout_v1",
+  "source_control": {
+    "branch": "feature/EBIN_ATARI_ST",
+    "commit": "5db7d316808b40e954e5e04e65013f3702f04aa3"
+  },
+  "bundles": [
+    {
+      "profile_module": "st.profile.520",
+      "package_index": "/sdcard/ebins/atari_st/packages/st.profile.520/index.json",
+      "package_manifest": "/sdcard/ebins/atari_st/packages/st.profile.520/manifest.json"
+    },
+    {
+      "profile_module": "st.profile.1040",
+      "package_index": "/sdcard/ebins/atari_st/packages/st.profile.1040/index.json",
+      "package_manifest": "/sdcard/ebins/atari_st/packages/st.profile.1040/manifest.json"
+    }
+  ],
+  "task_acceptance_chain": [
+    {
+      "task_id": "EBIN-203",
+      "status": "Done",
+      "objective": "Build and validate shared CPU EBIN (`st.cpu.m68k`) for initial ST 520/1040 set",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T00:44:13.853554+00:00",
+      "acceptance": {
+        "decision_id": 401,
+        "decision": "Accepted",
+        "notes": "Shared CPU EBIN build contract validated",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_203_cpu_shared_build_20260304_*.txt"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-204",
+      "status": "Done",
+      "objective": "Build and validate shared chipset EBIN (`st.chipset.glue_mmu_shifter`)",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T00:48:19.230904+00:00",
+      "acceptance": {
+        "decision_id": 402,
+        "decision": "Accepted",
+        "notes": "Shared chipset EBIN build contract validated",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_204_chipset_shared_build_20260304_194816.txt"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-205",
+      "status": "Done",
+      "objective": "Build and validate shared MFP EBIN (`st.chipset.mfp`)",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T00:50:50.569852+00:00",
+      "acceptance": {
+        "decision_id": 403,
+        "decision": "Accepted",
+        "notes": "Shared MFP EBIN build contract validated",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_205_mfp_shared_build_20260304_195049.txt"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-206",
+      "status": "Done",
+      "objective": "Build and validate shared ACIA/IKBD EBIN (`st.io.acia_ikbd`)",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T00:52:46.006623+00:00",
+      "acceptance": {
+        "decision_id": 404,
+        "decision": "Accepted",
+        "notes": "Shared ACIA/IKBD EBIN build contract validated",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_206_acia_ikbd_shared_build_20260304_195244.txt"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-207",
+      "status": "Done",
+      "objective": "Build and validate shared DMA/FDC EBIN (`st.storage.dma_fdc`)",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T00:54:50.880279+00:00",
+      "acceptance": {
+        "decision_id": 405,
+        "decision": "Accepted",
+        "notes": "Shared DMA/FDC EBIN build contract validated",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_207_dma_fdc_shared_build_20260304_195449.txt"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-208",
+      "status": "Done",
+      "objective": "Build and validate shared PSG/GPIO EBIN (`st.audio_gpio.psg`)",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T00:56:47.367190+00:00",
+      "acceptance": {
+        "decision_id": 406,
+        "decision": "Accepted",
+        "notes": "Shared PSG/GPIO EBIN build contract validated",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_208_audio_gpio_psg_shared_build_20260304_195646.txt"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-209",
+      "status": "Done",
+      "objective": "Build ST 520 machine-profile EBIN (`st.profile.520`) and runtime mapping proof",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T00:58:58.066228+00:00",
+      "acceptance": {
+        "decision_id": 407,
+        "decision": "Accepted",
+        "notes": "ST520 machine-profile EBIN + runtime mapping proof validated",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_209_profile_520_build_mapping_20260304_195856.txt"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-210",
+      "status": "Done",
+      "objective": "Build ST 1040 machine-profile EBIN (`st.profile.1040`) and runtime mapping proof",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T01:02:26.825371+00:00",
+      "acceptance": {
+        "decision_id": 408,
+        "decision": "Accepted",
+        "notes": "EBIN-210 validated: header+metadata contract and runtime mapping proof for st.profile.1040",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_210_profile_1040_build_mapping_20260304_200210.txt",
+          "smoke/smoke_ebin_210_profile_1040_build_mapping.sh",
+          "tools/ebin_builder/build_st_profile_1040_machine_profile.sh",
+          "tools/ebin_builder/st_profile_1040_component.c",
+          "components/esptari_loader/esptari_loader.c"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-211",
+      "status": "Done",
+      "objective": "Compose ST 520 EBIN package/index + SD-card placement contract",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T01:05:57.178076+00:00",
+      "acceptance": {
+        "decision_id": 409,
+        "decision": "Accepted",
+        "notes": "ST520 package composition contract validated: package metadata + placement path",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_211_package_520_compose_20260304_200535.txt",
+          "smoke/smoke_ebin_211_package_520_compose.sh",
+          "tools/ebin_builder/compose_st_520_package.sh"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-212",
+      "status": "Done",
+      "objective": "Compose ST 1040 EBIN package/index + SD-card placement contract",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T01:07:23.738191+00:00",
+      "acceptance": {
+        "decision_id": 410,
+        "decision": "Accepted",
+        "notes": "ST1040 package composition contract validated: package metadata + placement path",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_212_package_1040_compose_20260304_200708.txt",
+          "smoke/smoke_ebin_212_package_1040_compose.sh",
+          "tools/ebin_builder/compose_st_1040_package.sh"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-213",
+      "status": "Done",
+      "objective": "Execute deterministic startup resolution validation for ST 520 runtime EBIN selection",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T01:08:59.020867+00:00",
+      "acceptance": {
+        "decision_id": 411,
+        "decision": "Accepted",
+        "notes": "Deterministic startup resolution validated for ST520 runtime EBIN selection",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_213_startup_resolution_520_20260304_200842.txt",
+          "smoke/smoke_ebin_213_startup_resolution_520.sh"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-214",
+      "status": "Done",
+      "objective": "Execute deterministic startup resolution validation for ST 1040 runtime EBIN selection",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T01:10:18.798234+00:00",
+      "acceptance": {
+        "decision_id": 412,
+        "decision": "Accepted",
+        "notes": "Deterministic startup resolution validated for ST1040 runtime EBIN selection",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_214_startup_resolution_1040_20260304_201002.txt",
+          "smoke/smoke_ebin_214_startup_resolution_1040.sh"
+        ]
+      }
+    },
+    {
+      "task_id": "EBIN-215",
+      "status": "Done",
+      "objective": "Run integration smoke matrix (interrupt/startup/suspend-restore) against both ST bundles",
+      "sprint": "S6",
+      "updated_at": "2026-03-05T01:12:06.925229+00:00",
+      "acceptance": {
+        "decision_id": 413,
+        "decision": "Accepted",
+        "notes": "Integration smoke matrix validated across both ST bundles",
+        "decision_date": "2026-03-05",
+        "evidence_links": [
+          "captures/ebin_215_integration_matrix_bundles_20260304_201144.txt",
+          "smoke/smoke_ebin_215_integration_matrix_bundles.sh"
+        ]
+      }
+    }
+  ]
+}

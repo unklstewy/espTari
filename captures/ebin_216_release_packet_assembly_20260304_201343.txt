@@ -1,0 +1,5 @@
+release_packet=present path=/home/sannis/electronics/esp32p4/projects/espTari/captures/ebin_216_release_packet_st520_st1040_20260304_201343.json
+release_packet_schema=pass
+release_packet_bundles=pass profiles=st.profile.520,st.profile.1040
+release_packet_acceptance_chain=pass
+Smoke PASS
