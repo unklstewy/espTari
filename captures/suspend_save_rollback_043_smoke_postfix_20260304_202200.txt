@@ -1,0 +1,52 @@
+auth_header=configured
+health_check=ok attempts=1
+### session_reset
+POST /api/v2/engine/session/reset
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Cannot reset from current lifecycle state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-RESET","endpoint":"/api/v2/engine/session/reset","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### session_start
+POST /api/v2/engine/session/start
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"Lifecycle transition rejected for current state","retryable":false,"details":{"guard_id":"G-LIFECYCLE-START","endpoint":"/api/v2/engine/session/start","esp_err":"ESP_ERR_INVALID_STATE"}}}
+
+### resume_preflight
+POST /api/v2/engine/session/resume
+HTTP 200
+{"ok":true}
+
+### status_pre_suspend
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":8,"last_transition_us":5512186052}}
+
+### suspend_save_success
+POST /api/v2/engine/session/suspend-save
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"suspended","snapshot_id":"snap_suspend_043_ok","saved_at_us":5512255479,"lifecycle_transition":"running->suspended","auto_resume":false,"include_stream_state":true}}
+
+### restore_resume_running
+POST /api/v2/engine/session/restore-resume
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","snapshot_id":"snap_suspend_043_ok","state":"running","restored_at_us":5512293767,"lifecycle_transition":"suspended->running"}}
+
+### suspend_save_forced_fail
+POST /api/v2/engine/session/suspend-save?force_save_fail=1
+HTTP 500
+{"ok":false,"error":{"code":"INTERNAL_ERROR","category":"internal","message":"Injected suspend-save persistence failure","retryable":false,"details":{"guard_id":"SUSP-REQ-03","endpoint":"/api/v2/engine/session/suspend-save","lifecycle_transition":"running->running","transition_events":["suspend_requested","snapshot_persist_failed","rollback_committed"],"rollback_to_state":"running","rollback_state_preserved":true}}}
+
+### status_after_forced_fail
+GET /api/v2/engine/status
+HTTP 200
+{"ok":true,"data":{"session_state":"running","transition_count":10,"last_transition_us":5512293767}}
+
+### suspend_save_invalid_state
+POST /api/v2/engine/session/suspend-save
+HTTP 200
+{"ok":true,"data":{"session_id":"ses_local","state":"suspended","snapshot_id":"snap_5512394036","saved_at_us":5512403347,"lifecycle_transition":"running->suspended","auto_resume":false,"include_stream_state":true}}
+
+### suspend_save_invalid_state_repeat
+POST /api/v2/engine/session/suspend-save
+HTTP 409
+{"ok":false,"error":{"code":"INVALID_SESSION_STATE","category":"engine","message":"suspend-save is allowed only from running state","retryable":false,"details":{"guard_id":"SUSP-REQ-01","endpoint":"/api/v2/engine/session/suspend-save"}}}
+
