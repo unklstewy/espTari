@@ -1,0 +1,52 @@
+[meta]
+test_id = "test_input_policy_state_model_T051"
+task_id = "T-051"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "input_policy_state_model_present"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf-8')
+required_tokens = [
+  'policy_state',
+  '"enabled_idle"',
+  '"enabled_captured"',
+  '"disabled"',
+  'recompute_policy_state',
+  'mode_is_mouse_over',
+  'mode_is_click_to_capture',
+  'mouse_over_pointer_in',
+  'click_to_capture_acquired'
+]
+for token in required_tokens:
+    assert token in src, f'missing token: {token}'
+print('input_policy_state_model=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["input_policy_state_model=pass"]
+
+[[step]]
+name = "input_policy_error_envelopes_present"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf-8')
+error_codes = [
+  'INPUT_POLICY_SESSION_INVALID',
+  'INPUT_POLICY_VIOLATION',
+  'INPUT_POLICY_MODE_INVALID',
+  'INPUT_POLICY_INVALID_STATE'
+]
+for code in error_codes:
+    assert code in src, f'missing error code: {code}'
+assert 'send_json(req, "{\\"ok\\":false,\\"error\\":{\\"code\\":\\"INPUT_POLICY_SESSION_INVALID\\"}}", 409);' in src
+assert 'send_json(req, "{\\"ok\\":false,\\"error\\":{\\"code\\":\\"INPUT_POLICY_VIOLATION\\"}}", 409);' in src
+print('input_policy_error_envelopes=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["input_policy_error_envelopes=pass"]

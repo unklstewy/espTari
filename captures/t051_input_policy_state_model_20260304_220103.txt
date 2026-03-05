@@ -1,0 +1,38 @@
+
+[RUN] test_input_policy_state_model_T051 (T-051)
+      descriptor=smoke/descriptors/conformance/test_input_policy_state_model_T051.test
+      started_at=2026-03-05T03:01:04.188869+00:00
+  [PASS] 01 input_policy_state_model_present CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf-8')
+required_tokens = [
+  'policy_state',
+  '"enabled_idle"',
+  '"enabled_captured"',
+  '"disabled"',
+  'recompute_policy_state',
+  'mode_is_mouse_over',
+  'mode_is_click_to_capture',
+  'mouse_over_pointer_in',
+  'click_to_capture_acquired'
+]
+for token in required_tokens:
+    assert token in src, f'missing token: {token}'
+print('input_policy_state_model=pass')
+PY -> 0 (19ms)
+  [PASS] 02 input_policy_error_envelopes_present CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf-8')
+error_codes = [
+  'INPUT_POLICY_SESSION_INVALID',
+  'INPUT_POLICY_VIOLATION',
+  'INPUT_POLICY_MODE_INVALID',
+  'INPUT_POLICY_INVALID_STATE'
+]
+for code in error_codes:
+    assert code in src, f'missing error code: {code}'
+assert 'send_json(req, "{\\"ok\\":false,\\"error\\":{\\"code\\":\\"INPUT_POLICY_SESSION_INVALID\\"}}", 409);' in src
+assert 'send_json(req, "{\\"ok\\":false,\\"error\\":{\\"code\\":\\"INPUT_POLICY_VIOLATION\\"}}", 409);' in src
+print('input_policy_error_envelopes=pass')
+PY -> 0 (17ms)
+      ended_at=2026-03-05T03:01:04.249476+00:00 status=passed passed_steps=2 failed_steps=0
