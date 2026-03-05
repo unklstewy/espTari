@@ -55,6 +55,9 @@ Commands:
   download --path /sdcard/file
   txn-apply --ops-file ops.txt [--simulate-fail-at N] [--report-file path.json]
       Apply multi-file operations atomically (best-effort): rollback runs in reverse order on failure.
+    Optional idempotency controls:
+      --idempotency-key KEY      Replay-protect a transaction key.
+      --idempotency-store PATH   Local ledger file (default: .cache/remote_files_txn_idempotency.tsv)
 
       Ops file format (pipe-delimited, one operation per line; # comments allowed):
         mkdir|/sdcard/path
@@ -138,6 +141,38 @@ write_txn_report() {
 EOF
 
   mv -f "$report_tmp" "$report_file"
+}
+
+is_valid_idempotency_key() {
+  [[ "$1" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]
+}
+
+idempotency_lookup() {
+  local store_file="$1"
+  local key="$2"
+
+  [[ -f "$store_file" ]] || return 1
+  awk -F'|' -v k="$key" '$1 == k { line=$0 } END { if (line != "") print line; else exit 1 }' "$store_file"
+}
+
+idempotency_record() {
+  local store_file="$1"
+  local key="$2"
+  local signature="$3"
+  local status="$4"
+  local exit_code="$5"
+  local steps_total="$6"
+  local steps_applied="$7"
+  local rollback_attempted="$8"
+  local rollback_warnings="$9"
+  local finalize_count="${10}"
+
+  local store_dir
+  store_dir="$(dirname "$store_file")"
+  mkdir -p "$store_dir"
+  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
+    "$key" "$signature" "$status" "$exit_code" "$steps_total" "$steps_applied" "$rollback_attempted" "$rollback_warnings" "$finalize_count" "$(date +%s)" \
+    >> "$store_file"
 }
 
 is_valid_semver() {
@@ -453,12 +488,16 @@ cmd_txn_apply() {
   local ops_file=""
   local simulate_fail_at=0
   local report_file=""
+  local idempotency_key=""
+  local idempotency_store="$PROJECT_ROOT/.cache/remote_files_txn_idempotency.tsv"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --ops-file) ops_file="$2"; shift 2 ;;
       --simulate-fail-at) simulate_fail_at="$2"; shift 2 ;;
       --report-file) report_file="$2"; shift 2 ;;
+      --idempotency-key) idempotency_key="$2"; shift 2 ;;
+      --idempotency-store) idempotency_store="$2"; shift 2 ;;
       *) echo "[ERR ] Unknown txn-apply option: $1" >&2; exit 1 ;;
     esac
   done
@@ -466,9 +505,30 @@ cmd_txn_apply() {
   [[ -n "$ops_file" ]] || { echo "[ERR ] txn-apply requires --ops-file" >&2; exit 1; }
   [[ -f "$ops_file" ]] || { echo "[ERR ] ops file not found: $ops_file" >&2; exit 1; }
   [[ "$simulate_fail_at" =~ ^[0-9]+$ ]] || { echo "[ERR ] --simulate-fail-at must be an integer >= 0" >&2; exit 1; }
+  if [[ -n "$idempotency_key" ]]; then
+    is_valid_idempotency_key "$idempotency_key" || { echo "[ERR ] invalid --idempotency-key format" >&2; exit 1; }
+  fi
 
   local ops_signature steps_total
   read -r ops_signature steps_total < <(txn_ops_signature "$ops_file")
+
+  if [[ -n "$idempotency_key" ]]; then
+    local replay_line=""
+    if replay_line="$(idempotency_lookup "$idempotency_store" "$idempotency_key" 2>/dev/null)"; then
+      local r_key r_sig r_status r_exit r_steps_total r_steps_applied r_rollback_attempted r_rollback_warnings r_finalize_count _r_ts
+      IFS='|' read -r r_key r_sig r_status r_exit r_steps_total r_steps_applied r_rollback_attempted r_rollback_warnings r_finalize_count _r_ts <<< "$replay_line"
+
+      if [[ "$r_sig" != "$ops_signature" ]]; then
+        echo "[ERR ] idempotency key reuse with different ops signature key=$idempotency_key" >&2
+        write_txn_report "$report_file" "key_conflict" "$ops_signature" "$steps_total" "0" "0" "0" "0"
+        return 1
+      fi
+
+      echo "[TXN ] summary status=replayed prior_status=${r_status} idempotency_key=${idempotency_key} ops_signature=${ops_signature} steps_total=${r_steps_total} steps_applied=${r_steps_applied} rollback_attempted=${r_rollback_attempted} rollback_warnings=${r_rollback_warnings} finalize_count=${r_finalize_count}"
+      write_txn_report "$report_file" "replayed" "$ops_signature" "$r_steps_total" "$r_steps_applied" "$r_rollback_attempted" "$r_rollback_warnings" "$r_finalize_count"
+      return 0
+    fi
+  fi
 
   require_token
 
@@ -597,6 +657,9 @@ cmd_txn_apply() {
     echo "[TXN ] rollback complete" >&2
     echo "[TXN ] summary status=rolled_back ops_signature=${ops_signature} steps_total=${steps_total} steps_applied=${applied_steps} rollback_attempted=${#rollback_ops[@]} rollback_warnings=${rollback_warnings} finalize_count=${#finalize_ops[@]}" >&2
     write_txn_report "$report_file" "rolled_back" "$ops_signature" "$steps_total" "$applied_steps" "${#rollback_ops[@]}" "$rollback_warnings" "${#finalize_ops[@]}"
+    if [[ -n "$idempotency_key" ]]; then
+      idempotency_record "$idempotency_store" "$idempotency_key" "$ops_signature" "rolled_back" "1" "$steps_total" "$applied_steps" "${#rollback_ops[@]}" "$rollback_warnings" "${#finalize_ops[@]}"
+    fi
     return 1
   fi
 
@@ -606,12 +669,18 @@ cmd_txn_apply() {
     if ! run_encoded_op "$f_item"; then
       echo "[TXN ] summary status=finalize_failed ops_signature=${ops_signature} steps_total=${steps_total} steps_applied=${applied_steps} rollback_attempted=0 rollback_warnings=0 finalize_count=${#finalize_ops[@]}" >&2
       write_txn_report "$report_file" "finalize_failed" "$ops_signature" "$steps_total" "$applied_steps" "0" "0" "${#finalize_ops[@]}"
+      if [[ -n "$idempotency_key" ]]; then
+        idempotency_record "$idempotency_store" "$idempotency_key" "$ops_signature" "finalize_failed" "1" "$steps_total" "$applied_steps" "0" "0" "${#finalize_ops[@]}"
+      fi
       return 1
     fi
   done
   echo "[TXN ] commit complete steps=$step_no"
   echo "[TXN ] summary status=committed ops_signature=${ops_signature} steps_total=${steps_total} steps_applied=${applied_steps} rollback_attempted=0 rollback_warnings=0 finalize_count=${#finalize_ops[@]}"
   write_txn_report "$report_file" "committed" "$ops_signature" "$steps_total" "$applied_steps" "0" "0" "${#finalize_ops[@]}"
+  if [[ -n "$idempotency_key" ]]; then
+    idempotency_record "$idempotency_store" "$idempotency_key" "$ops_signature" "committed" "0" "$steps_total" "$applied_steps" "0" "0" "${#finalize_ops[@]}"
+  fi
   return 0
 }
 

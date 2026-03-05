@@ -11,7 +11,10 @@ mkdir -p "$ROOT_DIR/captures"
 
 OPS_FILE="$(mktemp)"
 REPORT_FILE="$(mktemp)"
-trap 'rm -f "$OPS_FILE" "$REPORT_FILE"' EXIT
+REPORT_FILE_REPLAY="$(mktemp)"
+IDEMPOTENCY_STORE="$(mktemp)"
+IDEMPOTENCY_KEY="txn.dryrun.demo.1"
+trap 'rm -f "$OPS_FILE" "$REPORT_FILE" "$REPORT_FILE_REPLAY" "$IDEMPOTENCY_STORE"' EXIT
 
 cat > "$OPS_FILE" <<'EOF'
 # tx apply dry-run
@@ -22,7 +25,7 @@ delete|/sdcard/ebins/txn_demo/a2.ebin
 EOF
 
 set +e
-"$REMOTE_FILES_SH" --dry-run --token dryrun-token txn-apply --ops-file "$OPS_FILE" --simulate-fail-at 3 --report-file "$REPORT_FILE" > "$OUT" 2>&1
+"$REMOTE_FILES_SH" --dry-run --token dryrun-token txn-apply --ops-file "$OPS_FILE" --simulate-fail-at 3 --report-file "$REPORT_FILE" --idempotency-key "$IDEMPOTENCY_KEY" --idempotency-store "$IDEMPOTENCY_STORE" > "$OUT" 2>&1
 RC=$?
 set -e
 
@@ -60,6 +63,26 @@ assert report.get('steps_applied') == 2
 assert report.get('rollback_attempted') >= 1
 
 print('txn_report=pass')
+PY
+
+"$REMOTE_FILES_SH" --dry-run --token dryrun-token txn-apply --ops-file "$OPS_FILE" --report-file "$REPORT_FILE_REPLAY" --idempotency-key "$IDEMPOTENCY_KEY" --idempotency-store "$IDEMPOTENCY_STORE" >> "$OUT" 2>&1
+
+grep -q "summary status=replayed" "$OUT" || { echo "missing_replayed_summary" | tee -a "$OUT"; exit 1; }
+grep -q "prior_status=rolled_back" "$OUT" || { echo "missing_replayed_prior_status" | tee -a "$OUT"; exit 1; }
+
+python3 - <<'PY' "$REPORT_FILE_REPLAY" "$SIG" >> "$OUT"
+import json
+import sys
+
+report_path, sig = sys.argv[1], sys.argv[2]
+with open(report_path, 'r', encoding='utf-8') as f:
+  report = json.load(f)
+
+assert report.get('schema') == 'remote_files_txn_report_v1'
+assert report.get('status') == 'replayed'
+assert report.get('ops_signature') == sig
+
+print('txn_replay_report=pass')
 PY
 
 echo "Smoke PASS" | tee -a "$OUT"
