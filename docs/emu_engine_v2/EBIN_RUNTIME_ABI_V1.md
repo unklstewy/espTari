@@ -95,3 +95,22 @@ Required error details fields by class:
 - S5-002 implements structural/schema validation and deterministic `EBIN_INVALID` paths.
 - S5-003 implements ordered safety gates (integrity/signature/dependency compatibility) and fail-fast behavior.
 - Both tasks must preserve canonical `/api/v2` envelope/error taxonomy.
+
+## 8. ESP32-P4 Dynamic Execution Requirements
+
+For dynamically loaded EBIN code on ESP32-P4, the runtime/build pipeline must enforce all of the following:
+
+1. Executable heap availability
+	- Build config must disable PMP IDRAM split:
+	- `CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT=n`
+	- This is required to make `MALLOC_CAP_EXEC` allocations available for loader code/data placement.
+
+2. Linker relaxation disabled for EBIN objects
+	- EBIN compilation and link steps must keep `-mno-relax` / `--no-relax` enabled.
+	- This prevents relaxed instruction rewriting that breaks relocation assumptions for runtime-loaded modules.
+
+3. Instruction/data coherence before jumping into loaded code
+	- After copying code bytes into executable memory and before invoking entry symbols:
+	  - `cache_hal_writeback_addr(exec_ptr, exec_size);`
+	  - `fence.i`
+	- The cache writeback + instruction fence sequence is mandatory to avoid stale instruction fetch on newly written code pages.

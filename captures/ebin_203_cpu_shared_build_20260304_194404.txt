@@ -1,0 +1,20 @@
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmpqh7jvp28/st_cpu_m68k_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_cpu_m68k_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmpqh7jvp28/component.ld -o /tmp/tmpqh7jvp28/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmpqh7jvp28/st_cpu_m68k_component.o
+Code size: 353 bytes
+Data size: 44 bytes
+BSS size: 84 bytes
+Entry offset: 0
+Relocations: 9
+Built /tmp/tmp.CKki4kA4Rw/sdcard/ebins/atari_st/cpu/st.cpu.m68k-1.0.0.ebin: 532 bytes
+  Code: 353 bytes, Data: 44 bytes, BSS: 84 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 9
+metadata_written index=/tmp/tmp.CKki4kA4Rw/sdcard/ebins/atari_st/cpu/index.json manifest=/tmp/tmp.CKki4kA4Rw/sdcard/ebins/atari_st/cpu/manifest.json
+Built artifact: /tmp/tmp.CKki4kA4Rw/sdcard/ebins/atari_st/cpu/st.cpu.m68k-1.0.0.ebin
+required_file=present path=/tmp/tmp.CKki4kA4Rw/sdcard/ebins/atari_st/cpu/st.cpu.m68k-1.0.0.ebin
+required_file=present path=/tmp/tmp.CKki4kA4Rw/sdcard/ebins/atari_st/cpu/index.json
+required_file=present path=/tmp/tmp.CKki4kA4Rw/sdcard/ebins/atari_st/cpu/manifest.json
+cpu_ebin_header=pass
+cpu_metadata_contract=pass
+Smoke PASS
