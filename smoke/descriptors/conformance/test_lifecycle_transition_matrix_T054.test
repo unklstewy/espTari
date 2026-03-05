@@ -1,0 +1,49 @@
+[meta]
+test_id = "test_lifecycle_transition_matrix_T054"
+task_id = "T-054"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "lifecycle_transition_matrix_schema_present"
+kind = "command"
+command = '''python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path('docs/emu_engine_v2/api_schema_lifecycle_transition_matrix_v1.json')
+d = json.loads(p.read_text(encoding='utf-8'))
+assert 'transition_matrix' in d and len(d['transition_matrix']) >= 10
+guards = d.get('guard_predicates', {})
+for guard in ['G-COMMON-01','G-START-01','G-START-02','G-PAUSE-01','G-RESUME-01','G-RESUME-02','G-RESET-01','G-SUSPEND-01','G-RESTORE-01','G-STOP-01']:
+    assert guard in guards, f'missing guard predicate {guard}'
+
+mapping = '\n'.join(f"{x.get('guard_id')}:{x.get('error_code')}" for x in d.get('guard_error_mapping', []))
+assert 'G-STOP-01:INVALID_SESSION_STATE' in mapping
+print('lifecycle_transition_matrix_schema=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["lifecycle_transition_matrix_schema=pass"]
+
+[[step]]
+name = "lifecycle_guard_envelopes_present"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_lifecycle_state.c').read_text(encoding='utf-8')
+for token in [
+    'send_guard_error',
+    'G-SUSPEND-01',
+    'G-RESTORE-01',
+    'INVALID_SESSION_STATE',
+    'SNAPSHOT_NOT_FOUND',
+    'SNAPSHOT_INCOMPATIBLE',
+    '/api/v2/engine/session/suspend-save',
+    '/api/v2/engine/session/restore-resume'
+]:
+    assert token in src, f'missing token: {token}'
+print('lifecycle_guard_envelopes=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["lifecycle_guard_envelopes=pass"]

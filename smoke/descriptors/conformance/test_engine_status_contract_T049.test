@@ -1,0 +1,54 @@
+[meta]
+test_id = "test_engine_status_contract_T049"
+task_id = "T-049"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "engine_status_schema_present"
+kind = "command"
+command = '''python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path('docs/emu_engine_v2/api_schema_engine_status_v1.json')
+d = json.loads(p.read_text(encoding='utf-8'))
+assert d['endpoint']['path'] == '/api/v2/engine/status'
+required = d['data']['required']
+for f in ['machine','profile','lifecycle_state','run_mode','snapshot_at_us','uptime_ms','cycle_counter','tick_counter','loaded_modules','runtime']:
+    assert f in required, f'missing required field {f}'
+runtime_required = d['runtime']['required']
+for f in ['scheduler_hz','stream_health','last_transition_at_us','last_error']:
+    assert f in runtime_required, f'missing runtime field {f}'
+print('engine_status_schema=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["engine_status_schema=pass"]
+
+[[step]]
+name = "engine_status_runtime_fields_present"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_core_status.c').read_text(encoding='utf-8')
+required_tokens = [
+    '/api/v2/engine/status',
+    '/api/v2/engine/session',
+    'run_mode',
+    'snapshot_at_us',
+    'uptime_ms',
+    'cycle_counter',
+    'tick_counter',
+    'runtime',
+    'scheduler_hz',
+    'last_transition_at_us',
+    'last_error',
+    'stream_health'
+]
+for token in required_tokens:
+    assert token in src, f'missing token: {token}'
+print('engine_status_runtime=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["engine_status_runtime=pass"]

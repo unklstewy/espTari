@@ -1,0 +1,40 @@
+[meta]
+test_id = "test_engine_health_contract_T048"
+task_id = "T-048"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "engine_health_schema_present"
+kind = "command"
+command = '''python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path('docs/emu_engine_v2/api_schema_engine_health_v1.json')
+d = json.loads(p.read_text(encoding='utf-8'))
+assert d['endpoint']['path'] == '/api/v2/engine/health'
+required = d['data']['required']
+for f in ['overall_status','overall_severity','generated_at_us','freshness_ttl_ms','freshness_state','components']:
+    assert f in required, f'missing required field {f}'
+rules = '\n'.join(d.get('freshness_rules', []))
+assert 'freshness_state=fresh' in rules and 'freshness_state=stale' in rules
+print('engine_health_schema=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["engine_health_schema=pass"]
+
+[[step]]
+name = "engine_health_route_registered"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_core_status.c').read_text(encoding='utf-8')
+assert 'health_handler' in src
+assert '/api/v2/engine/health' in src
+assert 'health' in src
+print('engine_health_route=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["engine_health_route=pass"]

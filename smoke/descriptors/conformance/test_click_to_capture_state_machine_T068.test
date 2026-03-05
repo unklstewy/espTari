@@ -1,0 +1,34 @@
+[meta]
+test_id = "test_click_to_capture_state_machine_T068"
+task_id = "T-068"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "click_to_capture_state_machine_tokens_present"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf-8')
+for token in [
+    'mode_is_click_to_capture',
+    'click_acquire',
+    'click_to_capture_acquired',
+    'click_to_capture_already_active',
+    'focus_lost',
+    'focus_lost_release',
+    'focus_regained',
+    'escape_sequence_complete',
+    'escape_sequence_partial',
+    'escape_sequence_expired',
+    'user_escape_sequence',
+    'escape_release_timeout_ms',
+    'escape_release_sequence'
+]:
+    assert token in src, f'missing token: {token}'
+print('click_to_capture_state_machine=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["click_to_capture_state_machine=pass"]

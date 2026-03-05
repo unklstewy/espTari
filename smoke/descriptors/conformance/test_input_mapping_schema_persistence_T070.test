@@ -1,0 +1,26 @@
+[meta]
+test_id = "test_input_mapping_schema_persistence_T070"
+task_id = "T-070"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "input_mapping_descriptor_and_routes_present"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+d = Path('smoke/descriptors/test_input_mapping_T070.test').read_text(encoding='utf-8')
+for token in ['task_id = "T-070"', '/api/v2/input/mappings/load', '/api/v2/input/mappings/update', 'mappings_update_applied', 'mappings_update_noop']:
+    assert token in d, f'missing descriptor token: {token}'
+src_input = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf-8')
+for token in ['input_mappings_load_handler', 'input_mappings_update_handler', '/api/v2/input/mappings/load', '/api/v2/input/mappings/update', 'mapping_profile_id', 'entries']:
+    assert token in src_input, f'missing runtime token in input.c: {token}'
+src_routes = Path('components/esptari_web/esptari_web_mappings.c').read_text(encoding='utf-8')
+for token in ['/api/v2/input/mappings/apply', '/api/v2/input/mappings/active']:
+    assert token in src_routes, f'missing mappings route token: {token}'
+print('input_mapping_schema_persistence=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["input_mapping_schema_persistence=pass"]

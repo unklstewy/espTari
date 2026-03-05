@@ -1,0 +1,300 @@
+Note: The tool simplified the command to ` python3 tools/smoke_suite/smoke_runner.py --test test_engine_health_contract_T048 --test test_engine_status_contract_T049 --test test_engine_stream_contract_T050 --test test_input_policy_enabled_contract_T052 --test test_input_policy_events_contract_T053 --test test_lifecycle_transition_matrix_T054 --test test_catalog_index_loader_T056_conformance --test test_mouse_over_state_machine_T066 --test test_click_to_capture_state_machine_T068 --test test_input_mapping_schema_persistence_T070`, and this is the output of running that command instead:
+
+[RUN] test_catalog_index_loader_T056_conformance (T-056)
+      descriptor=smoke/descriptors/conformance/test_catalog_index_loader_T056_co
+nformance.test                                                                        started_at=2026-03-05T03:12:39.373252+00:00
+  [PASS] 01 catalog_resolve_rom_disk_tos_present CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_lifecycle_session.c').read_text(e
+ncoding='utf-8')                                                                for token in [
+    'resolve_catalog_entry',
+    'parse_required_string(root, "rom_id"',
+    'parse_optional_string(root, "tos_id"',
+    'disk_ids',
+    'resolve_catalog_entry(req, "roms", rom_id, true, &rom_local_path)',
+    'resolve_catalog_entry(req, "tos", tos_id, true, &tos_local_path)',
+    'resolve_catalog_entry(req, "floppies", first_disk_id, true, NULL)',
+    'CATALOG_ENTRY_NOT_FOUND',
+    'CATALOG_NOT_FOUND'
+]:
+    assert token in src, f'missing token: {token}'
+print('catalog_resolve_rom_disk_tos=pass')
+PY -> 0 (17ms)
+  [PASS] 02 catalog_loader_descriptor_exists CMD python3 - <<'PY'
+from pathlib import Path
+p = Path('smoke/descriptors/catalog/test_catalog_loader_T056.test')
+text = p.read_text(encoding='utf-8')
+for token in ['task_id = "T-056"','session_start_valid','rom_id','disk_ids','tos
+_id']:                                                                              assert token in text, f'missing token: {token}'
+print('catalog_loader_descriptor=pass')
+PY -> 0 (18ms)
+      ended_at=2026-03-05T03:12:39.435896+00:00 status=passed passed_steps=2 fai
+led_steps=0                                                                     
+[RUN] test_click_to_capture_state_machine_T068 (T-068)
+      descriptor=smoke/descriptors/conformance/test_click_to_capture_state_machi
+ne_T068.test                                                                          started_at=2026-03-05T03:12:39.647133+00:00
+  [PASS] 01 click_to_capture_state_machine_tokens_present CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf
+-8')                                                                            for token in [
+    'mode_is_click_to_capture',
+    'click_acquire',
+    'click_to_capture_acquired',
+    'click_to_capture_already_active',
+    'focus_lost',
+    'focus_lost_release',
+    'focus_regained',
+    'escape_sequence_complete',
+    'escape_sequence_partial',
+    'escape_sequence_expired',
+    'user_escape_sequence',
+    'escape_release_timeout_ms',
+    'escape_release_sequence'
+]:
+    assert token in src, f'missing token: {token}'
+print('click_to_capture_state_machine=pass')
+PY -> 0 (17ms)
+      ended_at=2026-03-05T03:12:39.681717+00:00 status=passed passed_steps=1 fai
+led_steps=0                                                                     
+[RUN] test_engine_health_contract_T048 (T-048)
+      descriptor=smoke/descriptors/conformance/test_engine_health_contract_T048.
+test                                                                                  started_at=2026-03-05T03:12:39.714121+00:00
+  [PASS] 01 engine_health_schema_present CMD python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path('docs/emu_engine_v2/api_schema_engine_health_v1.json')
+d = json.loads(p.read_text(encoding='utf-8'))
+assert d['endpoint']['path'] == '/api/v2/engine/health'
+required = d['data']['required']
+for f in ['overall_status','overall_severity','generated_at_us','freshness_ttl_m
+s','freshness_state','components']:                                                 assert f in required, f'missing required field {f}'
+rules = '\n'.join(d.get('freshness_rules', []))
+assert 'freshness_state=fresh' in rules and 'freshness_state=stale' in rules
+print('engine_health_schema=pass')
+PY -> 0 (20ms)
+  [PASS] 02 engine_health_route_registered CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_core_status.c').read_text(encodin
+g='utf-8')                                                                      assert 'health_handler' in src
+assert '/api/v2/engine/health' in src
+assert 'health' in src
+print('engine_health_route=pass')
+PY -> 0 (17ms)
+      ended_at=2026-03-05T03:12:39.775512+00:00 status=passed passed_steps=2 fai
+led_steps=0                                                                     
+[RUN] test_engine_status_contract_T049 (T-049)
+      descriptor=smoke/descriptors/conformance/test_engine_status_contract_T049.
+test                                                                                  started_at=2026-03-05T03:12:40.268313+00:00
+  [PASS] 01 engine_status_schema_present CMD python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path('docs/emu_engine_v2/api_schema_engine_status_v1.json')
+d = json.loads(p.read_text(encoding='utf-8'))
+assert d['endpoint']['path'] == '/api/v2/engine/status'
+required = d['data']['required']
+for f in ['machine','profile','lifecycle_state','run_mode','snapshot_at_us','upt
+ime_ms','cycle_counter','tick_counter','loaded_modules','runtime']:                 assert f in required, f'missing required field {f}'
+runtime_required = d['runtime']['required']
+for f in ['scheduler_hz','stream_health','last_transition_at_us','last_error']:
+    assert f in runtime_required, f'missing runtime field {f}'
+print('engine_status_schema=pass')
+PY -> 0 (20ms)
+  [PASS] 02 engine_status_runtime_fields_present CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_core_status.c').read_text(encodin
+g='utf-8')                                                                      required_tokens = [
+    '/api/v2/engine/status',
+    '/api/v2/engine/session',
+    'run_mode',
+    'snapshot_at_us',
+    'uptime_ms',
+    'cycle_counter',
+    'tick_counter',
+    'runtime',
+    'scheduler_hz',
+    'last_transition_at_us',
+    'last_error',
+    'stream_health'
+]
+for token in required_tokens:
+    assert token in src, f'missing token: {token}'
+print('engine_status_runtime=pass')
+PY -> 0 (18ms)
+      ended_at=2026-03-05T03:12:40.333590+00:00 status=passed passed_steps=2 fai
+led_steps=0                                                                     
+[RUN] test_engine_stream_contract_T050 (T-050)
+      descriptor=smoke/descriptors/conformance/test_engine_stream_contract_T050.
+test                                                                                  started_at=2026-03-05T03:12:40.472102+00:00
+  [PASS] 01 engine_stream_schema_present CMD python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path('docs/emu_engine_v2/api_schema_engine_stream_status_health_v1.json')
+d = json.loads(p.read_text(encoding='utf-8'))
+assert d['endpoint']['path'] == '/api/v2/engine/stream'
+event_types = set(d.get('event_types', []))
+for e in ['engine_status_update','engine_health_update','engine_stream_delivery'
+,'stream_backpressure_telemetry']:                                                  assert e in event_types, f'missing event type {e}'
+
+rules = '\n'.join(d.get('ordering_rules', []))
+for token in ['event_seq is strictly monotonic','event_timestamp_us is monotonic
+','source of truth is event_seq']:                                                  assert token in rules, f'missing ordering rule token {token}'
+print('engine_stream_schema=pass')
+PY -> 0 (19ms)
+  [PASS] 02 engine_stream_runtime_tokens_present CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf
+-8')                                                                            for token in ['input_stream_event_seq','input_stream_last_event_seq','input_stre
+am_last_event_timestamp_us','event_seq','event_timestamp_us']:                      assert token in src, f'missing token: {token}'
+print('engine_stream_runtime_tokens=pass')
+PY -> 0 (18ms)
+      ended_at=2026-03-05T03:12:40.536662+00:00 status=passed passed_steps=2 fai
+led_steps=0                                                                     
+[RUN] test_input_mapping_schema_persistence_T070 (T-070)
+      descriptor=smoke/descriptors/conformance/test_input_mapping_schema_persist
+ence_T070.test                                                                        started_at=2026-03-05T03:12:40.873029+00:00
+  [PASS] 01 input_mapping_descriptor_and_routes_present CMD python3 - <<'PY'
+from pathlib import Path
+d = Path('smoke/descriptors/test_input_mapping_T070.test').read_text(encoding='u
+tf-8')                                                                          for token in ['task_id = "T-070"', '/api/v2/input/mappings/load', '/api/v2/input
+/mappings/update', 'mappings_update_applied', 'mappings_update_noop']:              assert token in d, f'missing descriptor token: {token}'
+src_input = Path('components/esptari_web/esptari_web_input.c').read_text(encodin
+g='utf-8')                                                                      for token in ['input_mappings_load_handler', 'input_mappings_update_handler', '/
+api/v2/input/mappings/load', '/api/v2/input/mappings/update', 'mapping_profile_id', 'entries']:                                                                     assert token in src_input, f'missing runtime token in input.c: {token}'
+src_routes = Path('components/esptari_web/esptari_web_mappings.c').read_text(enc
+oding='utf-8')                                                                  for token in ['/api/v2/input/mappings/apply', '/api/v2/input/mappings/active']:
+    assert token in src_routes, f'missing mappings route token: {token}'
+print('input_mapping_schema_persistence=pass')
+PY -> 0 (19ms)
+      ended_at=2026-03-05T03:12:40.908544+00:00 status=passed passed_steps=1 fai
+led_steps=0                                                                     
+[RUN] test_input_policy_enabled_contract_T052 (T-052)
+      descriptor=smoke/descriptors/conformance/test_input_policy_enabled_contrac
+t_T052.test                                                                           started_at=2026-03-05T03:12:40.933054+00:00
+  [PASS] 01 input_policy_enabled_schema_present CMD python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path('docs/emu_engine_v2/api_schema_input_policy_enabled_v1.json')
+d = json.loads(p.read_text(encoding='utf-8'))
+assert d['endpoint']['path'] == '/api/v2/input/policy/enabled'
+request_required = set(d['request']['required'])
+for f in ['session_id', 'browser_session_id', 'enabled']:
+    assert f in request_required, f'missing request field {f}'
+resp_required = set(d['response_data']['required'])
+for f in ['requested_enabled', 'result', 'previous_policy_state', 'policy']:
+    assert f in resp_required, f'missing response field {f}'
+
+idempotency = '\n'.join(x['result'] for x in d.get('idempotency_rules', []))
+assert 'applied' in idempotency and 'no_op' in idempotency
+print('input_policy_enabled_schema=pass')
+PY -> 0 (20ms)
+  [PASS] 02 input_policy_enabled_handler_tokens_present CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf
+-8')                                                                            required_tokens = [
+    'input_policy_enabled_handler',
+    '/api/v2/input/policy/enabled',
+    'requested_enabled',
+    'previous_policy_state',
+    'result',
+    'idempotent_enable',
+    'idempotent_disable',
+    'changed_at_us'
+]
+for token in required_tokens:
+    assert token in src, f'missing token: {token}'
+print('input_policy_enabled_handler=pass')
+PY -> 0 (19ms)
+      ended_at=2026-03-05T03:12:40.997101+00:00 status=passed passed_steps=2 fai
+led_steps=0                                                                     
+[RUN] test_input_policy_events_contract_T053 (T-053)
+      descriptor=smoke/descriptors/conformance/test_input_policy_events_contract
+_T053.test                                                                            started_at=2026-03-05T03:12:41.177169+00:00
+  [PASS] 01 input_policy_events_schema_present CMD python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path('docs/emu_engine_v2/api_schema_input_policy_events_v1.json')
+d = json.loads(p.read_text(encoding='utf-8'))
+assert d['stream']['event_type'] == 'input_policy_changed'
+payload_required = set(d['payload']['required'])
+for f in ['event_seq','event_timestamp_us','prior_state','new_state','requested_
+enabled','transition_result']:                                                      assert f in payload_required, f'missing payload field {f}'
+ordering = '\n'.join(d.get('ordering_rules', []))
+assert 'strictly monotonic' in ordering and 'source of truth is event_seq' in or
+dering                                                                          print('input_policy_events_schema=pass')
+PY -> 0 (20ms)
+  [PASS] 02 input_policy_event_fields_present_in_runtime CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf
+-8')                                                                            for token in [
+    'policy_event_seq',
+    'event_seq',
+    'changed_at_us',
+    'transition_result',
+    'request_action',
+    'mouse_over_pointer_in',
+    'click_to_capture_acquired'
+]:
+    assert token in src, f'missing token: {token}'
+print('input_policy_events_runtime=pass')
+PY -> 0 (18ms)
+      ended_at=2026-03-05T03:12:41.240750+00:00 status=passed passed_steps=2 fai
+led_steps=0                                                                     
+[RUN] test_lifecycle_transition_matrix_T054 (T-054)
+      descriptor=smoke/descriptors/conformance/test_lifecycle_transition_matrix_
+T054.test                                                                             started_at=2026-03-05T03:12:41.836073+00:00
+  [PASS] 01 lifecycle_transition_matrix_schema_present CMD python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path('docs/emu_engine_v2/api_schema_lifecycle_transition_matrix_v1.json')
+d = json.loads(p.read_text(encoding='utf-8'))
+assert 'transition_matrix' in d and len(d['transition_matrix']) >= 10
+guards = d.get('guard_predicates', {})
+for guard in ['G-COMMON-01','G-START-01','G-START-02','G-PAUSE-01','G-RESUME-01'
+,'G-RESUME-02','G-RESET-01','G-SUSPEND-01','G-RESTORE-01','G-STOP-01']:             assert guard in guards, f'missing guard predicate {guard}'
+
+mapping = '\n'.join(f"{x.get('guard_id')}:{x.get('error_code')}" for x in d.get(
+'guard_error_mapping', []))                                                     assert 'G-STOP-01:INVALID_SESSION_STATE' in mapping
+print('lifecycle_transition_matrix_schema=pass')
+PY -> 0 (19ms)
+  [PASS] 02 lifecycle_guard_envelopes_present CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_lifecycle_state.c').read_text(enc
+oding='utf-8')                                                                  for token in [
+    'send_guard_error',
+    'G-SUSPEND-01',
+    'G-RESTORE-01',
+    'INVALID_SESSION_STATE',
+    'SNAPSHOT_NOT_FOUND',
+    'SNAPSHOT_INCOMPATIBLE',
+    '/api/v2/engine/session/suspend-save',
+    '/api/v2/engine/session/restore-resume'
+]:
+    assert token in src, f'missing token: {token}'
+print('lifecycle_guard_envelopes=pass')
+PY -> 0 (19ms)
+      ended_at=2026-03-05T03:12:41.897844+00:00 status=passed passed_steps=2 fai
+led_steps=0                                                                     
+[RUN] test_mouse_over_state_machine_T066 (T-066)
+      descriptor=smoke/descriptors/conformance/test_mouse_over_state_machine_T06
+6.test                                                                                started_at=2026-03-05T03:12:41.975089+00:00
+  [PASS] 01 mouse_over_capture_state_machine_tokens_present CMD python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf
+-8')                                                                            for token in [
+    'mode_is_mouse_over',
+    'pointer_enter_hook',
+    'pointer_leave_hook',
+    'pointer_over_canvas = true',
+    'pointer_over_canvas = false',
+    'mouse_over_pointer_in',
+    'mouse_over_pointer_out',
+    'mouse_over_pointer_in_no_op',
+    'mouse_over_pointer_out_no_op',
+    'capture_active',
+    'transition_result'
+]:
+    assert token in src, f'missing token: {token}'
+print('mouse_over_state_machine=pass')
+PY -> 0 (17ms)
+      ended_at=2026-03-05T03:12:42.008411+00:00 status=passed passed_steps=1 fai
+led_steps=0                                                                     

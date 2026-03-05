@@ -1,0 +1,41 @@
+[meta]
+test_id = "test_engine_stream_contract_T050"
+task_id = "T-050"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "engine_stream_schema_present"
+kind = "command"
+command = '''python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path('docs/emu_engine_v2/api_schema_engine_stream_status_health_v1.json')
+d = json.loads(p.read_text(encoding='utf-8'))
+assert d['endpoint']['path'] == '/api/v2/engine/stream'
+event_types = set(d.get('event_types', []))
+for e in ['engine_status_update','engine_health_update','engine_stream_delivery','stream_backpressure_telemetry']:
+    assert e in event_types, f'missing event type {e}'
+
+rules = '\n'.join(d.get('ordering_rules', []))
+for token in ['event_seq is strictly monotonic','event_timestamp_us is monotonic','source of truth is event_seq']:
+    assert token in rules, f'missing ordering rule token {token}'
+print('engine_stream_schema=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["engine_stream_schema=pass"]
+
+[[step]]
+name = "engine_stream_runtime_tokens_present"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf-8')
+for token in ['input_stream_event_seq','input_stream_last_event_seq','input_stream_last_event_timestamp_us','event_seq','event_timestamp_us']:
+    assert token in src, f'missing token: {token}'
+print('engine_stream_runtime_tokens=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["engine_stream_runtime_tokens=pass"]

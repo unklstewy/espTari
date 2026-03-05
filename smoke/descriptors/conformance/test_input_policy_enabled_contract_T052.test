@@ -1,0 +1,53 @@
+[meta]
+test_id = "test_input_policy_enabled_contract_T052"
+task_id = "T-052"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "input_policy_enabled_schema_present"
+kind = "command"
+command = '''python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path('docs/emu_engine_v2/api_schema_input_policy_enabled_v1.json')
+d = json.loads(p.read_text(encoding='utf-8'))
+assert d['endpoint']['path'] == '/api/v2/input/policy/enabled'
+request_required = set(d['request']['required'])
+for f in ['session_id', 'browser_session_id', 'enabled']:
+    assert f in request_required, f'missing request field {f}'
+resp_required = set(d['response_data']['required'])
+for f in ['requested_enabled', 'result', 'previous_policy_state', 'policy']:
+    assert f in resp_required, f'missing response field {f}'
+
+idempotency = '\n'.join(x['result'] for x in d.get('idempotency_rules', []))
+assert 'applied' in idempotency and 'no_op' in idempotency
+print('input_policy_enabled_schema=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["input_policy_enabled_schema=pass"]
+
+[[step]]
+name = "input_policy_enabled_handler_tokens_present"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf-8')
+required_tokens = [
+    'input_policy_enabled_handler',
+    '/api/v2/input/policy/enabled',
+    'requested_enabled',
+    'previous_policy_state',
+    'result',
+    'idempotent_enable',
+    'idempotent_disable',
+    'changed_at_us'
+]
+for token in required_tokens:
+    assert token in src, f'missing token: {token}'
+print('input_policy_enabled_handler=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["input_policy_enabled_handler=pass"]

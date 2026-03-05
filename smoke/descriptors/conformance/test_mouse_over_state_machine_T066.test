@@ -1,0 +1,32 @@
+[meta]
+test_id = "test_mouse_over_state_machine_T066"
+task_id = "T-066"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "mouse_over_capture_state_machine_tokens_present"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_input.c').read_text(encoding='utf-8')
+for token in [
+    'mode_is_mouse_over',
+    'pointer_enter_hook',
+    'pointer_leave_hook',
+    'pointer_over_canvas = true',
+    'pointer_over_canvas = false',
+    'mouse_over_pointer_in',
+    'mouse_over_pointer_out',
+    'mouse_over_pointer_in_no_op',
+    'mouse_over_pointer_out_no_op',
+    'capture_active',
+    'transition_result'
+]:
+    assert token in src, f'missing token: {token}'
+print('mouse_over_state_machine=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["mouse_over_state_machine=pass"]

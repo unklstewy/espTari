@@ -1,0 +1,44 @@
+[meta]
+test_id = "test_catalog_index_loader_T056_conformance"
+task_id = "T-056"
+
+[config]
+timeout_s = 120
+continue_on_failure = true
+
+[[step]]
+name = "catalog_resolve_rom_disk_tos_present"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+src = Path('components/esptari_web/esptari_web_lifecycle_session.c').read_text(encoding='utf-8')
+for token in [
+    'resolve_catalog_entry',
+    'parse_required_string(root, "rom_id"',
+    'parse_optional_string(root, "tos_id"',
+    'disk_ids',
+    'resolve_catalog_entry(req, "roms", rom_id, true, &rom_local_path)',
+    'resolve_catalog_entry(req, "tos", tos_id, true, &tos_local_path)',
+    'resolve_catalog_entry(req, "floppies", first_disk_id, true, NULL)',
+    'CATALOG_ENTRY_NOT_FOUND',
+    'CATALOG_NOT_FOUND'
+]:
+    assert token in src, f'missing token: {token}'
+print('catalog_resolve_rom_disk_tos=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["catalog_resolve_rom_disk_tos=pass"]
+
+[[step]]
+name = "catalog_loader_descriptor_exists"
+kind = "command"
+command = '''python3 - <<'PY'
+from pathlib import Path
+p = Path('smoke/descriptors/catalog/test_catalog_loader_T056.test')
+text = p.read_text(encoding='utf-8')
+for token in ['task_id = "T-056"','session_start_valid','rom_id','disk_ids','tos_id']:
+    assert token in text, f'missing token: {token}'
+print('catalog_loader_descriptor=pass')
+PY'''
+expect_exit = [0]
+expect_output_contains = ["catalog_loader_descriptor=pass"]
