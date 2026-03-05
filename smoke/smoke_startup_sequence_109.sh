@@ -2,6 +2,9 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://esptari.local}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_lib/smoke_auth.sh"
+smoke_auth_init "${BASE_URL}" "$0"
 TS="$(date +%Y%m%d_%H%M%S)"
 OUT="captures/startup_sequence_109_smoke_postfix_${TS}.txt"
 mkdir -p captures

@@ -2,6 +2,9 @@
 set -euo pipefail
 
 BASE_URL="${1:-http://esptari.local}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_lib/smoke_auth.sh"
+smoke_auth_init "${BASE_URL}" "$0"
 CATALOG="floppies"
 ENTRY="disk.demos.dead_entry"
 

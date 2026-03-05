@@ -2,6 +2,9 @@
 set -euo pipefail
 
 BASE_URL="${1:-http://esptari.local}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_lib/smoke_auth.sh"
+smoke_auth_init "${BASE_URL}" "$0"
 
 echo "== trigger system reset =="
 curl --max-time 10 -sS -X POST "${BASE_URL}/api/system" \
