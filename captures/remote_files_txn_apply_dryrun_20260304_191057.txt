@@ -1,0 +1,9 @@
+[TXN ] apply #1 mkdir /sdcard/ebins/txn_demo 
+[TXN ] apply #2 upload /sdcard/ebins/txn_demo/a.ebin 
+[TXN ] apply #3 move /sdcard/ebins/txn_demo/a.ebin /sdcard/ebins/txn_demo/a2.ebin
+[ERR ] simulated failure at step 3
+[TXN ] rollback start count=2
+[TXN ] rollback complete
+[TXN ] summary status=rolled_back ops_signature=cabc3cb49805d2782308bee1aac640dcea0e8356b802fc5e5f82ffab610191e5 steps_total=4 steps_applied=2 rollback_attempted=2 rollback_warnings=0 finalize_count=0
+txn_report=pass
+Smoke PASS

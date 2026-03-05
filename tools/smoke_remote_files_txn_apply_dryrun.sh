@@ -10,7 +10,8 @@ mkdir -p "$ROOT_DIR/captures"
 : > "$OUT"
 
 OPS_FILE="$(mktemp)"
-trap 'rm -f "$OPS_FILE"' EXIT
+REPORT_FILE="$(mktemp)"
+trap 'rm -f "$OPS_FILE" "$REPORT_FILE"' EXIT
 
 cat > "$OPS_FILE" <<'EOF'
 # tx apply dry-run
@@ -21,7 +22,7 @@ delete|/sdcard/ebins/txn_demo/a2.ebin
 EOF
 
 set +e
-"$REMOTE_FILES_SH" --dry-run --token dryrun-token txn-apply --ops-file "$OPS_FILE" --simulate-fail-at 3 > "$OUT" 2>&1
+"$REMOTE_FILES_SH" --dry-run --token dryrun-token txn-apply --ops-file "$OPS_FILE" --simulate-fail-at 3 --report-file "$REPORT_FILE" > "$OUT" 2>&1
 RC=$?
 set -e
 
@@ -35,6 +36,31 @@ grep -q "\[TXN \] apply #2 upload" "$OUT" || { echo "missing_apply_step_2" | tee
 grep -q "simulated failure at step 3" "$OUT" || { echo "missing_simulated_failure" | tee -a "$OUT"; exit 1; }
 grep -q "\[TXN \] rollback start" "$OUT" || { echo "missing_rollback_start" | tee -a "$OUT"; exit 1; }
 grep -q "\[TXN \] rollback complete" "$OUT" || { echo "missing_rollback_complete" | tee -a "$OUT"; exit 1; }
+grep -q "\[TXN \] summary status=rolled_back" "$OUT" || { echo "missing_txn_summary" | tee -a "$OUT"; exit 1; }
+
+SIG="$(grep -o 'ops_signature=[0-9a-f]\{64\}' "$OUT" | head -n1 | cut -d= -f2)"
+if [[ -z "$SIG" ]]; then
+  echo "missing_ops_signature" | tee -a "$OUT"
+  exit 1
+fi
+
+python3 - <<'PY' "$REPORT_FILE" "$SIG" >> "$OUT"
+import json
+import sys
+
+report_path, sig = sys.argv[1], sys.argv[2]
+with open(report_path, 'r', encoding='utf-8') as f:
+    report = json.load(f)
+
+assert report.get('schema') == 'remote_files_txn_report_v1'
+assert report.get('status') == 'rolled_back'
+assert report.get('ops_signature') == sig
+assert report.get('steps_total') == 4
+assert report.get('steps_applied') == 2
+assert report.get('rollback_attempted') >= 1
+
+print('txn_report=pass')
+PY
 
 echo "Smoke PASS" | tee -a "$OUT"
 echo "Evidence: $OUT"

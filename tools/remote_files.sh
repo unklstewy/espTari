@@ -53,7 +53,7 @@ Commands:
   move --from /sdcard/a --to /sdcard/b
   upload --path /sdcard/file [--from local_file]
   download --path /sdcard/file
-  txn-apply --ops-file ops.txt [--simulate-fail-at N]
+  txn-apply --ops-file ops.txt [--simulate-fail-at N] [--report-file path.json]
       Apply multi-file operations atomically (best-effort): rollback runs in reverse order on failure.
 
       Ops file format (pipe-delimited, one operation per line; # comments allowed):
@@ -82,6 +82,62 @@ json_escape() {
 import json,sys
 print(json.dumps(sys.argv[1]))
 PY
+}
+
+txn_ops_signature() {
+  local ops_file="$1"
+  python3 - "$ops_file" <<'PY'
+import hashlib
+import sys
+
+ops_file = sys.argv[1]
+canonical = []
+
+with open(ops_file, 'r', encoding='utf-8') as handle:
+    for raw in handle:
+        line = raw.rstrip('\n').rstrip('\r').strip()
+        if not line or line.startswith('#'):
+            continue
+        parts = [segment.strip() for segment in line.split('|')]
+        if len(parts) > 3:
+            parts = parts[:3]
+        canonical.append('|'.join(parts))
+
+payload = ('\n'.join(canonical) + ('\n' if canonical else '')).encode('utf-8')
+digest = hashlib.sha256(payload).hexdigest()
+print(f"{digest} {len(canonical)}")
+PY
+}
+
+write_txn_report() {
+  local report_file="$1"
+  local status="$2"
+  local signature="$3"
+  local steps_total="$4"
+  local steps_applied="$5"
+  local rollback_attempted="$6"
+  local rollback_warnings="$7"
+  local finalize_count="$8"
+
+  [[ -n "$report_file" ]] || return 0
+
+  local report_tmp
+  report_tmp="$(mktemp "${report_file}.tmp.XXXXXX")"
+
+  cat > "$report_tmp" <<EOF
+{
+  "schema": "remote_files_txn_report_v1",
+  "status": "${status}",
+  "ops_signature": "${signature}",
+  "steps_total": ${steps_total},
+  "steps_applied": ${steps_applied},
+  "rollback_attempted": ${rollback_attempted},
+  "rollback_warnings": ${rollback_warnings},
+  "finalize_count": ${finalize_count}
+}
+EOF
+
+  mv -f "$report_tmp" "$report_file"
 }
 
 is_valid_semver() {
@@ -396,11 +452,13 @@ api_upload() {
 cmd_txn_apply() {
   local ops_file=""
   local simulate_fail_at=0
+  local report_file=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --ops-file) ops_file="$2"; shift 2 ;;
       --simulate-fail-at) simulate_fail_at="$2"; shift 2 ;;
+      --report-file) report_file="$2"; shift 2 ;;
       *) echo "[ERR ] Unknown txn-apply option: $1" >&2; exit 1 ;;
     esac
   done
@@ -409,6 +467,9 @@ cmd_txn_apply() {
   [[ -f "$ops_file" ]] || { echo "[ERR ] ops file not found: $ops_file" >&2; exit 1; }
   [[ "$simulate_fail_at" =~ ^[0-9]+$ ]] || { echo "[ERR ] --simulate-fail-at must be an integer >= 0" >&2; exit 1; }
 
+  local ops_signature steps_total
+  read -r ops_signature steps_total < <(txn_ops_signature "$ops_file")
+
   require_token
 
   local txn_id
@@ -416,6 +477,7 @@ cmd_txn_apply() {
   local -a rollback_ops=()
   local -a finalize_ops=()
   local apply_failed=0
+  local applied_steps=0
 
   run_encoded_op() {
     local encoded="$1"
@@ -460,6 +522,7 @@ cmd_txn_apply() {
           fi
           rollback_ops+=("delete|$a1")
         fi
+        applied_steps=$((applied_steps + 1))
         ;;
       upload)
         [[ -n "$a1" ]] || { echo "[ERR ] upload requires path" >&2; apply_failed=1; break; }
@@ -478,6 +541,7 @@ cmd_txn_apply() {
           break
         fi
         rollback_ops+=("delete|$a1")
+        applied_steps=$((applied_steps + 1))
         ;;
       move)
         [[ -n "$a1" && -n "$a2" ]] || { echo "[ERR ] move requires from and to" >&2; apply_failed=1; break; }
@@ -496,6 +560,7 @@ cmd_txn_apply() {
           break
         fi
         rollback_ops+=("move|$a2|$a1")
+        applied_steps=$((applied_steps + 1))
         ;;
       delete)
         [[ -n "$a1" ]] || { echo "[ERR ] delete requires path" >&2; apply_failed=1; break; }
@@ -509,6 +574,7 @@ cmd_txn_apply() {
           rollback_ops+=("move|$delete_backup|$a1")
           finalize_ops+=("delete|$delete_backup")
         fi
+        applied_steps=$((applied_steps + 1))
         ;;
       *)
         echo "[ERR ] Unsupported txn op '$op' in $ops_file" >&2
@@ -520,23 +586,32 @@ cmd_txn_apply() {
 
   if [[ "$apply_failed" -eq 1 ]]; then
     echo "[TXN ] rollback start count=${#rollback_ops[@]}" >&2
-    local i rb
+    local i rb rollback_warnings=0
     for ((i=${#rollback_ops[@]}-1; i>=0; i--)); do
       rb="${rollback_ops[$i]}"
       if ! run_encoded_op "$rb"; then
         echo "[WARN] rollback op failed: $rb" >&2
+        rollback_warnings=$((rollback_warnings + 1))
       fi
     done
     echo "[TXN ] rollback complete" >&2
+    echo "[TXN ] summary status=rolled_back ops_signature=${ops_signature} steps_total=${steps_total} steps_applied=${applied_steps} rollback_attempted=${#rollback_ops[@]} rollback_warnings=${rollback_warnings} finalize_count=${#finalize_ops[@]}" >&2
+    write_txn_report "$report_file" "rolled_back" "$ops_signature" "$steps_total" "$applied_steps" "${#rollback_ops[@]}" "$rollback_warnings" "${#finalize_ops[@]}"
     return 1
   fi
 
   echo "[TXN ] commit finalize count=${#finalize_ops[@]}"
   local f_item
   for f_item in "${finalize_ops[@]}"; do
-    run_encoded_op "$f_item"
+    if ! run_encoded_op "$f_item"; then
+      echo "[TXN ] summary status=finalize_failed ops_signature=${ops_signature} steps_total=${steps_total} steps_applied=${applied_steps} rollback_attempted=0 rollback_warnings=0 finalize_count=${#finalize_ops[@]}" >&2
+      write_txn_report "$report_file" "finalize_failed" "$ops_signature" "$steps_total" "$applied_steps" "0" "0" "${#finalize_ops[@]}"
+      return 1
+    fi
   done
   echo "[TXN ] commit complete steps=$step_no"
+  echo "[TXN ] summary status=committed ops_signature=${ops_signature} steps_total=${steps_total} steps_applied=${applied_steps} rollback_attempted=0 rollback_warnings=0 finalize_count=${#finalize_ops[@]}"
+  write_txn_report "$report_file" "committed" "$ops_signature" "$steps_total" "$applied_steps" "0" "0" "${#finalize_ops[@]}"
   return 0
 }
 
