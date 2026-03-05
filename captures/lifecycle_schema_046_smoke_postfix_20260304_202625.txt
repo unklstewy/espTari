@@ -1,0 +1,6 @@
+required_file=present path=/home/sannis/electronics/esp32p4/projects/espTari/docs/emu_engine_v2/api_schema_lifecycle_v1.json
+required_file=present path=/home/sannis/electronics/esp32p4/projects/espTari/docs/emu_engine_v2/api_schema_envelope_v1.json
+lifecycle_schema_core=pass
+lifecycle_endpoint_set=pass count=7
+lifecycle_canonical_errors=pass
+Smoke PASS
