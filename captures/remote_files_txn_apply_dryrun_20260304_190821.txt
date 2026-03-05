@@ -1,0 +1,7 @@
+[TXN ] apply #1 mkdir /sdcard/ebins/txn_demo 
+[TXN ] apply #2 upload /sdcard/ebins/txn_demo/a.ebin 
+[TXN ] apply #3 move /sdcard/ebins/txn_demo/a.ebin /sdcard/ebins/txn_demo/a2.ebin
+[ERR ] simulated failure at step 3
+[TXN ] rollback start count=2
+[TXN ] rollback complete
+Smoke PASS

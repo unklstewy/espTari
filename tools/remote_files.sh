@@ -53,6 +53,15 @@ Commands:
   move --from /sdcard/a --to /sdcard/b
   upload --path /sdcard/file [--from local_file]
   download --path /sdcard/file
+  txn-apply --ops-file ops.txt [--simulate-fail-at N]
+      Apply multi-file operations atomically (best-effort): rollback runs in reverse order on failure.
+
+      Ops file format (pipe-delimited, one operation per line; # comments allowed):
+        mkdir|/sdcard/path
+        upload|/sdcard/file|/local/file
+        upload|/sdcard/file
+        move|/sdcard/from|/sdcard/to
+        delete|/sdcard/path
 
   setup-engine-v2 [--module-id st.profile.520] [--versions 1.0.0,1.1.0]
       Prepare Engine V2 directories and seed baseline JSON + machine_profile fixtures.
@@ -328,6 +337,209 @@ cmd_download() {
   call_api GET "/api/v2/files/download?path=$path"
 }
 
+remote_path_exists() {
+  local path="$1"
+
+  if [[ $DRY_RUN -eq 1 ]]; then
+    return 1
+  fi
+
+  local url
+  url="$(base_url)/api/v2/files/stat?path=$path"
+
+  local -a curl_args
+  curl_args=(--silent --show-error --location --max-time "$TIMEOUT" --request GET "$url" --output /dev/null --write-out "%{http_code}" -H "Content-Type: application/json")
+  if [[ -n "$TOKEN" ]]; then
+    curl_args+=( -H "Authorization: Bearer $TOKEN" )
+  fi
+
+  local code
+  code="$(curl "${curl_args[@]}")"
+  [[ "$code" -ge 200 && "$code" -lt 300 ]]
+}
+
+api_mkdir() {
+  local path="$1"
+  call_api POST "/api/v2/files/mkdir" "{\"path\":$(json_escape "$path")}" >/dev/null
+}
+
+api_delete() {
+  local path="$1"
+  call_api POST "/api/v2/files/delete" "{\"path\":$(json_escape "$path")}" >/dev/null
+}
+
+api_move() {
+  local from="$1"
+  local to="$2"
+  call_api POST "/api/v2/files/move" "{\"from\":$(json_escape "$from"),\"to\":$(json_escape "$to")}" >/dev/null
+}
+
+api_upload() {
+  local path="$1"
+  local from="${2:-}"
+
+  local payload
+  if [[ -n "$from" ]]; then
+    [[ -f "$from" ]] || { echo "[ERR ] local file not found: $from" >&2; return 1; }
+    local filename
+    local content_b64
+    filename="$(basename "$from")"
+    content_b64="$(base64 -w0 "$from")"
+    payload="{\"path\":$(json_escape "$path"),\"filename\":$(json_escape "$filename"),\"contentBase64\":$(json_escape "$content_b64")}"
+  else
+    payload="{\"path\":$(json_escape "$path")}" 
+  fi
+
+  call_api POST "/api/v2/files/upload" "$payload" >/dev/null
+}
+
+cmd_txn_apply() {
+  local ops_file=""
+  local simulate_fail_at=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --ops-file) ops_file="$2"; shift 2 ;;
+      --simulate-fail-at) simulate_fail_at="$2"; shift 2 ;;
+      *) echo "[ERR ] Unknown txn-apply option: $1" >&2; exit 1 ;;
+    esac
+  done
+
+  [[ -n "$ops_file" ]] || { echo "[ERR ] txn-apply requires --ops-file" >&2; exit 1; }
+  [[ -f "$ops_file" ]] || { echo "[ERR ] ops file not found: $ops_file" >&2; exit 1; }
+  [[ "$simulate_fail_at" =~ ^[0-9]+$ ]] || { echo "[ERR ] --simulate-fail-at must be an integer >= 0" >&2; exit 1; }
+
+  require_token
+
+  local txn_id
+  txn_id="$(date +%s)_$$"
+  local -a rollback_ops=()
+  local -a finalize_ops=()
+  local apply_failed=0
+
+  run_encoded_op() {
+    local encoded="$1"
+    local eop e1 e2
+    IFS='|' read -r eop e1 e2 _ <<< "$encoded"
+    case "$eop" in
+      delete) api_delete "$e1" ;;
+      move) api_move "$e1" "$e2" ;;
+      *) echo "[ERR ] unknown encoded op: $encoded" >&2; return 1 ;;
+    esac
+  }
+
+  local line op a1 a2 step_no=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%%$'\r'}"
+    [[ -z "$line" ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+    IFS='|' read -r op a1 a2 _ <<< "$line"
+    op="${op:-}"
+    a1="${a1:-}"
+    a2="${a2:-}"
+    step_no=$((step_no + 1))
+
+    echo "[TXN ] apply #$step_no $op $a1 ${a2:-}"
+
+    if [[ "$simulate_fail_at" -gt 0 && "$step_no" -eq "$simulate_fail_at" ]]; then
+      echo "[ERR ] simulated failure at step $step_no" >&2
+      apply_failed=1
+      break
+    fi
+
+    case "$op" in
+      mkdir)
+        [[ -n "$a1" ]] || { echo "[ERR ] mkdir requires path" >&2; apply_failed=1; break; }
+        if remote_path_exists "$a1"; then
+          :
+        else
+          if ! api_mkdir "$a1"; then
+            apply_failed=1
+            break
+          fi
+          rollback_ops+=("delete|$a1")
+        fi
+        ;;
+      upload)
+        [[ -n "$a1" ]] || { echo "[ERR ] upload requires path" >&2; apply_failed=1; break; }
+        local backup_path=""
+        if remote_path_exists "$a1"; then
+          backup_path="${a1}.txn.${txn_id}.bak"
+          if ! api_move "$a1" "$backup_path"; then
+            apply_failed=1
+            break
+          fi
+          rollback_ops+=("move|$backup_path|$a1")
+          finalize_ops+=("delete|$backup_path")
+        fi
+        if ! api_upload "$a1" "$a2"; then
+          apply_failed=1
+          break
+        fi
+        rollback_ops+=("delete|$a1")
+        ;;
+      move)
+        [[ -n "$a1" && -n "$a2" ]] || { echo "[ERR ] move requires from and to" >&2; apply_failed=1; break; }
+        local dst_backup=""
+        if remote_path_exists "$a2"; then
+          dst_backup="${a2}.txn.${txn_id}.bak"
+          if ! api_move "$a2" "$dst_backup"; then
+            apply_failed=1
+            break
+          fi
+          rollback_ops+=("move|$dst_backup|$a2")
+          finalize_ops+=("delete|$dst_backup")
+        fi
+        if ! api_move "$a1" "$a2"; then
+          apply_failed=1
+          break
+        fi
+        rollback_ops+=("move|$a2|$a1")
+        ;;
+      delete)
+        [[ -n "$a1" ]] || { echo "[ERR ] delete requires path" >&2; apply_failed=1; break; }
+        if remote_path_exists "$a1"; then
+          local delete_backup
+          delete_backup="${a1}.txn.${txn_id}.bak"
+          if ! api_move "$a1" "$delete_backup"; then
+            apply_failed=1
+            break
+          fi
+          rollback_ops+=("move|$delete_backup|$a1")
+          finalize_ops+=("delete|$delete_backup")
+        fi
+        ;;
+      *)
+        echo "[ERR ] Unsupported txn op '$op' in $ops_file" >&2
+        apply_failed=1
+        break
+        ;;
+    esac
+  done < "$ops_file"
+
+  if [[ "$apply_failed" -eq 1 ]]; then
+    echo "[TXN ] rollback start count=${#rollback_ops[@]}" >&2
+    local i rb
+    for ((i=${#rollback_ops[@]}-1; i>=0; i--)); do
+      rb="${rollback_ops[$i]}"
+      if ! run_encoded_op "$rb"; then
+        echo "[WARN] rollback op failed: $rb" >&2
+      fi
+    done
+    echo "[TXN ] rollback complete" >&2
+    return 1
+  fi
+
+  echo "[TXN ] commit finalize count=${#finalize_ops[@]}"
+  local f_item
+  for f_item in "${finalize_ops[@]}"; do
+    run_encoded_op "$f_item"
+  done
+  echo "[TXN ] commit complete steps=$step_no"
+  return 0
+}
+
 cmd_setup_engine_v2() {
   local module_id="st.profile.520"
   local versions_csv="1.0.0,1.1.0"
@@ -420,7 +632,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift ;;
     --verbose) VERBOSE=1; shift ;;
     -h|--help) usage; exit 0 ;;
-    auth-token|list|stat|mkdir|delete|move|upload|download|setup-engine-v2)
+    auth-token|list|stat|mkdir|delete|move|upload|download|setup-engine-v2|txn-apply)
       COMMAND="$1"
       shift
       ARGS=("$@")
@@ -463,6 +675,9 @@ case "$COMMAND" in
     ;;
   setup-engine-v2)
     cmd_setup_engine_v2 "${ARGS[@]}"
+    ;;
+  txn-apply)
+    cmd_txn_apply "${ARGS[@]}"
     ;;
   *)
     echo "[ERR ] Unsupported command: $COMMAND" >&2
