@@ -181,6 +181,30 @@ PRQ phase note:
 S5 closure note:
 - Decision-ready artifacts are published in `TRACKING/S5_RUNTIME_UNLOCK_PACKET_2026-03-04.md`, `TRACKING/S5_RUNTIME_UNLOCK_TRACEABILITY_MATRIX_2026-03-04.md`, and `TRACKING/S5_RUNTIME_UNLOCK_DECISION_TEMPLATE_2026-03-04.md`.
 
+## ST 520/1040 initial EBIN build tasks
+
+| ID | Epic | Task | Priority | Size | Sprint Target | Status | Dependencies |
+|---|---|---|---|---|---|---|---|
+| EBIN-201 | EPIC-06 | Build initial Atari ST 520/1040 EBIN bring-up pack (umbrella, non-pullable) | P0 | M | S6 | Backlog | EBIN-202, EBIN-203, EBIN-204, EBIN-205, EBIN-206, EBIN-207, EBIN-208, EBIN-209, EBIN-210, EBIN-211, EBIN-212, EBIN-213, EBIN-214, EBIN-215, EBIN-216 |
+| EBIN-202 | EPIC-06 | Freeze EBIN output layout, module naming, and manifest/index schema for ST 520/1040 | P0 | XS | S6 | Backlog | S5-007 |
+| EBIN-203 | EPIC-06 | Build and validate shared CPU EBIN (`st.cpu.m68k`) for initial ST 520/1040 set | P0 | S | S6 | Backlog | EBIN-202 |
+| EBIN-204 | EPIC-06 | Build and validate shared chipset EBIN (`st.chipset.glue_mmu_shifter`) | P0 | S | S6 | Backlog | EBIN-202 |
+| EBIN-205 | EPIC-06 | Build and validate shared MFP EBIN (`st.chipset.mfp`) | P0 | S | S6 | Backlog | EBIN-202 |
+| EBIN-206 | EPIC-06 | Build and validate shared ACIA/IKBD EBIN (`st.io.acia_ikbd`) | P0 | S | S6 | Backlog | EBIN-202 |
+| EBIN-207 | EPIC-06 | Build and validate shared DMA/FDC EBIN (`st.storage.dma_fdc`) | P0 | S | S6 | Backlog | EBIN-202 |
+| EBIN-208 | EPIC-06 | Build and validate shared PSG/GPIO EBIN (`st.audio_gpio.psg`) | P1 | S | S6 | Backlog | EBIN-202 |
+| EBIN-209 | EPIC-06 | Build ST 520 machine-profile EBIN (`st.profile.520`) and runtime mapping proof | P0 | S | S6 | Backlog | EBIN-202, EBIN-203, EBIN-204, EBIN-205, EBIN-206, EBIN-207, EBIN-208 |
+| EBIN-210 | EPIC-06 | Build ST 1040 machine-profile EBIN (`st.profile.1040`) and runtime mapping proof | P0 | S | S6 | Backlog | EBIN-202, EBIN-203, EBIN-204, EBIN-205, EBIN-206, EBIN-207, EBIN-208 |
+| EBIN-211 | EPIC-06 | Compose ST 520 EBIN package/index + SD-card placement contract | P0 | S | S6 | Backlog | EBIN-209 |
+| EBIN-212 | EPIC-06 | Compose ST 1040 EBIN package/index + SD-card placement contract | P0 | S | S6 | Backlog | EBIN-210 |
+| EBIN-213 | EPIC-06 | Execute deterministic startup resolution validation for ST 520 runtime EBIN selection | P0 | XS | S6 | Backlog | EBIN-211 |
+| EBIN-214 | EPIC-06 | Execute deterministic startup resolution validation for ST 1040 runtime EBIN selection | P0 | XS | S6 | Backlog | EBIN-212 |
+| EBIN-215 | EPIC-06 | Run integration smoke matrix (interrupt/startup/suspend-restore) against both ST bundles | P0 | S | S6 | Backlog | EBIN-213, EBIN-214 |
+| EBIN-216 | EPIC-06 | Assemble initial ST 520/1040 EBIN release packet with evidence and acceptance links | P0 | XS | S6 | Backlog | EBIN-215 |
+
+ST 520/1040 EBIN decomposition note:
+- Detailed execution packet: `TRACKING/EBIN_ST520_ST1040_INITIAL_BUILD_DECOMPOSITION_2026-03-04.md`.
+
 ## Decomposition queue (required before pull)
 
 No pending decomposition for currently indexed `M/L` tasks.

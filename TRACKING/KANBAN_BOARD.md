@@ -13,6 +13,7 @@ This board is the operational view for daily execution.
 ### Backlog
 
 - Umbrella trackers: T-001 through T-038
+- ST 520/1040 initial EBIN build decomposition: EBIN-201 through EBIN-216
 - Decomposed child backlog: (empty for T-054 through T-121)
 - Save-state decomposition backlog: T-039 through T-044
 - CRT readiness wave backlog: (empty)
