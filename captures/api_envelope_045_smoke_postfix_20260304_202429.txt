@@ -1,0 +1,6 @@
+required_file=present path=/home/sannis/electronics/esp32p4/projects/espTari/docs/emu_engine_v2/api_schema_envelope_v1.json
+required_file=present path=/home/sannis/electronics/esp32p4/projects/espTari/docs/emu_engine_v2/api_schema_baseline_bundle_v1.json
+api_envelope_schema=pass
+versioning_policy=pass
+canonical_error_schema=pass categories=13
+Smoke PASS
