@@ -1,0 +1,112 @@
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmpu91p5a6x/st_cpu_m68k_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_cpu_m68k_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmpu91p5a6x/component.ld -o /tmp/tmpu91p5a6x/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmpu91p5a6x/st_cpu_m68k_component.o
+Code size: 353 bytes
+Data size: 44 bytes
+BSS size: 84 bytes
+Entry offset: 0
+Relocations: 9
+Built /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/cpu/st.cpu.m68k-1.0.0.ebin: 532 bytes
+  Code: 353 bytes, Data: 44 bytes, BSS: 84 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 9
+metadata_written index=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/cpu/index.json manifest=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/cpu/manifest.json
+Built artifact: /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/cpu/st.cpu.m68k-1.0.0.ebin
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmpc5medyyw/st_chipset_glue_mmu_shifter_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_chipset_glue_mmu_shifter_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmpc5medyyw/component.ld -o /tmp/tmpc5medyyw/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmpc5medyyw/st_chipset_glue_mmu_shifter_component.o
+Code size: 293 bytes
+Data size: 60 bytes
+BSS size: 520 bytes
+Entry offset: 0
+Relocations: 14
+Built /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/chipset/st.chipset.glue_mmu_shifter-1.0.0.ebin: 528 bytes
+  Code: 293 bytes, Data: 60 bytes, BSS: 520 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 14
+metadata_written index=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/chipset/index.json manifest=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/chipset/manifest.json
+Built artifact: /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/chipset/st.chipset.glue_mmu_shifter-1.0.0.ebin
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmpgxc4s6qz/st_chipset_mfp_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_chipset_mfp_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmpgxc4s6qz/component.ld -o /tmp/tmpgxc4s6qz/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmpgxc4s6qz/st_chipset_mfp_component.o
+Code size: 332 bytes
+Data size: 60 bytes
+BSS size: 264 bytes
+Entry offset: 0
+Relocations: 14
+Built /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/chipset/st.chipset.mfp-1.0.0.ebin: 564 bytes
+  Code: 332 bytes, Data: 60 bytes, BSS: 264 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 14
+metadata_written index=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/chipset/index.json manifest=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/chipset/manifest.json
+Built artifact: /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/chipset/st.chipset.mfp-1.0.0.ebin
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmpbj_i3n7m/st_io_acia_ikbd_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_io_acia_ikbd_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmpbj_i3n7m/component.ld -o /tmp/tmpbj_i3n7m/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmpbj_i3n7m/st_io_acia_ikbd_component.o
+Code size: 665 bytes
+Data size: 60 bytes
+BSS size: 32 bytes
+Entry offset: 0
+Relocations: 14
+Built /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/io/st.io.acia_ikbd-1.0.0.ebin: 900 bytes
+  Code: 665 bytes, Data: 60 bytes, BSS: 32 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 14
+metadata_written index=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/io/index.json manifest=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/io/manifest.json
+Built artifact: /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/io/st.io.acia_ikbd-1.0.0.ebin
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmpv0sf_y5j/st_storage_dma_fdc_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_storage_dma_fdc_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmpv0sf_y5j/component.ld -o /tmp/tmpv0sf_y5j/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmpv0sf_y5j/st_storage_dma_fdc_component.o
+Code size: 800 bytes
+Data size: 60 bytes
+BSS size: 16 bytes
+Entry offset: 0
+Relocations: 14
+Built /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/storage/st.storage.dma_fdc-1.0.0.ebin: 1032 bytes
+  Code: 800 bytes, Data: 60 bytes, BSS: 16 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 14
+metadata_written index=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/storage/index.json manifest=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/storage/manifest.json
+Built artifact: /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/storage/st.storage.dma_fdc-1.0.0.ebin
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmp2w__z6jc/st_audio_gpio_psg_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_audio_gpio_psg_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmp2w__z6jc/component.ld -o /tmp/tmp2w__z6jc/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmp2w__z6jc/st_audio_gpio_psg_component.o
+Code size: 743 bytes
+Data size: 60 bytes
+BSS size: 28 bytes
+Entry offset: 0
+Relocations: 14
+Built /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/audio_gpio/st.audio_gpio.psg-1.0.0.ebin: 976 bytes
+  Code: 743 bytes, Data: 60 bytes, BSS: 28 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 14
+metadata_written index=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/audio_gpio/index.json manifest=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/audio_gpio/manifest.json
+Built artifact: /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/audio_gpio/st.audio_gpio.psg-1.0.0.ebin
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmpnvsu0jlg/st_profile_1040_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_profile_1040_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmpnvsu0jlg/component.ld -o /tmp/tmpnvsu0jlg/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmpnvsu0jlg/st_profile_1040_component.o
+Code size: 105 bytes
+Data size: 32 bytes
+BSS size: 8 bytes
+Entry offset: 0
+Relocations: 7
+Built /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/machine_profile/st.profile.1040-1.0.0.ebin: 256 bytes
+  Code: 105 bytes, Data: 32 bytes, BSS: 8 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 7
+metadata_written index=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/machine_profile/index.json manifest=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/machine_profile/manifest.json
+Built artifact: /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/machine_profile/st.profile.1040-1.0.0.ebin
+package_written index=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/packages/st.profile.1040/index.json manifest=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/packages/st.profile.1040/manifest.json
+Composed package: /tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/packages/st.profile.1040
+required_file=present path=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/cpu/st.cpu.m68k-1.0.0.ebin
+required_file=present path=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/chipset/st.chipset.glue_mmu_shifter-1.0.0.ebin
+required_file=present path=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/chipset/st.chipset.mfp-1.0.0.ebin
+required_file=present path=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/io/st.io.acia_ikbd-1.0.0.ebin
+required_file=present path=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/storage/st.storage.dma_fdc-1.0.0.ebin
+required_file=present path=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/audio_gpio/st.audio_gpio.psg-1.0.0.ebin
+required_file=present path=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/machine_profile/st.profile.1040-1.0.0.ebin
+required_file=present path=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/packages/st.profile.1040/index.json
+required_file=present path=/tmp/tmp.I3KrGEgRn8/sdcard/ebins/atari_st/packages/st.profile.1040/manifest.json
+package_1040_metadata_contract=pass
+package_1040_placement_contract=pass path=ebins/atari_st/packages/st.profile.1040
+Smoke PASS
