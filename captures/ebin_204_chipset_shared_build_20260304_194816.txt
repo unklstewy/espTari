@@ -1,0 +1,20 @@
+Using toolchain: riscv32-esp-elf-
+Compiling: riscv32-esp-elf-gcc -c -fPIC -fno-common -ffunction-sections -fdata-sections -march=rv32imafc -mabi=ilp32f -mno-relax -O2 -Wall -Wextra -nostdlib -ffreestanding -o /tmp/tmpzdqjn0ie/st_chipset_glue_mmu_shifter_component.o /home/sannis/electronics/esp32p4/projects/espTari/tools/ebin_builder/st_chipset_glue_mmu_shifter_component.c
+Linking: riscv32-esp-elf-ld -T /tmp/tmpzdqjn0ie/component.ld -o /tmp/tmpzdqjn0ie/component.elf --entry component_entry -nostdlib --no-relax --gc-sections -q /tmp/tmpzdqjn0ie/st_chipset_glue_mmu_shifter_component.o
+Code size: 293 bytes
+Data size: 60 bytes
+BSS size: 520 bytes
+Entry offset: 0
+Relocations: 14
+Built /tmp/tmp.cXwzcJYqAG/sdcard/ebins/atari_st/chipset/st.chipset.glue_mmu_shifter-1.0.0.ebin: 528 bytes
+  Code: 293 bytes, Data: 60 bytes, BSS: 520 bytes
+  Entry: component_entry @ offset 0
+  Relocations: 14
+metadata_written index=/tmp/tmp.cXwzcJYqAG/sdcard/ebins/atari_st/chipset/index.json manifest=/tmp/tmp.cXwzcJYqAG/sdcard/ebins/atari_st/chipset/manifest.json
+Built artifact: /tmp/tmp.cXwzcJYqAG/sdcard/ebins/atari_st/chipset/st.chipset.glue_mmu_shifter-1.0.0.ebin
+required_file=present path=/tmp/tmp.cXwzcJYqAG/sdcard/ebins/atari_st/chipset/st.chipset.glue_mmu_shifter-1.0.0.ebin
+required_file=present path=/tmp/tmp.cXwzcJYqAG/sdcard/ebins/atari_st/chipset/index.json
+required_file=present path=/tmp/tmp.cXwzcJYqAG/sdcard/ebins/atari_st/chipset/manifest.json
+chipset_ebin_header=pass
+chipset_metadata_contract=pass
+Smoke PASS
